@@ -72,8 +72,16 @@ export default function SettingsPage() {
         const { character: char } = data;
         setUrlTestOk(true);
         setUrlTestResult(`✓ ${char.name} — Level ${char.level} ${char.race ?? ""} (HP ${char.maxHp}, AC ${char.ac})`);
-        setShareUrls((prev) => [...prev, { id: crypto.randomUUID(), url, name: char.name }]);
+        const newEntry: SavedCharacterUrl = { id: crypto.randomUUID(), url, name: char.name };
+        const updated = [...shareUrls, newEntry];
+        setShareUrls(updated);
         setNewShareUrl("");
+        // Persist immediately so the encounter dialog sees it without a manual save
+        await fetch("/api/settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ddb_share_urls: JSON.stringify(updated) }),
+        });
       } else {
         setUrlTestOk(false);
         setUrlTestResult(`✗ ${data.error ?? "Could not fetch character"}`);
@@ -171,7 +179,15 @@ export default function SettingsPage() {
                     size="icon-sm"
                     variant="ghost"
                     className="text-destructive hover:text-destructive flex-none"
-                    onClick={() => setShareUrls((prev) => prev.filter((u) => u.id !== entry.id))}
+                    onClick={async () => {
+                    const updated = shareUrls.filter((u) => u.id !== entry.id);
+                    setShareUrls(updated);
+                    await fetch("/api/settings", {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ ddb_share_urls: JSON.stringify(updated) }),
+                    });
+                  }}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </Button>

@@ -81,7 +81,7 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
   const [loadingLibrary, setLoadingLibrary] = useState(false);
 
   useEffect(() => {
-    if (tab === "ddb" && ddbCharacters.length === 0) loadDDBCharacters();
+    if (tab === "ddb") loadDDBCharacters();
     if (tab === "library") loadLibrary(libraryQuery);
   }, [tab]);
 
@@ -534,7 +534,7 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
             ) : ddbCharacters.length === 0 ? (
               <div className="text-center py-12 space-y-2">
                 <p className="text-muted-foreground text-sm">
-                  No characters found. Configure your D&D Beyond Cobalt token in Settings.
+                  No characters found. Add D&D Beyond character share URLs in Settings.
                 </p>
                 <Button variant="outline" size="sm" onClick={loadDDBCharacters}>
                   Retry
