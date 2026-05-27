@@ -1,86 +1,26 @@
 import type { DDBCharacter, StatBlock } from "@/lib/types";
 
-const AUTH_SERVICE = "https://auth-service.dndbeyond.com/v1/cobalt-token";
-const CHARACTER_SERVICE = "https://character-service.dndbeyond.com/character/v5";
-
-export async function exchangeCobaltForJWT(cobaltToken: string): Promise<string> {
-  const res = await fetch(AUTH_SERVICE, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Cookie: `CobaltSession=${cobaltToken}`,
-    },
-    body: JSON.stringify({}),
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`DDB auth exchange failed (${res.status}): ${body.slice(0, 200)}`);
-  }
-  const json = await res.json();
-  const token = json.token ?? json.jwt ?? json.access_token;
-  if (!token) throw new Error("DDB auth response missing token field");
-  return token as string;
-}
-
-function decodeJWTPayload(jwt: string): Record<string, unknown> {
-  try {
-    const payload = jwt.split(".")[1];
-    const padded = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const decoded = Buffer.from(padded, "base64").toString("utf-8");
-    return JSON.parse(decoded);
-  } catch {
-    return {};
-  }
-}
-
-function getUserIdFromJWT(jwt: string): string | null {
-  const payload = decodeJWTPayload(jwt);
-  return (payload.sub ?? payload.userId ?? payload.nameid ?? null) as string | null;
-}
-
-export async function fetchDDBCharacters(cobaltToken: string): Promise<DDBCharacter[]> {
-  const jwt = await exchangeCobaltForJWT(cobaltToken);
-  const userId = getUserIdFromJWT(jwt);
-  if (!userId) throw new Error("Could not determine user ID from DDB token");
-
-  const url = `${CHARACTER_SERVICE}/characters?userId=${encodeURIComponent(userId)}&skip=0&take=50`;
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${jwt}`,
-      "Content-Type": "application/json",
-    },
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`DDB character fetch failed (${res.status}): ${body.slice(0, 200)}`);
-  }
-  const json = await res.json();
-  const characters = json.data ?? json.characters ?? json ?? [];
-  return (Array.isArray(characters) ? characters : []).map(parseDDBCharacter);
-}
-
-export async function fetchDDBCharacterById(
-  characterId: string | number,
-  cobaltToken: string
-): Promise<DDBCharacter> {
-  const jwt = await exchangeCobaltForJWT(cobaltToken);
-  const res = await fetch(`${CHARACTER_SERVICE}/character/${characterId}`, {
-    headers: {
-      Authorization: `Bearer ${jwt}`,
-      "Content-Type": "application/json",
-    },
-  });
-  if (!res.ok) throw new Error(`Failed to fetch character ${characterId}: ${res.status}`);
-  const json = await res.json();
-  return parseDDBCharacter(json.data ?? json);
-}
+// DDB's character-list API (character-service.dndbeyond.com) is blocked for
+// server-side requests via Cloudflare TLS fingerprinting — all attempts return
+// empty 404s regardless of headers. The public /character/{id}/json endpoint
+// is unprotected and works reliably. Use share URLs.
+const BROWSER_HEADERS: Record<string, string> = {
+  "User-Agent":
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  Accept: "application/json, text/plain, */*",
+  "Accept-Language": "en-US,en;q=0.9",
+  Origin: "https://www.dndbeyond.com",
+  Referer: "https://www.dndbeyond.com/",
+};
 
 export async function fetchPublicCharacter(shareUrl: string): Promise<DDBCharacter> {
-  const idMatch = shareUrl.match(/\/characters\/(\d+)/);
-  if (!idMatch) throw new Error("Invalid D&D Beyond character URL");
+  const idMatch = shareUrl.match(/\/characters\/(\d+)/) ?? shareUrl.match(/^(\d+)$/);
+  if (!idMatch) throw new Error("Paste a full D&D Beyond character URL or just the numeric ID");
   const id = idMatch[1];
-  const res = await fetch(`https://www.dndbeyond.com/character/${id}/json`);
-  if (!res.ok) throw new Error(`Failed to fetch public character: ${res.status}`);
+  const res = await fetch(`https://www.dndbeyond.com/character/${id}/json`, {
+    headers: BROWSER_HEADERS,
+  });
+  if (!res.ok) throw new Error(`Failed to fetch character ${id} (${res.status})`);
   const json = await res.json();
   return parseDDBCharacter(json);
 }

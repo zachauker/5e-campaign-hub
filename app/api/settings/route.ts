@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { settings } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
-const ALLOWED_KEYS = ["ddb_cobalt_token", "campaign_name", "default_roll_advantage"];
+const ALLOWED_KEYS = ["campaign_name", "default_roll_advantage", "ddb_share_urls"];
 
 export async function GET() {
   const rows = await db.query.settings.findMany();

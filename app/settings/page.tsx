@@ -4,62 +4,82 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Eye, EyeOff, Check, Loader2, ExternalLink } from "lucide-react";
+import { ArrowLeft, Check, Loader2, Plus, Trash2, User, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+interface SavedCharacterUrl {
+  id: string;
+  url: string;
+  name?: string;
+}
 
 export default function SettingsPage() {
   const router = useRouter();
-  const [cobaltToken, setCobaltToken] = useState("");
-  const [showToken, setShowToken] = useState(false);
   const [campaignName, setCampaignName] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [tokenStatus, setTokenStatus] = useState<"unconfigured" | "configured">("unconfigured");
-  const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<string | null>(null);
+  const [shareUrls, setShareUrls] = useState<SavedCharacterUrl[]>([]);
+  const [newShareUrl, setNewShareUrl] = useState("");
+  const [testingUrl, setTestingUrl] = useState(false);
+  const [urlTestResult, setUrlTestResult] = useState<string | null>(null);
+  const [urlTestOk, setUrlTestOk] = useState(false);
 
   useEffect(() => {
     fetch("/api/settings")
       .then((r) => r.json())
       .then((data) => {
         setCampaignName(data.campaign_name ?? "");
-        setTokenStatus(data.ddb_cobalt_token === "configured" ? "configured" : "unconfigured");
+        try { setShareUrls(JSON.parse(data.ddb_share_urls ?? "[]")); } catch {}
       });
   }, []);
 
   async function save() {
     setSaving(true);
     try {
-      const body: Record<string, string> = { campaign_name: campaignName };
-      if (cobaltToken.trim()) body.ddb_cobalt_token = cobaltToken.trim();
       await fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          campaign_name: campaignName,
+          ddb_share_urls: JSON.stringify(shareUrls),
+        }),
       });
       setSaved(true);
-      if (cobaltToken.trim()) setTokenStatus("configured");
       setTimeout(() => setSaved(false), 2000);
     } finally {
       setSaving(false);
     }
   }
 
-  async function testDDB() {
-    setTesting(true);
-    setTestResult(null);
+  async function addShareUrl() {
+    const url = newShareUrl.trim();
+    if (!url) return;
+    if (shareUrls.some((u) => u.url === url)) {
+      setUrlTestResult("Already added");
+      setUrlTestOk(false);
+      return;
+    }
+    setTestingUrl(true);
+    setUrlTestResult(null);
     try {
-      const res = await fetch("/api/ddb/characters");
+      const res = await fetch("/api/ddb/characters", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shareUrl: url }),
+      });
       const data = await res.json();
-      if (data.characters?.length > 0) {
-        setTestResult(`✓ Connected — found ${data.characters.length} character(s)`);
-      } else if (data.error) {
-        setTestResult(`✗ ${data.error}`);
+      if (data.character) {
+        const { character: char } = data;
+        setUrlTestOk(true);
+        setUrlTestResult(`✓ ${char.name} — Level ${char.level} ${char.race ?? ""} (HP ${char.maxHp}, AC ${char.ac})`);
+        setShareUrls((prev) => [...prev, { id: crypto.randomUUID(), url, name: char.name }]);
+        setNewShareUrl("");
       } else {
-        setTestResult("✓ Connected (no characters found)");
+        setUrlTestOk(false);
+        setUrlTestResult(`✗ ${data.error ?? "Could not fetch character"}`);
       }
     } finally {
-      setTesting(false);
+      setTestingUrl(false);
     }
   }
 
@@ -88,89 +108,85 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* D&D Beyond */}
+        {/* D&D Beyond Characters */}
         <section className="rounded-xl border border-border bg-card p-6 space-y-4">
-          <div className="flex items-start justify-between">
-            <div>
-              <h2 className="font-semibold">D&D Beyond Integration</h2>
-              <p className="text-sm text-muted-foreground mt-0.5">
-                Connect your D&D Beyond account to import character sheets.
-              </p>
-            </div>
-            <span
-              className={cn(
-                "px-2 py-0.5 rounded-full text-xs border",
-                tokenStatus === "configured"
-                  ? "text-[var(--hp-high)] border-[var(--hp-high)]/40 bg-[var(--hp-high)]/10"
-                  : "text-muted-foreground border-border"
-              )}
-            >
-              {tokenStatus === "configured" ? "Connected" : "Not configured"}
-            </span>
-          </div>
-
-          <div className="bg-muted rounded-lg p-4 text-sm space-y-2 border border-border">
-            <p className="font-medium text-sm">How to get your Cobalt token:</p>
-            <ol className="list-decimal list-inside space-y-1 text-muted-foreground text-xs">
-              <li>Log into D&D Beyond in your browser</li>
-              <li>Open DevTools (F12 or Cmd+Option+I)</li>
-              <li>Go to Application → Cookies → dndbeyond.com</li>
-              <li>Find the <code className="bg-background px-1 rounded">CobaltSession</code> cookie</li>
-              <li>Copy its value and paste it below</li>
-            </ol>
-          </div>
-
           <div>
-            <label className="text-sm text-muted-foreground block mb-1.5">Cobalt Session Token</label>
-            <div className="relative">
-              <Input
-                type={showToken ? "text" : "password"}
-                value={cobaltToken}
-                onChange={(e) => setCobaltToken(e.target.value)}
-                placeholder={tokenStatus === "configured" ? "••••••• (already set)" : "Paste token here..."}
-                className="pr-10"
-              />
-              <button
-                onClick={() => setShowToken((v) => !v)}
-                className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
-              >
-                {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
+            <h2 className="font-semibold">D&D Beyond Characters</h2>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Add each PC's character sheet URL. They'll appear in the D&D Beyond tab when adding combatants.
+            </p>
+          </div>
+
+          <div className="flex items-start gap-2 rounded-lg bg-muted border border-border p-3 text-xs text-muted-foreground">
+            <Info className="w-3.5 h-3.5 flex-none mt-0.5 text-[var(--initiative)]" />
+            <div className="space-y-1">
+              <p className="font-medium text-foreground">How to get a character URL</p>
+              <ol className="list-decimal list-inside space-y-0.5">
+                <li>Open the character on D&D Beyond</li>
+                <li>Click <strong>Share</strong> and enable sharing if prompted</li>
+                <li>Copy the URL from the browser address bar</li>
+                <li>Paste it below — characters don't need to be public, just shared</li>
+              </ol>
             </div>
           </div>
 
-          {tokenStatus === "configured" && (
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={testDDB}
-                disabled={testing}
-                className="gap-1.5"
-              >
-                {testing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-                Test Connection
-              </Button>
-              {testResult && (
-                <span
-                  className={cn(
-                    "text-sm",
-                    testResult.startsWith("✓") ? "text-[var(--hp-high)]" : "text-destructive"
-                  )}
-                >
-                  {testResult}
-                </span>
-              )}
+          {/* URL input */}
+          <div className="flex gap-2">
+            <Input
+              placeholder="https://www.dndbeyond.com/characters/12345678"
+              value={newShareUrl}
+              onChange={(e) => { setNewShareUrl(e.target.value); setUrlTestResult(null); }}
+              onKeyDown={(e) => e.key === "Enter" && addShareUrl()}
+              className="flex-1"
+            />
+            <Button
+              onClick={addShareUrl}
+              disabled={testingUrl || !newShareUrl.trim()}
+              className="gap-1.5 flex-none"
+            >
+              {testingUrl
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                : <Plus className="w-3.5 h-3.5" />}
+              Add
+            </Button>
+          </div>
+
+          {urlTestResult && (
+            <p className={cn("text-sm", urlTestOk ? "text-[var(--hp-high)]" : "text-destructive")}>
+              {urlTestResult}
+            </p>
+          )}
+
+          {/* Saved characters */}
+          {shareUrls.length > 0 ? (
+            <div className="space-y-1.5">
+              {shareUrls.map((entry) => (
+                <div key={entry.id} className="flex items-center gap-2 p-2.5 rounded-lg bg-muted border border-border">
+                  <User className="w-4 h-4 text-[var(--hp-high)] flex-none" />
+                  <div className="flex-1 min-w-0">
+                    {entry.name && <p className="text-sm font-medium leading-tight">{entry.name}</p>}
+                    <p className="text-xs text-muted-foreground truncate">{entry.url}</p>
+                  </div>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    className="text-destructive hover:text-destructive flex-none"
+                    onClick={() => setShareUrls((prev) => prev.filter((u) => u.id !== entry.id))}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              ))}
             </div>
+          ) : (
+            <p className="text-xs text-muted-foreground text-center py-3 border border-dashed border-border rounded-lg">
+              No characters added yet
+            </p>
           )}
         </section>
 
         <Button onClick={save} disabled={saving} className="gap-1.5 w-full">
-          {saving ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : saved ? (
-            <Check className="w-4 h-4" />
-          ) : null}
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <Check className="w-4 h-4" /> : null}
           {saved ? "Saved!" : saving ? "Saving..." : "Save Settings"}
         </Button>
       </main>
