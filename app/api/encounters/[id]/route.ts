@@ -10,6 +10,7 @@ function parseCombatant(row: typeof combatants.$inferSelect): CombatantWithParse
     type: row.type as "pc" | "npc" | "monster",
     conditions: JSON.parse(row.conditions) as Condition[],
     statBlock: row.statBlock ? JSON.parse(row.statBlock) : null,
+    ddbCharacter: row.ddbCharacterData ? JSON.parse(row.ddbCharacterData) : null,
   };
 }
 
@@ -65,6 +66,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           isVisible: c.isVisible,
           sortOrder: c.sortOrder,
           statBlock: c.statBlock ? JSON.stringify(c.statBlock) : null,
+          ddbCharacterData: c.ddbCharacter ? JSON.stringify(c.ddbCharacter) : null,
           avatarUrl: c.avatarUrl,
         })
         .where(eq(combatants.id, c.id));

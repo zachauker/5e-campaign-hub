@@ -1,0 +1,9 @@
+{
+  "files": ["app/**/*.tsx", "app/**/*.ts", "components/**/*.tsx"],
+  "framework": "nextjs",
+  "devCommand": "npm run dev",
+  "devUrl": "http://localhost:3000",
+  "insertBefore": "</body>",
+  "commentSyntax": ["/*", "*/"],
+  "cspChecked": true
+}

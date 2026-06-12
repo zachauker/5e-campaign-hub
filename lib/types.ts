@@ -99,20 +99,58 @@ export interface StatBlock {
   imageUrl?: string;
 }
 
+export interface DDBSpell {
+  name: string;
+  level: number;
+  school?: string;
+  castingTime?: string;
+  range?: string;
+  duration?: string;
+  concentration?: boolean;
+  ritual?: boolean;
+  components?: string;
+  desc?: string;
+  prepared: boolean;
+  alwaysPrepared?: boolean;
+}
+
+export interface DDBFeature {
+  name: string;
+  desc: string;
+  source: string; // class name, race, background, etc.
+  level?: number;
+}
+
+export interface DDBAttack {
+  name: string;
+  toHit?: number;
+  damageRoll?: string;
+  damageType?: string;
+  range?: string;
+  notes?: string;
+}
+
 export interface DDBCharacter {
   id: number;
   name: string;
   race?: string;
-  classes?: Array<{ name: string; level: number }>;
+  subrace?: string;
+  classes?: Array<{ name: string; subclass?: string; level: number }>;
   level: number;
+  background?: string;
+  alignment?: string;
   ac: number;
+  acNote?: string;
   maxHp: number;
   currentHp?: number;
   tempHp?: number;
+  hitDice?: string; // e.g. "8d8+3d10"
+  hitDiceRemaining?: Record<string, number>; // e.g. { "d8": 5, "d10": 2 }
   initiativeBonus: number;
   speed: number;
   avatarUrl?: string;
   playerName?: string;
+  inspiration?: boolean;
   stats: {
     str: number;
     dex: number;
@@ -121,11 +159,40 @@ export interface DDBCharacter {
     wis: number;
     cha: number;
   };
-  spellSlots?: Record<string, { used: number; max: number }>;
+  savingThrows: Record<string, { total: number; proficient: boolean }>;
+  skills: Record<string, { total: number; proficient: boolean; expertise: boolean; ability: string }>;
   proficiencyBonus: number;
   passivePerception: number;
-  savingThrows?: Record<string, number>;
-  skills?: Record<string, number>;
+  passiveInsight?: number;
+  passiveInvestigation?: number;
+  // Spellcasting
+  spellcastingAbility?: string;
+  spellSaveDC?: number;
+  spellAttackBonus?: number;
+  spellSlots?: Record<number, { used: number; max: number }>;
+  spells?: DDBSpell[];
+  // Character details
+  personalityTraits?: string;
+  ideals?: string;
+  bonds?: string;
+  flaws?: string;
+  appearance?: string;
+  backstory?: string;
+  // Proficiencies & languages
+  languages?: string[];
+  armorProficiencies?: string[];
+  weaponProficiencies?: string[];
+  toolProficiencies?: string[];
+  // Combat
+  attacks?: DDBAttack[];
+  features?: DDBFeature[];
+  // Class resources (e.g. Rage, Ki, Sorcery Points)
+  classResources?: Array<{ name: string; used: number; max: number }>;
+  // Currency
+  currency?: { cp: number; sp: number; ep: number; gp: number; pp: number };
+  // Death saves
+  deathSaveSuccesses?: number;
+  deathSaveFailures?: number;
 }
 
 export interface EncounterWithCombatants {
@@ -160,6 +227,7 @@ export interface CombatantWithParsed {
   ddbCharacterId: string | null;
   monsterSlug: string | null;
   statBlock: StatBlock | null;
+  ddbCharacter?: DDBCharacter | null;
   avatarUrl: string | null;
   playerName: string | null;
   color: string | null;

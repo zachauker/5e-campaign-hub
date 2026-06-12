@@ -31,6 +31,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       ddbCharacterId: body.ddbCharacterId ?? null,
       monsterSlug: body.monsterSlug ?? null,
       statBlock: body.statBlock ? JSON.stringify(body.statBlock) : null,
+      ddbCharacterData: body.ddbCharacter ? JSON.stringify(body.ddbCharacter) : null,
       avatarUrl: body.avatarUrl ?? null,
       playerName: body.playerName ?? null,
       color: body.color ?? null,
@@ -42,6 +43,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     type: row.type as "pc" | "npc" | "monster",
     conditions: JSON.parse(row.conditions) as Condition[],
     statBlock: row.statBlock ? JSON.parse(row.statBlock) : null,
+    ddbCharacter: row.ddbCharacterData ? JSON.parse(row.ddbCharacterData) : null,
   };
 
   return NextResponse.json(result, { status: 201 });

@@ -31,6 +31,7 @@ export const combatants = sqliteTable("combatants", {
   ddbCharacterId: text("ddb_character_id"),
   monsterSlug: text("monster_slug"),
   statBlock: text("stat_block"),
+  ddbCharacterData: text("ddb_character_data"),
   avatarUrl: text("avatar_url"),
   playerName: text("player_name"),
   color: text("color"),

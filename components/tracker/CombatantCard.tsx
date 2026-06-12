@@ -15,8 +15,6 @@ import {
   EyeOff,
   Trash2,
   BookOpen,
-  ChevronDown,
-  ChevronUp,
   GripVertical,
   Zap,
   User,
@@ -80,16 +78,15 @@ export function CombatantCard({ combatant: c, isActive, dragHandleProps }: Comba
         "relative rounded-xl border transition-all duration-200 overflow-hidden",
         isActive && "combatant-active border-[var(--initiative)]",
         !isActive && "border-border",
-        isDead && "opacity-60",
+        isDead && "opacity-40 [filter:grayscale(0.5)]",
         isSelected && !isActive && "border-muted-foreground",
-        c.color ? "border-l-[3px]" : ""
       )}
-      style={c.color ? { borderLeftColor: c.color } : undefined}
+      style={isActive ? { backgroundColor: "rgba(212, 175, 55, 0.05)" } : undefined}
       onClick={() => selectCombatant(isSelected ? null : c.id)}
     >
-      {/* HP bar strip at top */}
+      {/* HP bar strip — 6px, color-coded */}
       {c.hpMax > 0 && (
-        <div className="h-1 bg-muted">
+        <div className="h-1.5 bg-muted/60">
           <div
             className="hp-bar h-full"
             style={{ width: `${pct}%`, backgroundColor: color }}
@@ -99,13 +96,13 @@ export function CombatantCard({ combatant: c, isActive, dragHandleProps }: Comba
 
       <div className="p-3">
         {/* Header row */}
-        <div className="flex items-start gap-2">
+        <div className="flex items-center gap-2">
           {/* Drag handle */}
           <div
             {...dragHandleProps}
-            className="mt-0.5 text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing touch-none"
+            className="text-muted-foreground/40 hover:text-muted-foreground cursor-grab active:cursor-grabbing touch-none flex-none"
           >
-            <GripVertical className="w-4 h-4" />
+            <GripVertical className="w-3.5 h-3.5" />
           </div>
 
           {/* Initiative */}
@@ -117,18 +114,34 @@ export function CombatantCard({ combatant: c, isActive, dragHandleProps }: Comba
                 value={initVal}
                 onChange={(e) => setInitVal(e.target.value)}
                 onBlur={commitInit}
-                onKeyDown={(e) => { if (e.key === "Enter") commitInit(); if (e.key === "Escape") setEditingInit(false); }}
-                className="w-14 h-8 text-center text-sm font-bold px-1"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") commitInit();
+                  if (e.key === "Escape") setEditingInit(false);
+                }}
+                className="w-12 h-10 text-center text-base font-bold px-1"
                 onClick={(e) => e.stopPropagation()}
               />
             ) : (
               <button
-                onClick={(e) => { e.stopPropagation(); setEditingInit(true); setInitVal(String(c.initiative ?? "")); }}
-                className="w-14 h-8 flex flex-col items-center justify-center rounded-md bg-muted hover:bg-accent transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditingInit(true);
+                  setInitVal(String(c.initiative ?? ""));
+                }}
+                className={cn(
+                  "w-12 h-10 flex items-center justify-center rounded-lg transition-colors",
+                  isActive
+                    ? "bg-[var(--initiative)]/20"
+                    : "bg-muted hover:bg-accent"
+                )}
                 title="Click to set initiative"
               >
-                <span className="text-[9px] text-muted-foreground uppercase tracking-wide">Init</span>
-                <span className="text-sm font-bold text-[var(--initiative)]">
+                <span
+                  className={cn(
+                    "text-base font-bold tabular-nums",
+                    isActive ? "text-[var(--initiative)]" : "text-foreground"
+                  )}
+                >
                   {c.initiative ?? "—"}
                 </span>
               </button>
@@ -141,12 +154,14 @@ export function CombatantCard({ combatant: c, isActive, dragHandleProps }: Comba
               src={c.avatarUrl}
               alt={c.name}
               className="w-9 h-9 rounded-full object-cover border border-border flex-none"
-              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+              }}
             />
           ) : (
             <div
-              className="w-9 h-9 rounded-full border border-border flex items-center justify-center flex-none text-muted-foreground"
-              style={{ backgroundColor: `${typeColor}22`, borderColor: typeColor }}
+              className="w-9 h-9 rounded-full border flex items-center justify-center flex-none text-muted-foreground"
+              style={{ backgroundColor: `${typeColor}18`, borderColor: `${typeColor}44` }}
             >
               {TYPE_ICONS[c.type]}
             </div>
@@ -160,50 +175,61 @@ export function CombatantCard({ combatant: c, isActive, dragHandleProps }: Comba
                 value={nameVal}
                 onChange={(e) => setNameVal(e.target.value)}
                 onBlur={commitName}
-                onKeyDown={(e) => { if (e.key === "Enter") commitName(); if (e.key === "Escape") setEditingName(false); }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") commitName();
+                  if (e.key === "Escape") setEditingName(false);
+                }}
                 className="h-7 text-sm font-semibold px-1"
                 onClick={(e) => e.stopPropagation()}
               />
             ) : (
-              <div className="flex items-center gap-1.5">
-                <button
-                  onDoubleClick={(e) => { e.stopPropagation(); setEditingName(true); setNameVal(c.name); }}
-                  className={cn(
-                    "text-sm font-semibold truncate text-left hover:text-primary transition-colors",
-                    isActive && "text-[var(--initiative)]",
-                    isDead && "line-through text-muted-foreground"
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      setEditingName(true);
+                      setNameVal(c.name);
+                    }}
+                    className={cn(
+                      "text-sm font-semibold truncate text-left transition-colors max-w-full",
+                      isActive
+                        ? "text-[var(--initiative)]"
+                        : "text-foreground hover:text-primary",
+                      isDead && "line-through text-muted-foreground"
+                    )}
+                  >
+                    {c.name}
+                  </button>
+                  {isActive && (
+                    <span className="flex-none w-1.5 h-1.5 rounded-full bg-[var(--initiative)] animate-pulse" />
                   )}
-                >
-                  {c.name}
-                </button>
-                {isActive && (
-                  <span className="flex-none w-1.5 h-1.5 rounded-full bg-[var(--initiative)] animate-pulse" />
-                )}
+                </div>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span
+                    className="text-[10px] font-medium capitalize flex items-center gap-0.5"
+                    style={{ color: typeColor }}
+                  >
+                    {TYPE_ICONS[c.type]} {c.type}
+                  </span>
+                  {c.playerName && (
+                    <span className="text-[10px] text-muted-foreground">· {c.playerName}</span>
+                  )}
+                  {c.isConcentrating && (
+                    <span className="text-[10px] text-blue-400 font-medium">· Conc</span>
+                  )}
+                </div>
               </div>
             )}
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <span
-                className="text-[10px] font-medium capitalize flex items-center gap-0.5"
-                style={{ color: typeColor }}
-              >
-                {TYPE_ICONS[c.type]} {c.type}
-              </span>
-              {c.playerName && (
-                <span className="text-[10px] text-muted-foreground">• {c.playerName}</span>
-              )}
-              {c.isConcentrating && (
-                <span className="text-[10px] text-blue-400 font-medium">● Concentrating</span>
-              )}
-            </div>
           </div>
 
           {/* AC */}
-          <div className="flex-none flex flex-col items-center">
+          <div className="flex-none flex flex-col items-center gap-0.5">
             <Shield className="w-3 h-3 text-muted-foreground" />
-            <span className="text-sm font-bold">{c.ac}</span>
+            <span className="text-sm font-bold leading-none">{c.ac}</span>
           </div>
 
-          {/* HP compact */}
+          {/* HP */}
           <div className="flex-none" onClick={(e) => e.stopPropagation()}>
             <HPControls
               combatantId={c.id}
@@ -215,9 +241,9 @@ export function CombatantCard({ combatant: c, isActive, dragHandleProps }: Comba
           </div>
         </div>
 
-        {/* Conditions */}
+        {/* Conditions in header */}
         {c.conditions.length > 0 && (
-          <div className="mt-2 pl-8">
+          <div className="mt-1.5 pl-[4.25rem]">
             <ConditionDisplay conditions={c.conditions} compact />
           </div>
         )}
@@ -259,17 +285,18 @@ export function CombatantCard({ combatant: c, isActive, dragHandleProps }: Comba
                 className="h-7 text-xs"
                 onClick={() => updateCombatant(c.id, { isVisible: !c.isVisible })}
               >
-                {c.isVisible ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                {c.isVisible ? <Eye className="w-3 h-3 mr-1" /> : <EyeOff className="w-3 h-3 mr-1" />}
                 {c.isVisible ? "Visible" : "Hidden"}
               </Button>
-              {c.statBlock && (
+              {(c.statBlock || c.ddbCharacter) && (
                 <Button
                   size="sm"
                   variant="ghost"
                   className="h-7 text-xs"
                   onClick={() => showStatBlock(c.id)}
                 >
-                  <BookOpen className="w-3 h-3" /> Stat Block
+                  <BookOpen className="w-3 h-3 mr-1" />
+                  {c.ddbCharacter ? "Sheet" : "Stat Block"}
                 </Button>
               )}
               <Button
@@ -285,7 +312,7 @@ export function CombatantCard({ combatant: c, isActive, dragHandleProps }: Comba
             {c.notes !== null && (
               <textarea
                 className="w-full bg-muted rounded-md border border-border text-xs p-2 resize-none placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                placeholder="Notes..."
+                placeholder="Notes…"
                 rows={2}
                 defaultValue={c.notes ?? ""}
                 onBlur={(e) => useEncounterStore.getState().setNotes(c.id, e.target.value)}

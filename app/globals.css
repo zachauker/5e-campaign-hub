@@ -90,7 +90,7 @@ body {
 
 /* Active combatant glow */
 .combatant-active {
-  box-shadow: 0 0 0 2px var(--initiative), 0 0 12px rgba(212, 175, 55, 0.2);
+  box-shadow: 0 0 0 1px var(--initiative), 0 0 0 4px rgba(212, 175, 55, 0.12), 0 0 24px rgba(212, 175, 55, 0.22);
 }
 
 /* Drag-and-drop ghost */

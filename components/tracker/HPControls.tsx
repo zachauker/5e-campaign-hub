@@ -48,7 +48,7 @@ export function HPControls({ combatantId, hpCurrent, hpMax, hpTemp, compact = fa
             className="hp-bar absolute inset-y-0 left-0 rounded"
             style={{ width: `${pct}%`, backgroundColor: color }}
           />
-          <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white drop-shadow">
+          <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.9)]">
             {hpCurrent}/{hpMax}
           </span>
         </div>

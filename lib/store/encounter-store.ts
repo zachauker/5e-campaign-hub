@@ -2,13 +2,14 @@
 
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
-import type { CombatantWithParsed, EncounterWithCombatants, Condition } from "@/lib/types";
+import type { CombatantWithParsed, EncounterWithCombatants, Condition, DDBCharacter } from "@/lib/types";
 
 interface EncounterState {
   encounter: EncounterWithCombatants | null;
   selectedCombatantId: string | null;
   statBlockCombatantId: string | null;
   isDirty: boolean;
+  pendingRemove: CombatantWithParsed | null;
 
   setEncounter: (encounter: EncounterWithCombatants) => void;
   selectCombatant: (id: string | null) => void;
@@ -25,12 +26,16 @@ interface EncounterState {
   reorderCombatants: (combatants: CombatantWithParsed[]) => void;
   addCombatant: (combatant: CombatantWithParsed) => void;
   removeCombatant: (combatantId: string) => void;
+  restoreLastRemoved: () => void;
+  clearPendingRemove: () => void;
 
   nextTurn: () => void;
   prevTurn: () => void;
   startEncounter: () => void;
   endEncounter: () => void;
   resetRound: () => void;
+
+  updateDDBCharacter: (combatantId: string, char: DDBCharacter) => void;
 
   markDirty: () => void;
   markClean: () => void;
@@ -51,10 +56,33 @@ export const useEncounterStore = create<EncounterState>()(
     selectedCombatantId: null,
     statBlockCombatantId: null,
     isDirty: false,
+    pendingRemove: null,
 
     setEncounter: (encounter) => set({ encounter, isDirty: false }),
     selectCombatant: (id) => set({ selectedCombatantId: id }),
     showStatBlock: (id) => set({ statBlockCombatantId: id }),
+
+    // Sync DDB character data + live combat stats from the player's sheet.
+    // Does NOT touch conditions or initiative — those stay under DM control.
+    // Does NOT mark dirty — DDB syncs shouldn't trigger the encounter auto-save.
+    updateDDBCharacter: (combatantId, char) =>
+      set((state) => {
+        if (!state.encounter) return state;
+        const combatants = state.encounter.combatants.map((c) => {
+          if (c.id !== combatantId) return c;
+          return {
+            ...c,
+            hpCurrent: char.currentHp ?? char.maxHp,
+            hpMax: char.maxHp,
+            hpTemp: char.tempHp ?? 0,
+            ac: char.ac,
+            speed: char.speed,
+            initiativeBonus: char.initiativeBonus,
+            ddbCharacter: char,
+          };
+        });
+        return { encounter: { ...state.encounter, combatants } };
+      }),
 
     markDirty: () => set({ isDirty: true }),
     markClean: () => set({ isDirty: false }),
@@ -163,6 +191,7 @@ export const useEncounterStore = create<EncounterState>()(
     removeCombatant: (combatantId) =>
       set((state) => {
         if (!state.encounter) return state;
+        const removed = state.encounter.combatants.find((c) => c.id === combatantId) ?? null;
         const combatants = state.encounter.combatants
           .filter((c) => c.id !== combatantId)
           .map((c, i) => ({ ...c, sortOrder: i }));
@@ -174,9 +203,27 @@ export const useEncounterStore = create<EncounterState>()(
           encounter: { ...state.encounter, combatants, currentCombatantId },
           selectedCombatantId:
             state.selectedCombatantId === combatantId ? null : state.selectedCombatantId,
+          pendingRemove: removed,
           isDirty: true,
         };
       }),
+
+    restoreLastRemoved: () =>
+      set((state) => {
+        if (!state.encounter || !state.pendingRemove) return state;
+        const restored = state.pendingRemove;
+        const combatants = sortedByInitiative([
+          ...state.encounter.combatants,
+          restored,
+        ]).map((c, i) => ({ ...c, sortOrder: i }));
+        return {
+          encounter: { ...state.encounter, combatants },
+          pendingRemove: null,
+          isDirty: true,
+        };
+      }),
+
+    clearPendingRemove: () => set({ pendingRemove: null }),
 
     nextTurn: () =>
       set((state) => {

@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn, generateId, rollD20 } from "@/lib/utils";
 import { getModifier } from "@/lib/types";
-import type { CombatantWithParsed, StatBlock } from "@/lib/types";
+import type { CombatantWithParsed, StatBlock, DDBCharacter } from "@/lib/types";
 import { characterUploadToCombatant, type CharacterUploadSchema } from "@/lib/character-schema";
 import { CharacterUpload } from "./CharacterUpload";
 import {
@@ -39,17 +39,8 @@ interface MonsterResult {
   ac: number;
 }
 
-interface DDBCharacterResult {
-  id: number;
-  name: string;
-  level: number;
-  ac: number;
-  maxHp: number;
-  initiativeBonus: number;
-  avatarUrl?: string;
-  playerName?: string;
-  stats: { str: number; dex: number; con: number; int: number; wis: number; cha: number };
-}
+// Use the full DDBCharacter type from the API
+type DDBCharacterResult = DDBCharacter;
 
 interface LibraryEntry {
   id: string;
@@ -256,11 +247,11 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
       type: "pc",
       initiative: null,
       initiativeBonus: char.initiativeBonus,
-      hpCurrent: char.maxHp,
+      hpCurrent: char.currentHp ?? char.maxHp,
       hpMax: char.maxHp,
-      hpTemp: 0,
+      hpTemp: char.tempHp ?? 0,
       ac: char.ac,
-      speed: 30,
+      speed: char.speed ?? 30,
       conditions: [],
       notes: null,
       isConcentrating: false,
@@ -270,6 +261,7 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
       monsterSlug: null,
       statBlock: {
         name: char.name,
+        type: char.classes?.map((c) => `${c.name} ${c.level}`).join(" / "),
         str: char.stats.str,
         dex: char.stats.dex,
         con: char.stats.con,
@@ -280,6 +272,7 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
         hp: char.maxHp,
         imageUrl: char.avatarUrl,
       },
+      ddbCharacter: char,
       avatarUrl: char.avatarUrl ?? null,
       playerName: char.playerName ?? null,
       color: null,
@@ -556,10 +549,15 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
                           className="w-10 h-10 rounded-full object-cover border border-border"
                         />
                       )}
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm">{char.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          Level {char.level} · HP {char.maxHp} · AC {char.ac}
+                          {char.classes?.map((c) => `${c.name}${c.subclass ? ` (${c.subclass})` : ""} ${c.level}`).join(" / ")}
+                          {char.race && ` · ${char.race}`}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          HP {char.maxHp} · AC {char.ac}
+                          {char.background && ` · ${char.background}`}
                           {char.playerName && ` · ${char.playerName}`}
                         </p>
                       </div>

@@ -70,5 +70,14 @@ export function runMigrations() {
     CREATE INDEX IF NOT EXISTS idx_combatants_sort ON combatants(encounter_id, sort_order);
   `);
 
+  // Additive migrations (idempotent ALTER TABLE)
+  const addColumnIfMissing = (table: string, column: string, definition: string) => {
+    const cols = sqlite.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === column)) {
+      sqlite.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    }
+  };
+  addColumnIfMissing("combatants", "ddb_character_data", "TEXT");
+
   sqlite.close();
 }
