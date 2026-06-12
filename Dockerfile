@@ -14,6 +14,7 @@ RUN npm run build
 
 FROM base AS runner
 WORKDIR /app
+LABEL net.unraid.docker.icon="https://raw.githubusercontent.com/zachauker/5e-encounter-tracker/main/public/icon.svg"
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 

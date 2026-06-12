@@ -3,7 +3,7 @@ services:
     image: ghcr.io/zachauker/5e-encounter-tracker:latest
     build: .
     ports:
-      - "3000:3000"
+      - "7542:3000"
     volumes:
       - ./data:/data
     environment:

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <rect width="200" height="200" rx="20" fill="#0f0f11"/>
+  <!-- D20 pentagon shape -->
+  <polygon points="100,15 182,68 152,168 48,168 18,68"
+           fill="#17171c" stroke="#c0392b" stroke-width="3.5"/>
+  <!-- Interior face-division lines -->
+  <line x1="100" y1="15" x2="48"  y2="168" stroke="#c0392b" stroke-width="1.5" opacity="0.45"/>
+  <line x1="100" y1="15" x2="152" y2="168" stroke="#c0392b" stroke-width="1.5" opacity="0.45"/>
+  <line x1="18"  y1="68" x2="182" y2="68"  stroke="#c0392b" stroke-width="1.5" opacity="0.45"/>
+  <!-- "20" number in initiative gold -->
+  <text x="100" y="123"
+        font-family="Georgia, 'Times New Roman', serif"
+        font-size="58"
+        font-weight="700"
+        fill="#d4af37"
+        text-anchor="middle"
+        dominant-baseline="middle">20</text>
+</svg>
