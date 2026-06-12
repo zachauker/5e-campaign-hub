@@ -2,10 +2,19 @@ services:
   encounter-tracker:
     image: ghcr.io/zachauker/5e-encounter-tracker:latest
     build: .
+    container_name: encounter-tracker
     ports:
       - "7542:3000"
     volumes:
       - ./data:/data
     environment:
       - DB_PATH=/data/encounter-tracker.db
+    labels:
+      - "net.unraid.docker.icon=https://raw.githubusercontent.com/zachauker/5e-encounter-tracker/main/public/icon.svg"
+    networks:
+      - oakwoodproxy
     restart: unless-stopped
+
+networks:
+  oakwoodproxy:
+    external: true
