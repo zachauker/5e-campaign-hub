@@ -10,7 +10,7 @@ services:
     environment:
       - DB_PATH=/data/encounter-tracker.db
     labels:
-      - "net.unraid.docker.icon=https://game-icons.net/icons/d4af37/000000/1x1/delapouite/dice-twenty-faces-twenty.png"
+      - "net.unraid.docker.icon=https://img.icons8.com/?size=100&id=vcao1uuXchDQ&format=png&color=000000"
     networks:
       - oakwoodproxy
     restart: unless-stopped
