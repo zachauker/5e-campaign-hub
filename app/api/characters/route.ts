@@ -18,13 +18,21 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   const body = await req.json();
+
+  if (typeof body.name !== "string" || !body.name.trim()) {
+    return NextResponse.json({ error: '"name" is required and must be a string' }, { status: 400 });
+  }
+  if (typeof body.campaignId !== "string" || !body.campaignId) {
+    return NextResponse.json({ error: '"campaignId" is required and must be a string' }, { status: 400 });
+  }
+
   const now = new Date();
   const [character] = await db
     .insert(characters)
     .values({
       id: generateId(),
       campaignId: body.campaignId,
-      name: body.name,
+      name: body.name.trim(),
       type: body.type ?? "npc",
       ddbCharacterId: body.ddbCharacterId ?? null,
       notionUrl: body.notionUrl ?? null,

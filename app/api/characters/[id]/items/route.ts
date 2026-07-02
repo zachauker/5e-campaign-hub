@@ -7,12 +7,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   const { id: characterId } = await params;
   const body = (await req.json()) as { itemIds: string[] };
 
-  await db.delete(characterItems).where(eq(characterItems.characterId, characterId));
-  if (body.itemIds.length > 0) {
-    await db.insert(characterItems).values(
-      body.itemIds.map((itemId) => ({ characterId, itemId }))
-    );
-  }
+  await db.transaction((tx) => {
+    tx.delete(characterItems).where(eq(characterItems.characterId, characterId)).run();
+    if (body.itemIds.length > 0) {
+      tx.insert(characterItems)
+        .values(body.itemIds.map((itemId) => ({ characterId, itemId })))
+        .run();
+    }
+  });
 
   return NextResponse.json({ ok: true });
 }
