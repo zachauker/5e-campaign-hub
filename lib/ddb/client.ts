@@ -905,12 +905,35 @@ function parseDDBCharacter(raw: Record<string, unknown>): DDBCharacter {
   };
 }
 
+// Fuller mapping than AddCombatantDialog's inline version (which only needs
+// name/AC/HP/stats for a quick combat add) — this one is for a character's
+// own reference/detail page, so it also surfaces proficient saves, skills,
+// and passive perception.
 export function ddbCharacterToStatBlock(char: DDBCharacter): StatBlock {
+  const classSummary = char.classes
+    ?.map((c) => `${c.name}${c.subclass ? ` (${c.subclass})` : ""} ${c.level}`)
+    .join(" / ");
+
+  const savingThrows = Object.fromEntries(
+    Object.entries(char.savingThrows)
+      .filter(([, v]) => v.proficient)
+      .map(([k, v]) => [k, v.total])
+  );
+
+  const skills = Object.fromEntries(
+    Object.entries(char.skills)
+      .filter(([, v]) => v.proficient || v.expertise)
+      .map(([k, v]) => [k, v.total])
+  );
+
   return {
     name: char.name,
-    type: char.classes?.map((c) => `${c.name} ${c.level}`).join(" / ") ?? "Character",
+    type: classSummary,
+    subtype: char.race,
     ac: char.ac,
+    acNote: char.acNote,
     hp: char.maxHp,
+    hitDice: char.hitDice,
     speed: `${char.speed} ft.`,
     str: char.stats.str,
     dex: char.stats.dex,
@@ -918,6 +941,9 @@ export function ddbCharacterToStatBlock(char: DDBCharacter): StatBlock {
     int: char.stats.int,
     wis: char.stats.wis,
     cha: char.stats.cha,
+    savingThrows: Object.keys(savingThrows).length > 0 ? savingThrows : undefined,
+    skills: Object.keys(skills).length > 0 ? skills : undefined,
+    senses: `passive Perception ${char.passivePerception}`,
     imageUrl: char.avatarUrl,
   };
 }
