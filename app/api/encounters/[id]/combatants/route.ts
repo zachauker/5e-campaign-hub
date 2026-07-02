@@ -29,6 +29,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       isVisible: body.isVisible ?? true,
       sortOrder: body.sortOrder ?? 0,
       ddbCharacterId: body.ddbCharacterId ?? null,
+      characterId: body.characterId ?? null,
       monsterSlug: body.monsterSlug ?? null,
       statBlock: body.statBlock ? JSON.stringify(body.statBlock) : null,
       ddbCharacterData: body.ddbCharacter ? JSON.stringify(body.ddbCharacter) : null,

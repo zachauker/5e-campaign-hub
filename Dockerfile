@@ -18,18 +18,20 @@ LABEL net.unraid.docker.icon="https://game-icons.net/icons/d4af37/000000/1x1/del
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
+RUN apk add --no-cache su-exec
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-RUN mkdir -p /data && chown nextjs:nodejs /data
-USER nextjs
+RUN mkdir -p /data
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 ENV DB_PATH=/data/encounter-tracker.db
 
-CMD ["node", "server.js"]
+ENTRYPOINT ["docker-entrypoint.sh"]

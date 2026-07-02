@@ -44,4 +44,6 @@ next-env.d.ts
 *.db
 *.db-shm
 *.db-wal
-/data/
+/data/*
+!/data/.gitkeep
+.superpowers/

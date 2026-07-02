@@ -1,176 +1,104 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Swords,
-  Plus,
-  Trash2,
-  Settings,
-  Clock,
-  CheckCircle2,
-  PlayCircle,
-} from "lucide-react";
-import { cn, formatDate } from "@/lib/utils";
+import Link from "next/link";
+import { Swords, Users, MapPin, Package, Shield, PlayCircle } from "lucide-react";
+import { useCampaignStore } from "@/lib/store/campaign-store";
 import type { Encounter } from "@/lib/db/schema";
 
-const STATUS_CONFIG = {
-  idle: { label: "Ready", icon: <Clock className="w-3 h-3" /> },
-  active: { label: "Active", icon: <PlayCircle className="w-3 h-3" /> },
-  completed: { label: "Done", icon: <CheckCircle2 className="w-3 h-3" /> },
-};
-
-export default function HomePage() {
-  const router = useRouter();
-  const [encounters, setEncounters] = useState<Encounter[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [newName, setNewName] = useState("");
-  const [creating, setCreating] = useState(false);
+export default function DashboardPage() {
+  const { activeCampaignId } = useCampaignStore();
+  const [recentEncounters, setRecentEncounters] = useState<Encounter[]>([]);
+  const [counts, setCounts] = useState({ characters: 0, locations: 0, items: 0, factions: 0 });
 
   useEffect(() => {
     fetch("/api/encounters")
       .then((r) => r.json())
-      .then((data) => { setEncounters(data); setLoading(false); })
-      .catch(() => setLoading(false));
+      .then((data: Encounter[]) => setRecentEncounters(data.slice(0, 5)))
+      .catch(() => {
+        // Recent-encounters list is optional context on the dashboard; leave it empty on failure.
+      });
   }, []);
 
-  async function createEncounter() {
-    if (!newName.trim()) return;
-    setCreating(true);
-    try {
-      const res = await fetch("/api/encounters", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newName.trim() }),
+  useEffect(() => {
+    if (!activeCampaignId) return;
+    Promise.all([
+      fetch(`/api/characters?campaignId=${activeCampaignId}`).then((r) => r.json()),
+      fetch(`/api/locations?campaignId=${activeCampaignId}`).then((r) => r.json()),
+      fetch(`/api/items?campaignId=${activeCampaignId}`).then((r) => r.json()),
+      fetch(`/api/factions?campaignId=${activeCampaignId}`).then((r) => r.json()),
+    ])
+      .then(([c, l, i, f]) =>
+        setCounts({ characters: c.length, locations: l.length, items: i.length, factions: f.length })
+      )
+      .catch(() => {
+        // Section counts are supplementary; leave them at their default (0) on failure.
       });
-      const encounter = await res.json();
-      router.push(`/encounters/${encounter.id}`);
-    } finally {
-      setCreating(false);
-    }
-  }
+  }, [activeCampaignId]);
 
-  async function deleteEncounter(id: string, e: React.MouseEvent) {
-    e.stopPropagation();
-    if (!confirm("Delete this encounter?")) return;
-    await fetch(`/api/encounters/${id}`, { method: "DELETE" });
-    setEncounters((prev) => prev.filter((enc) => enc.id !== id));
-  }
+  const activeEncounter = recentEncounters.find((e) => e.status === "active");
+
+  const cards = [
+    { href: "/characters", label: "Characters", icon: Users, count: counts.characters },
+    { href: "/locations", label: "Locations", icon: MapPin, count: counts.locations },
+    { href: "/items", label: "Items", icon: Package, count: counts.items },
+    { href: "/factions", label: "Factions", icon: Shield, count: counts.factions },
+  ];
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center">
-              <Swords className="w-4 h-4 text-primary" />
-            </div>
+    <div className="max-w-3xl mx-auto px-6 py-8 space-y-8">
+      {activeEncounter && (
+        <Link
+          href={`/encounters/${activeEncounter.id}`}
+          className="flex items-center gap-3 p-4 rounded-xl border border-primary/40 bg-primary/10 hover:bg-primary/15 transition-colors"
+        >
+          <PlayCircle className="w-5 h-5 text-primary" />
+          <div>
+            <p className="font-medium text-sm">Active Encounter</p>
+            <p className="text-xs text-muted-foreground">
+              {activeEncounter.name} — Round {activeEncounter.round}
+            </p>
+          </div>
+        </Link>
+      )}
+
+      <div className="grid grid-cols-2 gap-3">
+        {cards.map((c) => (
+          <Link
+            key={c.href}
+            href={c.href}
+            className="flex items-center gap-3 p-4 rounded-xl border border-border bg-card hover:border-primary/50 hover:bg-accent/30 transition-colors"
+          >
+            <c.icon className="w-5 h-5 text-muted-foreground" />
             <div>
-              <h1 className="font-bold text-lg leading-none">Encounter Tracker</h1>
-              <p className="text-xs text-muted-foreground">D&D Combat Manager</p>
+              <p className="font-medium text-sm">{c.label}</p>
+              <p className="text-xs text-muted-foreground">{c.count}</p>
             </div>
-          </div>
-          <Button size="sm" variant="ghost" onClick={() => router.push("/settings")} className="gap-1.5">
-            <Settings className="w-4 h-4" /> Settings
-          </Button>
+          </Link>
+        ))}
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Recent Encounters</h2>
+          <Link href="/encounters" className="text-xs text-primary hover:underline">
+            View all
+          </Link>
         </div>
-      </header>
-
-      <main className="max-w-3xl mx-auto px-6 py-8 space-y-8">
-        <div className="rounded-xl border border-border bg-card p-6 space-y-3">
-          <h2 className="font-semibold">New Encounter</h2>
-          <div className="flex gap-2">
-            <Input
-              placeholder="Encounter name..."
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && createEncounter()}
-              className="flex-1"
-            />
-            <Button onClick={createEncounter} disabled={creating || !newName.trim()} className="gap-1.5">
-              <Plus className="w-4 h-4" />
-              {creating ? "Creating..." : "Create"}
-            </Button>
-          </div>
+        <div className="space-y-2">
+          {recentEncounters.map((enc) => (
+            <Link
+              key={enc.id}
+              href={`/encounters/${enc.id}`}
+              className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-accent/30 transition-colors"
+            >
+              <Swords className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm font-medium">{enc.name}</span>
+            </Link>
+          ))}
+          {recentEncounters.length === 0 && <p className="text-sm text-muted-foreground">No encounters yet.</p>}
         </div>
-
-        <div className="space-y-3">
-          <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">
-            Encounters ({encounters.length})
-          </h2>
-
-          {loading && (
-            <div className="text-center py-8 text-muted-foreground text-sm">Loading...</div>
-          )}
-
-          {!loading && encounters.length === 0 && (
-            <div className="text-center py-12 border border-dashed border-border rounded-xl">
-              <Swords className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
-              <p className="text-muted-foreground">No encounters yet. Create one above.</p>
-            </div>
-          )}
-
-          <div className="space-y-2">
-            {encounters.map((enc) => {
-              const status = STATUS_CONFIG[enc.status as keyof typeof STATUS_CONFIG];
-              return (
-                <div
-                  key={enc.id}
-                  onClick={() => router.push(`/encounters/${enc.id}`)}
-                  className="flex items-center gap-3 p-4 rounded-xl border border-border bg-card hover:border-primary/50 hover:bg-accent/30 transition-colors cursor-pointer group"
-                >
-                  <div
-                    className={cn(
-                      "w-10 h-10 rounded-lg border flex items-center justify-center flex-none",
-                      enc.status === "active" && "border-primary/40 bg-primary/10",
-                      enc.status === "idle" && "border-border bg-muted",
-                      enc.status === "completed" && "border-muted bg-muted/50"
-                    )}
-                  >
-                    <Swords
-                      className={cn(
-                        "w-4 h-4",
-                        enc.status === "active" && "text-primary",
-                        (enc.status === "idle" || enc.status === "completed") && "text-muted-foreground"
-                      )}
-                    />
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{enc.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatDate(new Date(enc.updatedAt))}
-                      {enc.round > 1 && ` · Round ${enc.round}`}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-2 flex-none">
-                    <span
-                      className={cn(
-                        "flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border",
-                        enc.status === "active" && "text-primary border-primary/40 bg-primary/10",
-                        (enc.status === "idle" || enc.status === "completed") && "text-muted-foreground border-border"
-                      )}
-                    >
-                      {status.icon} {status.label}
-                    </span>
-                    <Button
-                      size="icon-sm"
-                      variant="ghost"
-                      className="opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive"
-                      onClick={(e) => deleteEncounter(enc.id, e)}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </main>
+      </div>
     </div>
   );
 }

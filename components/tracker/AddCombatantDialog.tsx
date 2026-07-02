@@ -19,6 +19,7 @@ import { CharacterUpload } from "./CharacterUpload";
 import {
   Sword,
   User,
+  Users,
   Zap,
   Loader2,
   Search,
@@ -27,7 +28,7 @@ import {
   Trash2,
 } from "lucide-react";
 
-type Tab = "monster" | "npc" | "upload" | "library" | "ddb";
+type Tab = "monster" | "npc" | "upload" | "library" | "ddb" | "characters";
 
 interface MonsterResult {
   slug: string;
@@ -51,6 +52,12 @@ interface LibraryEntry {
   createdAt: string;
 }
 
+interface CharacterEntity {
+  id: string;
+  name: string;
+  type: string;
+}
+
 interface AddCombatantDialogProps {
   open: boolean;
   onClose: () => void;
@@ -70,10 +77,15 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
   const [libraryEntries, setLibraryEntries] = useState<LibraryEntry[]>([]);
   const [libraryQuery, setLibraryQuery] = useState("");
   const [loadingLibrary, setLoadingLibrary] = useState(false);
+  const [characterEntities, setCharacterEntities] = useState<CharacterEntity[]>([]);
+  const [loadingCharacters, setLoadingCharacters] = useState(false);
+  const [linkingCharacter, setLinkingCharacter] = useState<CharacterEntity | null>(null);
+  const [linkForm, setLinkForm] = useState({ ac: "10", hpMax: "10", initiative: "" });
 
   useEffect(() => {
     if (tab === "ddb") loadDDBCharacters();
     if (tab === "library") loadLibrary(libraryQuery);
+    if (tab === "characters") loadCharacterEntities();
   }, [tab]);
 
   useEffect(() => {
@@ -91,6 +103,19 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
       setLibraryEntries(data);
     } finally {
       setLoadingLibrary(false);
+    }
+  }
+
+  async function loadCharacterEntities() {
+    setLoadingCharacters(true);
+    try {
+      const url = encounter?.campaignId
+        ? `/api/characters?campaignId=${encounter.campaignId}`
+        : "/api/characters";
+      const res = await fetch(url);
+      setCharacterEntities(await res.json());
+    } finally {
+      setLoadingCharacters(false);
     }
   }
 
@@ -165,6 +190,7 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
           avatarUrl: statBlock.imageUrl ?? null,
           playerName: null,
           color: null,
+          characterId: null,
         };
         addCombatant(combatant);
         await persistCombatant(combatant);
@@ -199,6 +225,7 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
       avatarUrl: null,
       playerName: null,
       color: null,
+      characterId: null,
     };
     addCombatant(combatant);
     await persistCombatant(combatant);
@@ -276,9 +303,44 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
       avatarUrl: char.avatarUrl ?? null,
       playerName: char.playerName ?? null,
       color: null,
+      characterId: null,
     };
     addCombatant(combatant);
     await persistCombatant(combatant);
+  }
+
+  async function addLinkedCharacter() {
+    if (!encounter || !linkingCharacter) return;
+    const combatant: CombatantWithParsed = {
+      id: generateId(),
+      encounterId: encounter.id,
+      name: linkingCharacter.name,
+      type: linkingCharacter.type === "pc" ? "pc" : "npc",
+      initiative: linkForm.initiative ? parseFloat(linkForm.initiative) : null,
+      initiativeBonus: 0,
+      hpCurrent: parseInt(linkForm.hpMax, 10) || 10,
+      hpMax: parseInt(linkForm.hpMax, 10) || 10,
+      hpTemp: 0,
+      ac: parseInt(linkForm.ac, 10) || 10,
+      speed: 30,
+      conditions: [],
+      notes: null,
+      isConcentrating: false,
+      isVisible: true,
+      sortOrder: encounter.combatants.length,
+      ddbCharacterId: null,
+      monsterSlug: null,
+      statBlock: null,
+      avatarUrl: null,
+      playerName: null,
+      color: null,
+      characterId: linkingCharacter.id,
+    };
+    addCombatant(combatant);
+    await persistCombatant(combatant);
+    setLinkingCharacter(null);
+    setLinkForm({ ac: "10", hpMax: "10", initiative: "" });
+    onClose();
   }
 
   const TYPE_COLORS: Record<string, string> = {
@@ -293,6 +355,7 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
     { key: "upload", label: "Upload", icon: <Library className="w-3.5 h-3.5" /> },
     { key: "library", label: "Library", icon: <Library className="w-3.5 h-3.5" /> },
     { key: "ddb", label: "D&D Beyond", icon: <User className="w-3.5 h-3.5" /> },
+    { key: "characters", label: "Characters", icon: <Users className="w-3.5 h-3.5" /> },
   ];
 
   return (
@@ -572,6 +635,78 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
                   ))}
                 </div>
               </ScrollArea>
+            )}
+          </div>
+        )}
+
+        {tab === "characters" && (
+          <div className="flex flex-col flex-1 overflow-hidden p-4 gap-3">
+            {!linkingCharacter ? (
+              <ScrollArea className="flex-1">
+                {loadingCharacters && (
+                  <div className="flex items-center justify-center py-8 gap-2 text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  </div>
+                )}
+                {!loadingCharacters && characterEntities.length === 0 && (
+                  <p className="text-center py-8 text-muted-foreground text-sm">
+                    No characters yet. Add them from the Characters section.
+                  </p>
+                )}
+                <div className="space-y-1.5">
+                  {characterEntities.map((c) => (
+                    <div
+                      key={c.id}
+                      onClick={() => setLinkingCharacter(c)}
+                      className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-accent/50 transition-colors cursor-pointer"
+                    >
+                      <span className="font-medium text-sm flex-1">{c.name}</span>
+                      <span className="text-xs text-muted-foreground capitalize">{c.type}</span>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm">
+                  Adding <strong>{linkingCharacter.name}</strong> to combat
+                </p>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">AC</label>
+                    <Input
+                      type="number"
+                      value={linkForm.ac}
+                      onChange={(e) => setLinkForm({ ...linkForm, ac: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Max HP</label>
+                    <Input
+                      type="number"
+                      value={linkForm.hpMax}
+                      onChange={(e) => setLinkForm({ ...linkForm, hpMax: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Initiative</label>
+                    <Input
+                      type="number"
+                      placeholder="—"
+                      value={linkForm.initiative}
+                      onChange={(e) => setLinkForm({ ...linkForm, initiative: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" className="flex-1" onClick={() => setLinkingCharacter(null)}>
+                    Back
+                  </Button>
+                  <Button className="flex-1" onClick={addLinkedCharacter}>
+                    <Plus className="w-4 h-4" /> Add
+                  </Button>
+                </div>
+              </div>
             )}
           </div>
         )}

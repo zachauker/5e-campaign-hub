@@ -68,6 +68,77 @@ export function runMigrations() {
     CREATE INDEX IF NOT EXISTS idx_character_library_name ON character_library(name);
     CREATE INDEX IF NOT EXISTS idx_combatants_encounter ON combatants(encounter_id);
     CREATE INDEX IF NOT EXISTS idx_combatants_sort ON combatants(encounter_id, sort_order);
+
+    CREATE TABLE IF NOT EXISTS campaigns (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS characters (
+      id TEXT PRIMARY KEY,
+      campaign_id TEXT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL,
+      ddb_character_id TEXT,
+      notion_url TEXT,
+      description TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS locations (
+      id TEXT PRIMARY KEY,
+      campaign_id TEXT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      notion_url TEXT,
+      description TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS items (
+      id TEXT PRIMARY KEY,
+      campaign_id TEXT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      notion_url TEXT,
+      description TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS factions (
+      id TEXT PRIMARY KEY,
+      campaign_id TEXT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      notion_url TEXT,
+      description TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS character_factions (
+      character_id TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+      faction_id TEXT NOT NULL REFERENCES factions(id) ON DELETE CASCADE,
+      PRIMARY KEY (character_id, faction_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS character_locations (
+      character_id TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+      location_id TEXT NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
+      PRIMARY KEY (character_id, location_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS character_items (
+      character_id TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+      item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+      PRIMARY KEY (character_id, item_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_characters_campaign ON characters(campaign_id);
+    CREATE INDEX IF NOT EXISTS idx_locations_campaign ON locations(campaign_id);
+    CREATE INDEX IF NOT EXISTS idx_items_campaign ON items(campaign_id);
+    CREATE INDEX IF NOT EXISTS idx_factions_campaign ON factions(campaign_id);
   `);
 
   // Additive migrations (idempotent ALTER TABLE)
@@ -78,6 +149,30 @@ export function runMigrations() {
     }
   };
   addColumnIfMissing("combatants", "ddb_character_data", "TEXT");
+  addColumnIfMissing("combatants", "character_id", "TEXT");
+  addColumnIfMissing("encounters", "campaign_id", "TEXT REFERENCES campaigns(id)");
+
+  // Ensure a default campaign exists and every encounter references one.
+  const existingCampaign = sqlite.prepare("SELECT id FROM campaigns LIMIT 1").get() as
+    | { id: string }
+    | undefined;
+  let defaultCampaignId = existingCampaign?.id;
+  if (!defaultCampaignId) {
+    const campaignNameRow = sqlite
+      .prepare("SELECT value FROM settings WHERE key = 'campaign_name'")
+      .get() as { value: string } | undefined;
+    defaultCampaignId = crypto.randomUUID();
+    sqlite
+      .prepare("INSERT INTO campaigns (id, name, created_at) VALUES (?, ?, ?)")
+      .run(
+        defaultCampaignId,
+        campaignNameRow?.value?.trim() || "My Campaign",
+        Math.floor(Date.now() / 1000),
+      );
+  }
+  sqlite
+    .prepare("UPDATE encounters SET campaign_id = ? WHERE campaign_id IS NULL")
+    .run(defaultCampaignId);
 
   sqlite.close();
 }
