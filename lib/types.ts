@@ -197,6 +197,7 @@ export interface DDBCharacter {
 
 export interface EncounterWithCombatants {
   id: string;
+  campaignId: string | null;
   name: string;
   status: "idle" | "active" | "completed";
   round: number;
