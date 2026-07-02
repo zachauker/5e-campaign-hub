@@ -14,7 +14,10 @@ export default function DashboardPage() {
   useEffect(() => {
     fetch("/api/encounters")
       .then((r) => r.json())
-      .then((data: Encounter[]) => setRecentEncounters(data.slice(0, 5)));
+      .then((data: Encounter[]) => setRecentEncounters(data.slice(0, 5)))
+      .catch(() => {
+        // Recent-encounters list is optional context on the dashboard; leave it empty on failure.
+      });
   }, []);
 
   useEffect(() => {
@@ -24,9 +27,13 @@ export default function DashboardPage() {
       fetch(`/api/locations?campaignId=${activeCampaignId}`).then((r) => r.json()),
       fetch(`/api/items?campaignId=${activeCampaignId}`).then((r) => r.json()),
       fetch(`/api/factions?campaignId=${activeCampaignId}`).then((r) => r.json()),
-    ]).then(([c, l, i, f]) =>
-      setCounts({ characters: c.length, locations: l.length, items: i.length, factions: f.length })
-    );
+    ])
+      .then(([c, l, i, f]) =>
+        setCounts({ characters: c.length, locations: l.length, items: i.length, factions: f.length })
+      )
+      .catch(() => {
+        // Section counts are supplementary; leave them at their default (0) on failure.
+      });
   }, [activeCampaignId]);
 
   const activeEncounter = recentEncounters.find((e) => e.status === "active");
