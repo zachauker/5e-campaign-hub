@@ -1,13 +1,27 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { locations } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { locations, characterLocations, characters } from "@/lib/db/schema";
+import { eq, inArray } from "drizzle-orm";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const row = await db.query.locations.findFirst({ where: eq(locations.id, id) });
   if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(row);
+
+  const links = await db.query.characterLocations.findMany({
+    where: eq(characterLocations.locationId, id),
+  });
+  const linkedCharacters =
+    links.length > 0
+      ? await db.query.characters.findMany({
+          where: inArray(characters.id, links.map((l) => l.characterId)),
+        })
+      : [];
+
+  return NextResponse.json({
+    ...row,
+    linkedCharacters: linkedCharacters.map((c) => ({ id: c.id, name: c.name, type: c.type })),
+  });
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
