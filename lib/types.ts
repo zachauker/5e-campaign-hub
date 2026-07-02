@@ -231,6 +231,7 @@ export interface CombatantWithParsed {
   avatarUrl: string | null;
   playerName: string | null;
   color: string | null;
+  characterId: string | null;
 }
 
 export function parseModifier(score: number): string {

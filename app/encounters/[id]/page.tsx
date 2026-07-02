@@ -109,7 +109,7 @@ export default function EncounterPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-full">
         <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
       </div>
     );
@@ -117,15 +117,15 @@ export default function EncounterPage() {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen gap-4">
+      <div className="flex flex-col items-center justify-center h-full gap-4">
         <p className="text-destructive">{error}</p>
-        <Button onClick={() => router.push("/")}>Back to Encounters</Button>
+        <Button onClick={() => router.push("/encounters")}>Back to Encounters</Button>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden">
       <div className="flex flex-1 overflow-hidden">
         {/* Main column */}
         <div className="flex flex-col flex-1 overflow-hidden">
@@ -133,7 +133,7 @@ export default function EncounterPage() {
             onSave={save}
             saving={saving}
             saveError={saveError}
-            onNavigateBack={() => router.push("/")}
+            onNavigateBack={() => router.push("/encounters")}
           />
           <div className="flex-1 overflow-hidden">
             <InitiativeTracker />
