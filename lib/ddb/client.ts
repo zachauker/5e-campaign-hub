@@ -928,7 +928,7 @@ export function ddbCharacterToStatBlock(char: DDBCharacter): StatBlock {
 
   return {
     name: char.name,
-    type: classSummary,
+    type: classSummary ?? "Character",
     subtype: char.race,
     ac: char.ac,
     acNote: char.acNote,
