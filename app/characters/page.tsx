@@ -1,22 +1,21 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import React, { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, Users } from "lucide-react";
 import { useCampaignStore } from "@/lib/store/campaign-store";
-import { CharacterFormDialog, type CharacterWithLinks } from "@/components/entities/CharacterFormDialog";
+import { CharacterFormDialog } from "@/components/entities/CharacterFormDialog";
 import type { Character } from "@/lib/db/schema";
 
-function CharactersPageInner() {
-  const searchParams = useSearchParams();
+export default function CharactersPage() {
+  const router = useRouter();
   const { activeCampaignId } = useCampaignStore();
   const [characters, setCharacters] = useState<Character[]>([]);
   const [query, setQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editing, setEditing] = useState<CharacterWithLinks | null>(null);
 
   const load = useCallback(() => {
     if (!activeCampaignId) return;
@@ -28,31 +27,6 @@ function CharactersPageInner() {
   useEffect(() => {
     load();
   }, [load]);
-
-  useEffect(() => {
-    const openId = searchParams.get("open");
-    if (!openId) return;
-    let cancelled = false;
-    (async () => {
-      const res = await fetch(`/api/characters/${openId}`);
-      if (!res.ok || cancelled) return;
-      const data: CharacterWithLinks = await res.json();
-      if (cancelled) return;
-      setEditing(data);
-      setDialogOpen(true);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [searchParams]);
-
-  async function openEdit(id: string) {
-    const res = await fetch(`/api/characters/${id}`);
-    if (!res.ok) return;
-    const data: CharacterWithLinks = await res.json();
-    setEditing(data);
-    setDialogOpen(true);
-  }
 
   async function remove(id: string, e: React.MouseEvent) {
     e.stopPropagation();
@@ -69,14 +43,7 @@ function CharactersPageInner() {
         <h1 className="font-bold text-lg flex items-center gap-2">
           <Users className="w-4 h-4" /> Characters
         </h1>
-        <Button
-          size="sm"
-          onClick={() => {
-            setEditing(null);
-            setDialogOpen(true);
-          }}
-          className="gap-1.5"
-        >
+        <Button size="sm" onClick={() => setDialogOpen(true)} className="gap-1.5">
           <Plus className="w-4 h-4" /> New Character
         </Button>
       </div>
@@ -92,7 +59,7 @@ function CharactersPageInner() {
         {filtered.map((c) => (
           <div
             key={c.id}
-            onClick={() => openEdit(c.id)}
+            onClick={() => router.push(`/characters/${c.id}`)}
             className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-accent/30 transition-colors cursor-pointer group"
           >
             <div className="flex-1 min-w-0">
@@ -114,21 +81,12 @@ function CharactersPageInner() {
       </div>
 
       <CharacterFormDialog
-        key={editing?.id ?? "new"}
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         campaignId={activeCampaignId ?? ""}
-        character={editing}
+        character={null}
         onSaved={load}
       />
     </div>
-  );
-}
-
-export default function CharactersPage() {
-  return (
-    <Suspense fallback={null}>
-      <CharactersPageInner />
-    </Suspense>
   );
 }
