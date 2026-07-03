@@ -184,7 +184,7 @@ export function SimpleEntityDetail({ resourcePath, label, icon: Icon }: SimpleEn
             </div>
           )}
 
-          {!entity.description && entity.linkedCharacters.length === 0 && (
+          {!entity.description && (!entity.mapMarkers || entity.mapMarkers.length === 0) && entity.linkedCharacters.length === 0 && (
             <p className="text-sm text-muted-foreground">No description or linked characters yet.</p>
           )}
         </TabsContent>

@@ -252,7 +252,7 @@ export default function CharacterDetailPage() {
             </div>
           )}
 
-          {!character.description && factions.length === 0 && locations.length === 0 && items.length === 0 && (
+          {!character.description && character.mapMarkers.length === 0 && factions.length === 0 && locations.length === 0 && items.length === 0 && (
             <p className="text-sm text-muted-foreground">No description or relationships yet.</p>
           )}
         </TabsContent>
