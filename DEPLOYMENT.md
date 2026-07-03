@@ -15,6 +15,7 @@ push to main
   -> Unraid: webhook container runs scripts/update.sh
        -> git pull (keeps docker-compose.yml etc. in sync)
        -> docker compose pull (fetches the new image)
+       -> docker compose down (stops the old container - see note below)
        -> docker compose up -d --remove-orphans (recreates the container)
        -> docker image prune -f (cleans up the old image layer)
 ```
@@ -199,3 +200,18 @@ easy to re-trip if this ever needs to be rebuilt from scratch:
   The webhook container's base image doesn't include an SSH client by
   default; `openssh-client` has to be installed explicitly, and the
   container needs actual credentials mounted in (see step 2).
+- **The deploy reports success and the webhook logs show `Pulled` and
+  `Recreated`/`Running`, but the live app is still serving old code.**
+  Check the exact wording in the webhook logs: `docker compose up -d`
+  sometimes logs `Container encounter-tracker Running` instead of
+  `Recreate`/`Recreated` even after a genuinely new image was just pulled —
+  Compose's own change-detection isn't fully reliable here, and it silently
+  leaves the old container running. `scripts/update.sh` now does an
+  explicit `docker compose down` before `up -d` specifically to make this
+  impossible, but if you're troubleshooting a deploy from before that
+  change, or something similar recurs, verify with:
+  ```bash
+  docker inspect encounter-tracker --format '{{.Image}}'
+  docker image inspect ghcr.io/zachauker/5e-encounter-tracker:latest --format '{{.Id}}'
+  ```
+  If those two image IDs don't match, force it: `docker compose down && docker compose up -d`.
