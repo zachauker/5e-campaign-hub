@@ -16,6 +16,7 @@ export async function saveMapImage(mapId: string, file: File): Promise<string> {
   return filename;
 }
 
+/** Throws ENOENT if the file does not exist — callers must catch and handle it. */
 export async function readMapImage(imagePath: string): Promise<Buffer> {
   return fs.readFile(path.join(MAPS_DIR, imagePath));
 }
