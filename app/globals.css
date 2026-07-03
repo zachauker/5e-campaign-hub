@@ -55,6 +55,11 @@
   --hp-med: #f39c12;
   --hp-low: #c0392b;
   --initiative: #d4af37;
+  --marker-location: #b8925a;
+  --marker-faction: #9b6bb0;
+  --marker-character: #4fae8f;
+  --marker-submap: #5a7ab8;
+  --marker-note: #7a8079;
 }
 
 * {
@@ -91,6 +96,12 @@ body {
 /* Active combatant glow */
 .combatant-active {
   box-shadow: 0 0 0 1px var(--initiative), 0 0 0 4px rgba(212, 175, 55, 0.12), 0 0 24px rgba(212, 175, 55, 0.22);
+}
+
+/* Map marker selection glow — same recipe as .combatant-active, applied via
+   drop-shadow (not box-shadow) since markers are SVGs, not boxes. */
+.marker-selected {
+  filter: drop-shadow(0 0 3px var(--initiative)) drop-shadow(0 0 8px rgba(212, 175, 55, 0.6));
 }
 
 /* Drag-and-drop ghost */
