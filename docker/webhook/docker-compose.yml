@@ -16,6 +16,10 @@ services:
       # ./data:/data) are resolved by that daemon against this same
       # absolute path. Must match DEPLOY_PATH exactly.
       - ${DEPLOY_PATH}:${DEPLOY_PATH}
+      # Read-only: lets `git pull` in scripts/update.sh authenticate over
+      # SSH using the same credentials already used to clone the repo onto
+      # this host, rather than provisioning a separate deploy key.
+      - /root/.ssh:/root/.ssh:ro
     ports:
       - "9000:9000"
     networks:
