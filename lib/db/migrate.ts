@@ -139,6 +139,34 @@ export function runMigrations() {
     CREATE INDEX IF NOT EXISTS idx_locations_campaign ON locations(campaign_id);
     CREATE INDEX IF NOT EXISTS idx_items_campaign ON items(campaign_id);
     CREATE INDEX IF NOT EXISTS idx_factions_campaign ON factions(campaign_id);
+
+    CREATE TABLE IF NOT EXISTS maps (
+      id TEXT PRIMARY KEY,
+      campaign_id TEXT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      image_path TEXT NOT NULL,
+      parent_map_id TEXT REFERENCES maps(id),
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS map_markers (
+      id TEXT PRIMARY KEY,
+      map_id TEXT NOT NULL REFERENCES maps(id) ON DELETE CASCADE,
+      x REAL NOT NULL,
+      y REAL NOT NULL,
+      type TEXT NOT NULL,
+      entity_id TEXT,
+      target_map_id TEXT REFERENCES maps(id),
+      title TEXT,
+      note TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_maps_campaign ON maps(campaign_id);
+    CREATE INDEX IF NOT EXISTS idx_maps_parent ON maps(parent_map_id);
+    CREATE INDEX IF NOT EXISTS idx_map_markers_map ON map_markers(map_id);
   `);
 
   // Additive migrations (idempotent ALTER TABLE)
