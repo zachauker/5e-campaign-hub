@@ -30,10 +30,16 @@ export function FeatureFormDialog({ mapId, type, geometry, feature, onClose, onS
   const [dash, setDash] = useState(feature?.type === "road" ? feature.style.dash : false);
   const [fontSize, setFontSize] = useState(feature?.type === "label" ? feature.style.fontSize : 14);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const displayType = feature?.type ?? type;
+  const canSave = displayType !== "label" || name.trim().length > 0;
 
   async function save() {
     setSaving(true);
+    setError(null);
     try {
+      let res: Response;
       if (feature) {
         const style =
           feature.type === "region"
@@ -41,7 +47,7 @@ export function FeatureFormDialog({ mapId, type, geometry, feature, onClose, onS
             : feature.type === "road"
               ? { color, width, dash }
               : { fontSize, color };
-        await fetch(`/api/maps/features/${feature.id}`, {
+        res = await fetch(`/api/maps/features/${feature.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: name.trim() || null, style }),
@@ -49,11 +55,16 @@ export function FeatureFormDialog({ mapId, type, geometry, feature, onClose, onS
       } else {
         const style =
           type === "region" ? { fillColor, strokeColor } : type === "road" ? { color, width, dash } : { fontSize, color };
-        await fetch(`/api/maps/${mapId}/features`, {
+        res = await fetch(`/api/maps/${mapId}/features`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ type, name: name.trim() || null, geometry, style }),
         });
+      }
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body.error || "Failed to save.");
+        return;
       }
       onSaved();
     } finally {
@@ -64,15 +75,19 @@ export function FeatureFormDialog({ mapId, type, geometry, feature, onClose, onS
   async function remove() {
     if (!feature) return;
     setSaving(true);
+    setError(null);
     try {
-      await fetch(`/api/maps/features/${feature.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/maps/features/${feature.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body.error || "Failed to delete.");
+        return;
+      }
       onDeleted();
     } finally {
       setSaving(false);
     }
   }
-
-  const displayType = feature?.type ?? type;
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -140,8 +155,10 @@ export function FeatureFormDialog({ mapId, type, geometry, feature, onClose, onS
             </div>
           )}
 
+          {error && <p className="text-xs text-destructive">{error}</p>}
+
           <div className="flex gap-2">
-            <Button className="flex-1" onClick={save} disabled={saving}>
+            <Button className="flex-1" onClick={save} disabled={saving || !canSave}>
               {saving ? "Saving..." : feature ? "Save Changes" : "Create"}
             </Button>
             {feature && (
