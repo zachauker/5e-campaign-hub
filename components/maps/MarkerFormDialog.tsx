@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-
-type MarkerType = "location" | "faction" | "character" | "submap" | "note";
+import type { MarkerType, MarkerData } from "@/components/maps/map-types";
+export type { MarkerData };
 
 interface EntityOption {
   id: string;
@@ -19,23 +19,12 @@ interface MapOption {
   parentMapId: string | null;
 }
 
-export interface MarkerData {
-  id: string;
-  mapId: string;
-  x: number;
-  y: number;
-  type: MarkerType;
-  entityId: string | null;
-  targetMapId: string | null;
-  title: string | null;
-  note: string | null;
-}
-
 interface MarkerFormDialogProps {
   mapId: string;
   campaignId: string;
   position: { x: number; y: number } | null;
   marker: MarkerData | null;
+  currentZoom?: number;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -48,12 +37,13 @@ const TYPE_OPTIONS: { value: MarkerType; label: string }[] = [
   { value: "note", label: "Note" },
 ];
 
-export function MarkerFormDialog({ mapId, campaignId, position, marker, onClose, onSaved }: MarkerFormDialogProps) {
+export function MarkerFormDialog({ mapId, campaignId, position, marker, currentZoom, onClose, onSaved }: MarkerFormDialogProps) {
   const [type, setType] = useState<MarkerType>(marker?.type ?? "note");
   const [entityId, setEntityId] = useState(marker?.entityId ?? "");
   const [targetMapId, setTargetMapId] = useState(marker?.targetMapId ?? "");
   const [title, setTitle] = useState(marker?.title ?? "");
   const [note, setNote] = useState(marker?.note ?? "");
+  const [minZoom, setMinZoom] = useState<number | null>(marker?.minZoom ?? currentZoom ?? null);
   const [entityOptions, setEntityOptions] = useState<EntityOption[]>([]);
   const [mapOptions, setMapOptions] = useState<MapOption[]>([]);
   const [uploadName, setUploadName] = useState("");
@@ -105,6 +95,7 @@ export function MarkerFormDialog({ mapId, campaignId, position, marker, onClose,
         targetMapId: type === "submap" ? finalTargetMapId : null,
         title: title.trim() || null,
         note: type === "note" ? note.trim() || null : null,
+        minZoom,
       };
 
       if (marker) {
@@ -222,6 +213,31 @@ export function MarkerFormDialog({ mapId, campaignId, position, marker, onClose,
               rows={3}
               className="w-full rounded-md border border-border bg-muted px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             />
+          )}
+
+          {currentZoom !== undefined && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <label className="flex items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  checked={minZoom === null}
+                  onChange={(e) => setMinZoom(e.target.checked ? null : currentZoom)}
+                />
+                Always visible
+              </label>
+              {minZoom !== null && (
+                <>
+                  <span>Visible from zoom</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={minZoom}
+                    onChange={(e) => setMinZoom(Number(e.target.value))}
+                    className="w-14 rounded-md border border-border bg-muted px-1.5 py-1 text-xs"
+                  />
+                </>
+              )}
+            </div>
           )}
 
           <Input
