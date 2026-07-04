@@ -164,9 +164,21 @@ export function runMigrations() {
       updated_at INTEGER NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS map_features (
+      id TEXT PRIMARY KEY,
+      map_id TEXT NOT NULL REFERENCES maps(id) ON DELETE CASCADE,
+      type TEXT NOT NULL,
+      name TEXT,
+      geometry TEXT NOT NULL,
+      style TEXT NOT NULL DEFAULT '{}',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_maps_campaign ON maps(campaign_id);
     CREATE INDEX IF NOT EXISTS idx_maps_parent ON maps(parent_map_id);
     CREATE INDEX IF NOT EXISTS idx_map_markers_map ON map_markers(map_id);
+    CREATE INDEX IF NOT EXISTS idx_map_features_map ON map_features(map_id);
   `);
 
   // Additive migrations (idempotent ALTER TABLE)
@@ -184,6 +196,7 @@ export function runMigrations() {
   addColumnIfMissing("maps", "height", "INTEGER");
   addColumnIfMissing("maps", "max_zoom", "INTEGER");
   addColumnIfMissing("map_markers", "min_zoom", "INTEGER");
+  addColumnIfMissing("maps", "is_world_map", "INTEGER NOT NULL DEFAULT 0");
 
   // Ensure a default campaign exists and every encounter references one.
   const existingCampaign = sqlite.prepare("SELECT id FROM campaigns LIMIT 1").get() as
