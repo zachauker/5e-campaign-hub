@@ -39,6 +39,7 @@ export function VectorMapCanvas({
   const glMapRef = useRef<MapLibreMap | null>(null);
   const markerInstancesRef = useRef<Map<string, Marker>>(new Map());
   const [ready, setReady] = useState(false);
+  const [zoom, setZoom] = useState<number | null>(null);
 
   const dims: MapDims = { width: map.width ?? 0, height: map.height ?? 0, maxZoom: map.maxZoom ?? 0 };
 
@@ -71,8 +72,15 @@ export function VectorMapCanvas({
       setReady(true);
     });
 
+    glMap.on("zoomend", () => {
+      setZoom(glMap.getZoom());
+    });
+
     glMapRef.current = glMap;
+    const markerInstances = markerInstancesRef.current;
     return () => {
+      for (const instance of markerInstances.values()) instance.remove();
+      markerInstances.clear();
       glMap.remove();
       glMapRef.current = null;
       setReady(false);
@@ -112,7 +120,8 @@ export function VectorMapCanvas({
     const glMap = glMapRef.current;
     if (!glMap || !ready) return;
     const instances = markerInstancesRef.current;
-    const seenIds = new Set(markers.map((m) => m.id));
+    const visibleMarkers = markers.filter((m) => m.minZoom === null || zoom === null || zoom >= m.minZoom);
+    const seenIds = new Set(visibleMarkers.map((m) => m.id));
 
     for (const [id, instance] of instances) {
       if (!seenIds.has(id)) {
@@ -121,7 +130,7 @@ export function VectorMapCanvas({
       }
     }
 
-    for (const marker of markers) {
+    for (const marker of visibleMarkers) {
       const [lng, lat] = fractionalToLngLat(marker.x, marker.y, dims);
       let instance = instances.get(marker.id);
       if (!instance) {
@@ -149,7 +158,7 @@ export function VectorMapCanvas({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- dims is derived fresh each render from stable map fields
-  }, [markers, selectedId, ready]);
+  }, [markers, selectedId, ready, zoom]);
 
   return (
     <div className="absolute inset-0 overflow-hidden bg-black/40">
