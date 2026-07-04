@@ -141,6 +141,10 @@ export const maps = sqliteTable("maps", {
   name: text("name").notNull(),
   imagePath: text("image_path").notNull(),
   parentMapId: text("parent_map_id"),
+  renderMode: text("render_mode", { enum: ["static", "tiled"] }).notNull().default("static"),
+  width: integer("width"),
+  height: integer("height"),
+  maxZoom: integer("max_zoom"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
@@ -155,6 +159,7 @@ export const mapMarkers = sqliteTable("map_markers", {
   targetMapId: text("target_map_id"),
   title: text("title"),
   note: text("note"),
+  minZoom: integer("min_zoom"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
