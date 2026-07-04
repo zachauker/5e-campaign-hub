@@ -18,6 +18,33 @@ export interface ResolvedMarker extends MarkerData {
   resolvedSubtitle: string | null;
 }
 
+export type FeatureType = "region" | "road" | "label";
+
+export interface RegionStyle {
+  fillColor: string;
+  strokeColor: string;
+}
+
+export interface RoadStyle {
+  color: string;
+  width: number;
+  dash: boolean;
+}
+
+export interface LabelStyle {
+  fontSize: number;
+  color: string;
+}
+
+export interface MapFeatureData {
+  id: string;
+  mapId: string;
+  type: FeatureType;
+  name: string | null;
+  geometry: GeoJSON.Geometry;
+  style: RegionStyle | RoadStyle | LabelStyle;
+}
+
 export interface MapData {
   id: string;
   name: string;
@@ -28,6 +55,7 @@ export interface MapData {
   width: number | null;
   height: number | null;
   maxZoom: number | null;
+  isWorldMap: boolean;
 }
 
 export interface MapCanvasProps {
