@@ -54,6 +54,7 @@ export function VectorMapCanvas({
   const glMapRef = useRef<MapLibreMap | null>(null);
   const markerInstancesRef = useRef<Map<string, Marker>>(new Map());
   const drawRef = useRef<TerraDraw | null>(null);
+  const readyRef = useRef(false);
   const [ready, setReady] = useState(false);
   const [zoom, setZoom] = useState<number | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
@@ -85,7 +86,9 @@ export function VectorMapCanvas({
 
     glMap.on("error", (e) => {
       console.error("MapLibre error:", e.error);
-      setMapError(e.error?.message ?? "Failed to load the map.");
+      if (!readyRef.current) {
+        setMapError("Failed to load the map. Try refreshing the page.");
+      }
     });
 
     glMap.on("load", () => {
@@ -188,6 +191,10 @@ export function VectorMapCanvas({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- map.id/maxZoom are fixed for a mounted World Map
   }, [map.id]);
+
+  useEffect(() => {
+    readyRef.current = ready;
+  }, [ready]);
 
   const clickCallbacksRef = useRef({ addMode, onImageClick, dims });
   useEffect(() => {
