@@ -1,6 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import sharp from "sharp";
+import type { MapRow } from "@/lib/db/schema";
 
 // Same volume the SQLite DB lives on (DB_PATH is /data/encounter-tracker.db
 // in production, per docker-compose.yml's ./data:/data mount) — no new
@@ -65,10 +66,15 @@ export async function saveTiledMapAssets(
   }
 
   const tilesDir = path.join(mapDir, "tiles");
-  await sharp(buffer)
-    .jpeg({ quality: 85 })
-    .tile({ size: TILE_SIZE, layout: "google" })
-    .toFile(tilesDir);
+  try {
+    await sharp(buffer)
+      .jpeg({ quality: 85 })
+      .tile({ size: TILE_SIZE, layout: "google" })
+      .toFile(tilesDir);
+  } catch (err) {
+    await fs.rm(mapDir, { recursive: true, force: true });
+    throw err;
+  }
 
   const zoomDirs = await fs.readdir(tilesDir, { withFileTypes: true });
   const maxZoom = Math.max(
@@ -86,7 +92,11 @@ export async function readMapTile(mapId: string, z: string, x: string, y: string
   return fs.readFile(path.join(MAPS_DIR, mapId, "tiles", z, x, `${y}.jpg`));
 }
 
-export async function deleteMapAssets(map: { id: string; imagePath: string; renderMode: string }): Promise<void> {
+export async function deleteMapAssets(map: {
+  id: string;
+  imagePath: string;
+  renderMode: MapRow["renderMode"];
+}): Promise<void> {
   if (map.renderMode === "tiled") {
     await fs.rm(path.join(MAPS_DIR, map.id), { recursive: true, force: true });
   } else {
