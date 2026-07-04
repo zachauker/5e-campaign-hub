@@ -1,45 +1,51 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { MapLibreMap, Marker, type MapMouseEvent } from "maplibre-gl";
+import { MapLibreMap, Marker, GeoJSONSource, type MapMouseEvent } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MapMarkerPin } from "@/components/maps/MapMarkerPin";
 import {
   fractionalToLngLat,
   lngLatToFractional,
+  geometryToLngLat,
   getReferenceTileBounds,
   getMercatorMinZoom,
   type MapDims,
 } from "@/lib/maps/mercator-adapter";
-import type { MapData, ResolvedMarker } from "@/components/maps/map-types";
+import type { MapData, ResolvedMarker, MapFeatureData } from "@/components/maps/map-types";
 
 export interface VectorMapCanvasProps {
   map: MapData;
   markers: ResolvedMarker[];
+  features: MapFeatureData[];
   addMode: boolean;
   selectedId: string | null;
   onImageClick: (pos: { x: number; y: number }) => void;
   onMarkerClick: (marker: ResolvedMarker) => void;
   onMarkerDragMove: (markerId: string, pos: { x: number; y: number }) => void;
   onMarkerDragEnd: (markerId: string, pos: { x: number; y: number }) => void;
+  onFeatureClick: (featureId: string) => void;
 }
 
 export function VectorMapCanvas({
   map,
   markers,
+  features,
   addMode,
   selectedId,
   onImageClick,
   onMarkerClick,
   onMarkerDragMove,
   onMarkerDragEnd,
+  onFeatureClick,
 }: VectorMapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const glMapRef = useRef<MapLibreMap | null>(null);
   const markerInstancesRef = useRef<Map<string, Marker>>(new Map());
   const [ready, setReady] = useState(false);
   const [zoom, setZoom] = useState<number | null>(null);
+  const featureClickCallbackRef = useRef(onFeatureClick);
 
   const dims: MapDims = { width: map.width ?? 0, height: map.height ?? 0, maxZoom: map.maxZoom ?? 0 };
 
@@ -69,6 +75,54 @@ export function VectorMapCanvas({
         maxzoom: referenceZoom + (map.maxZoom ?? 0),
       });
       glMap.addLayer({ id: "base-tiles-layer", type: "raster", source: "base-tiles" });
+
+      glMap.addSource("features", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+
+      glMap.addLayer({
+        id: "region-fill",
+        type: "fill",
+        source: "features",
+        filter: ["==", ["get", "type"], "region"],
+        paint: { "fill-color": ["coalesce", ["get", "fillColor"], "#4a7c59"], "fill-opacity": 0.35 },
+      });
+      glMap.addLayer({
+        id: "region-outline",
+        type: "line",
+        source: "features",
+        filter: ["==", ["get", "type"], "region"],
+        paint: { "line-color": ["coalesce", ["get", "strokeColor"], "#4a7c59"], "line-width": 2 },
+      });
+      glMap.addLayer({
+        id: "road-line",
+        type: "line",
+        source: "features",
+        filter: ["==", ["get", "type"], "road"],
+        paint: {
+          "line-color": ["coalesce", ["get", "color"], "#8a6d3b"],
+          "line-width": ["coalesce", ["get", "width"], 2],
+          "line-dasharray": ["case", ["get", "dash"], ["literal", [2, 2]], ["literal", [1, 0]]],
+        },
+      });
+      glMap.addLayer({
+        id: "label-text",
+        type: "symbol",
+        source: "features",
+        filter: ["==", ["get", "type"], "label"],
+        layout: {
+          "text-field": ["get", "name"],
+          "text-size": ["coalesce", ["get", "fontSize"], 14],
+          "text-allow-overlap": false,
+        },
+        paint: { "text-color": ["coalesce", ["get", "color"], "#e8e2d4"] },
+      });
+
+      for (const layerId of ["region-fill", "road-line", "label-text"]) {
+        glMap.on("click", layerId, (e) => {
+          const id = e.features?.[0]?.properties?.featureId;
+          if (typeof id === "string") featureClickCallbackRef.current(id);
+        });
+      }
+
       setZoom(glMap.getZoom());
       setReady(true);
     });
@@ -118,6 +172,10 @@ export function VectorMapCanvas({
   });
 
   useEffect(() => {
+    featureClickCallbackRef.current = onFeatureClick;
+  });
+
+  useEffect(() => {
     const glMap = glMapRef.current;
     if (!glMap || !ready) return;
     const instances = markerInstancesRef.current;
@@ -160,6 +218,23 @@ export function VectorMapCanvas({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- dims is derived fresh each render from stable map fields
   }, [markers, selectedId, ready, zoom]);
+
+  useEffect(() => {
+    const glMap = glMapRef.current;
+    if (!glMap || !ready) return;
+    const source = glMap.getSource("features");
+    if (!(source instanceof GeoJSONSource)) return;
+    source.setData({
+      type: "FeatureCollection",
+      features: features.map((f) => ({
+        type: "Feature",
+        id: f.id,
+        geometry: geometryToLngLat(f.geometry, dims),
+        properties: { featureId: f.id, type: f.type, name: f.name, ...f.style },
+      })),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- dims is derived fresh each render from stable map fields
+  }, [features, ready]);
 
   return (
     <div className="absolute inset-0 overflow-hidden bg-black/40">
