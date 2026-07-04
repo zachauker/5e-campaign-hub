@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { Map as MapIcon, Plus, Globe } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { UploadMapDialog } from "@/components/maps/UploadMapDialog";
 import { useCampaignStore } from "@/lib/store/campaign-store";
@@ -52,9 +53,9 @@ export default function MapsPage() {
             className="group rounded-xl border border-border bg-card overflow-hidden hover:border-primary/50 transition-colors relative"
           >
             {m.isWorldMap && (
-              <div className="absolute top-2 left-2 z-10 flex items-center gap-1 rounded-full bg-card/90 border border-border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
+              <Badge className="absolute top-2 left-2 z-10 gap-1 bg-card/90 border-border text-primary uppercase tracking-wide">
                 <Globe className="w-3 h-3" /> World Map
-              </div>
+              </Badge>
             )}
             <div className="aspect-video bg-muted overflow-hidden">
               {/* eslint-disable-next-line @next/next/no-img-element -- locally-served map thumbnail */}
