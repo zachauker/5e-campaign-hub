@@ -144,7 +144,7 @@ export function VectorMapCanvas({
           new TerraDrawPolygonMode(),
           new TerraDrawLineStringMode(),
           new TerraDrawPointMode(),
-          new TerraDrawRenderMode({ styles: {} }),
+          new TerraDrawRenderMode({ modeName: "render", styles: {} }),
         ],
       });
       draw.start();
