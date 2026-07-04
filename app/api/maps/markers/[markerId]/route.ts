@@ -25,6 +25,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ marker
       targetMapId: body.targetMapId !== undefined ? body.targetMapId : existing.targetMapId,
       title: body.title !== undefined ? body.title : existing.title,
       note: body.note !== undefined ? body.note : existing.note,
+      minZoom: body.minZoom !== undefined ? body.minZoom : existing.minZoom,
       updatedAt: new Date(),
     })
     .where(eq(mapMarkers.id, markerId));
