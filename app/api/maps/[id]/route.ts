@@ -27,6 +27,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const existing = await db.query.maps.findFirst({ where: eq(maps.id, id) });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  if (body.isWorldMap === true && (existing.renderMode !== "tiled" || existing.parentMapId !== null)) {
+    return NextResponse.json(
+      { error: "Only a top-level, large-scale interactive map can be set as the World Map." },
+      { status: 400 }
+    );
+  }
+
   const nextName = body.name ?? existing.name;
 
   if (body.isWorldMap === true) {
