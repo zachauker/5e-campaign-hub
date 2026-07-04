@@ -4,16 +4,19 @@ import React, { useEffect, useRef, useState } from "react";
 import { MapLibreMap, Marker, GeoJSONSource, type MapMouseEvent } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { renderToStaticMarkup } from "react-dom/server";
+import { TerraDraw, TerraDrawPolygonMode, TerraDrawLineStringMode, TerraDrawPointMode, TerraDrawRenderMode } from "terra-draw";
+import { TerraDrawMapLibreGLAdapter } from "terra-draw-maplibre-gl-adapter";
 import { MapMarkerPin } from "@/components/maps/MapMarkerPin";
 import {
   fractionalToLngLat,
   lngLatToFractional,
   geometryToLngLat,
+  geometryToFractional,
   getReferenceTileBounds,
   getMercatorMinZoom,
   type MapDims,
 } from "@/lib/maps/mercator-adapter";
-import type { MapData, ResolvedMarker, MapFeatureData } from "@/components/maps/map-types";
+import type { MapData, ResolvedMarker, MapFeatureData, FeatureType } from "@/components/maps/map-types";
 
 export interface VectorMapCanvasProps {
   map: MapData;
@@ -26,7 +29,11 @@ export interface VectorMapCanvasProps {
   onMarkerDragMove: (markerId: string, pos: { x: number; y: number }) => void;
   onMarkerDragEnd: (markerId: string, pos: { x: number; y: number }) => void;
   onFeatureClick: (featureId: string) => void;
+  drawMode: FeatureType | null;
+  onFeatureDrawn: (type: FeatureType, geometry: GeoJSON.Geometry) => void;
 }
+
+const TERRA_MODE_NAME: Record<FeatureType, string> = { region: "polygon", road: "linestring", label: "point" };
 
 export function VectorMapCanvas({
   map,
@@ -39,15 +46,23 @@ export function VectorMapCanvas({
   onMarkerDragMove,
   onMarkerDragEnd,
   onFeatureClick,
+  drawMode,
+  onFeatureDrawn,
 }: VectorMapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const glMapRef = useRef<MapLibreMap | null>(null);
   const markerInstancesRef = useRef<Map<string, Marker>>(new Map());
+  const drawRef = useRef<TerraDraw | null>(null);
   const [ready, setReady] = useState(false);
   const [zoom, setZoom] = useState<number | null>(null);
   const featureClickCallbackRef = useRef(onFeatureClick);
 
   const dims: MapDims = { width: map.width ?? 0, height: map.height ?? 0, maxZoom: map.maxZoom ?? 0 };
+
+  const drawCallbacksRef = useRef({ drawMode, onFeatureDrawn, dims });
+  useEffect(() => {
+    drawCallbacksRef.current = { drawMode, onFeatureDrawn, dims };
+  });
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -123,6 +138,28 @@ export function VectorMapCanvas({
         });
       }
 
+      const draw = new TerraDraw({
+        adapter: new TerraDrawMapLibreGLAdapter({ map: glMap }),
+        modes: [
+          new TerraDrawPolygonMode(),
+          new TerraDrawLineStringMode(),
+          new TerraDrawPointMode(),
+          new TerraDrawRenderMode({ styles: {} }),
+        ],
+      });
+      draw.start();
+      draw.setMode("render");
+      draw.on("finish", (id) => {
+        const snapshot = draw.getSnapshotFeature(id);
+        const { drawMode: currentDrawMode, onFeatureDrawn: currentOnFeatureDrawn, dims: currentDims } = drawCallbacksRef.current;
+        if (!snapshot || !currentDrawMode) return;
+        const geometry = snapshot.geometry as GeoJSON.Geometry;
+        currentOnFeatureDrawn(currentDrawMode, geometryToFractional(geometry, currentDims));
+        draw.removeFeatures([id]);
+        draw.setMode("render");
+      });
+      drawRef.current = draw;
+
       setZoom(glMap.getZoom());
       setReady(true);
     });
@@ -134,6 +171,8 @@ export function VectorMapCanvas({
     glMapRef.current = glMap;
     const markerInstances = markerInstancesRef.current;
     return () => {
+      drawRef.current?.stop();
+      drawRef.current = null;
       for (const instance of markerInstances.values()) instance.remove();
       markerInstances.clear();
       glMap.remove();
@@ -235,6 +274,12 @@ export function VectorMapCanvas({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- dims is derived fresh each render from stable map fields
   }, [features, ready]);
+
+  useEffect(() => {
+    const draw = drawRef.current;
+    if (!draw || !ready) return;
+    draw.setMode(drawMode ? TERRA_MODE_NAME[drawMode] : "render");
+  }, [drawMode, ready]);
 
   return (
     <div className="absolute inset-0 overflow-hidden bg-black/40">
