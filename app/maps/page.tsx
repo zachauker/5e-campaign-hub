@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { Map as MapIcon, Plus } from "lucide-react";
+import { Map as MapIcon, Plus, Globe } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { UploadMapDialog } from "@/components/maps/UploadMapDialog";
 import { useCampaignStore } from "@/lib/store/campaign-store";
@@ -10,6 +11,7 @@ import { useCampaignStore } from "@/lib/store/campaign-store";
 interface MapListItem {
   id: string;
   name: string;
+  isWorldMap: boolean;
 }
 
 export default function MapsPage() {
@@ -28,6 +30,8 @@ export default function MapsPage() {
     load();
   }, [load]);
 
+  const sortedMaps = [...maps].sort((a, b) => Number(b.isWorldMap) - Number(a.isWorldMap));
+
   return (
     <div className="max-w-5xl mx-auto px-6 py-8 space-y-6">
       <div className="flex items-center justify-between">
@@ -42,12 +46,17 @@ export default function MapsPage() {
       {maps.length === 0 && <p className="text-sm text-muted-foreground">No maps yet. Upload one to get started.</p>}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-        {maps.map((m) => (
+        {sortedMaps.map((m) => (
           <Link
             key={m.id}
             href={`/maps/${m.id}`}
-            className="group rounded-xl border border-border bg-card overflow-hidden hover:border-primary/50 transition-colors"
+            className="group rounded-xl border border-border bg-card overflow-hidden hover:border-primary/50 transition-colors relative"
           >
+            {m.isWorldMap && (
+              <Badge className="absolute top-2 left-2 z-10 gap-1 bg-card/90 border-border text-primary uppercase tracking-wide">
+                <Globe className="w-3 h-3" /> World Map
+              </Badge>
+            )}
             <div className="aspect-video bg-muted overflow-hidden">
               {/* eslint-disable-next-line @next/next/no-img-element -- locally-served map thumbnail */}
               <img

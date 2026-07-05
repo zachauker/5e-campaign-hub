@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { maps } from "@/lib/db/schema";
 import { generateId } from "@/lib/utils";
-import { saveMapImage } from "@/lib/maps/storage";
+import { saveMapImage, saveTiledMapAssets } from "@/lib/maps/storage";
 import { eq, and, isNull, asc } from "drizzle-orm";
 
 export async function GET(req: Request) {
@@ -28,6 +28,7 @@ export async function POST(req: Request) {
   const name = form.get("name");
   const campaignId = form.get("campaignId");
   const parentMapId = form.get("parentMapId");
+  const renderModeField = form.get("renderMode");
   const file = form.get("image");
 
   if (typeof name !== "string" || !name.trim()) {
@@ -40,8 +41,24 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: '"image" file is required' }, { status: 400 });
   }
 
+  const isTiled = renderModeField === "tiled";
   const id = generateId();
-  const imagePath = await saveMapImage(id, file);
+
+  let imagePath: string;
+  let width: number | null = null;
+  let height: number | null = null;
+  let maxZoom: number | null = null;
+
+  if (isTiled) {
+    const result = await saveTiledMapAssets(id, file);
+    imagePath = result.imagePath;
+    width = result.width;
+    height = result.height;
+    maxZoom = result.maxZoom;
+  } else {
+    imagePath = await saveMapImage(id, file);
+  }
+
   const now = new Date();
   const [map] = await db
     .insert(maps)
@@ -51,6 +68,10 @@ export async function POST(req: Request) {
       name: name.trim(),
       imagePath,
       parentMapId: typeof parentMapId === "string" && parentMapId ? parentMapId : null,
+      renderMode: isTiled ? "tiled" : "static",
+      width,
+      height,
+      maxZoom,
       createdAt: now,
       updatedAt: now,
     })

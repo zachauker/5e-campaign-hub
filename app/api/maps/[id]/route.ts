@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { maps } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
-import { deleteMapImage } from "@/lib/maps/storage";
+import { eq, and } from "drizzle-orm";
+import { deleteMapAssets } from "@/lib/maps/storage";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -27,10 +27,32 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const existing = await db.query.maps.findFirst({ where: eq(maps.id, id) });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  await db
-    .update(maps)
-    .set({ name: body.name ?? existing.name, updatedAt: new Date() })
-    .where(eq(maps.id, id));
+  if (body.isWorldMap === true && (existing.renderMode !== "tiled" || existing.parentMapId !== null)) {
+    return NextResponse.json(
+      { error: "Only a top-level, large-scale interactive map can be set as the World Map." },
+      { status: 400 }
+    );
+  }
+
+  const nextName = body.name ?? existing.name;
+
+  if (body.isWorldMap === true) {
+    db.transaction((tx) => {
+      tx.update(maps)
+        .set({ isWorldMap: false, updatedAt: new Date() })
+        .where(and(eq(maps.campaignId, existing.campaignId), eq(maps.isWorldMap, true)))
+        .run();
+      tx.update(maps)
+        .set({ name: nextName, isWorldMap: true, updatedAt: new Date() })
+        .where(eq(maps.id, id))
+        .run();
+    });
+  } else {
+    await db
+      .update(maps)
+      .set({ name: nextName, isWorldMap: body.isWorldMap ?? existing.isWorldMap, updatedAt: new Date() })
+      .where(eq(maps.id, id));
+  }
 
   return NextResponse.json({ ok: true });
 }
@@ -51,7 +73,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     }
     throw err;
   }
-  await deleteMapImage(existing.imagePath);
+  await deleteMapAssets(existing);
 
   return NextResponse.json({ ok: true });
 }

@@ -68,6 +68,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       targetMapId: body.targetMapId ?? null,
       title: body.title ?? null,
       note: body.note ?? null,
+      minZoom: typeof body.minZoom === "number" ? body.minZoom : null,
       createdAt: now,
       updatedAt: now,
     })

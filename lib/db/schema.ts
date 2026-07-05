@@ -141,6 +141,11 @@ export const maps = sqliteTable("maps", {
   name: text("name").notNull(),
   imagePath: text("image_path").notNull(),
   parentMapId: text("parent_map_id"),
+  renderMode: text("render_mode", { enum: ["static", "tiled"] }).notNull().default("static"),
+  width: integer("width"),
+  height: integer("height"),
+  maxZoom: integer("max_zoom"),
+  isWorldMap: integer("is_world_map", { mode: "boolean" }).notNull().default(false),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
@@ -155,6 +160,18 @@ export const mapMarkers = sqliteTable("map_markers", {
   targetMapId: text("target_map_id"),
   title: text("title"),
   note: text("note"),
+  minZoom: integer("min_zoom"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+});
+
+export const mapFeatures = sqliteTable("map_features", {
+  id: text("id").primaryKey(),
+  mapId: text("map_id").notNull().references(() => maps.id, { onDelete: "cascade" }),
+  type: text("type", { enum: ["region", "road", "label"] }).notNull(),
+  name: text("name"),
+  geometry: text("geometry").notNull(),
+  style: text("style").notNull().default("{}"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
@@ -181,3 +198,5 @@ export type MapRow = typeof maps.$inferSelect;
 export type NewMapRow = typeof maps.$inferInsert;
 export type MapMarker = typeof mapMarkers.$inferSelect;
 export type NewMapMarker = typeof mapMarkers.$inferInsert;
+export type MapFeature = typeof mapFeatures.$inferSelect;
+export type NewMapFeature = typeof mapFeatures.$inferInsert;

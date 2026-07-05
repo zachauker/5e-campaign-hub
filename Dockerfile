@@ -25,6 +25,14 @@ RUN adduser --system --uid 1001 nextjs
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+# Next.js's standalone output file-tracing only follows static JS requires, so it
+# misses libvips' shared library (e.g. libvips-cpp.*.so) that sharp's native
+# binding loads dynamically at runtime — without this, sharp's module loads fine
+# but operations like .tile() (dzsave) fail with "VipsOperation: class ... not
+# found". Overlaying the complete, untraced packages from the builder stage
+# fixes this.
+COPY --from=builder /app/node_modules/sharp ./node_modules/sharp
+COPY --from=builder /app/node_modules/@img ./node_modules/@img
 COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
