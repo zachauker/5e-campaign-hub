@@ -18,7 +18,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ path: st
   const rel = parts.join("/");
   const filePath = path.normalize(path.join(WORLD_DIR, rel));
   const root = path.normalize(WORLD_DIR);
-  if (!filePath.startsWith(root)) {
+  if (filePath !== root && !filePath.startsWith(root + path.sep)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
