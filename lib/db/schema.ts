@@ -141,7 +141,7 @@ export const maps = sqliteTable("maps", {
   name: text("name").notNull(),
   imagePath: text("image_path").notNull(),
   parentMapId: text("parent_map_id"),
-  renderMode: text("render_mode", { enum: ["static", "tiled"] }).notNull().default("static"),
+  renderMode: text("render_mode", { enum: ["static", "tiled", "world"] }).notNull().default("static"),
   width: integer("width"),
   height: integer("height"),
   maxZoom: integer("max_zoom"),

@@ -66,7 +66,7 @@ export interface MapData {
   imagePath: string;
   parentMapId: string | null;
   breadcrumb: { id: string; name: string }[];
-  renderMode: "static" | "tiled";
+  renderMode: "static" | "tiled" | "world";
   width: number | null;
   height: number | null;
   maxZoom: number | null;
