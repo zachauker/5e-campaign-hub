@@ -18,7 +18,7 @@ interface SimpleEntityDetailData {
   description: string | null;
   notionUrl: string | null;
   linkedCharacters: { id: string; name: string; type: string }[];
-  mapMarkers?: { mapId: string; mapName: string; markerId: string }[];
+  mapMarkers?: { mapId: string; mapName: string; markerId: string; renderMode: "static" | "tiled" | "world" }[];
 }
 
 interface SimpleEntityDetailProps {
@@ -155,7 +155,7 @@ export function SimpleEntityDetail({ resourcePath, label, icon: Icon }: SimpleEn
                 {entity.mapMarkers.map((m) => (
                   <Link
                     key={m.markerId}
-                    href={`/maps/${m.mapId}#marker-${m.markerId}`}
+                    href={m.renderMode === "world" ? `/world#marker-${m.markerId}` : `/maps/${m.mapId}#marker-${m.markerId}`}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-card hover:border-primary/50 hover:bg-accent/30 transition-colors text-sm"
                   >
                     <MapIcon className="w-3.5 h-3.5 text-muted-foreground" />

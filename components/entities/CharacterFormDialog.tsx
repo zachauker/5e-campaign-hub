@@ -17,7 +17,7 @@ export type CharacterWithLinks = Character & {
   factionIds: string[];
   locationIds: string[];
   itemIds: string[];
-  mapMarkers: { mapId: string; mapName: string; markerId: string }[];
+  mapMarkers: { mapId: string; mapName: string; markerId: string; renderMode: "static" | "tiled" | "world" }[];
 };
 
 interface CharacterFormDialogProps {

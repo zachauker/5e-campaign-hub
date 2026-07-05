@@ -31,7 +31,11 @@ export function WorldMapViewer() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [addMode, setAddMode] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    const match = window.location.hash.match(/^#marker-(.+)$/);
+    return match ? match[1] : null;
+  });
   const [pending, setPending] = useState<{ x: number; y: number } | null>(null);
   const [editing, setEditing] = useState<ResolvedMarker | null>(null);
   const [viewZoom, setViewZoom] = useState<number | undefined>(undefined);
