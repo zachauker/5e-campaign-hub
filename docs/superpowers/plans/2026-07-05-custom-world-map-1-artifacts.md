@@ -572,8 +572,16 @@ git commit -m "docs: finalize world-data pipeline reproducibility notes"
 
 ## What this plan deliberately leaves for later plans
 
-- **Plan 2 (app integration):** serving `exandria.pmtiles` + glyphs + `style.json` from the Next app (range-capable route vs bundled `public/` asset — decided using the real file size recorded in Task 3); a `/world` route + "World" nav item; a `WorldMapCanvas` React component (MapLibre + the `pmtiles` protocol + the committed style); the entity/marker overlay storing lng/lat and using MapLibre `project`/`unproject`; the per-campaign `'world'` `maps` record + get-or-create API; loading/error overlays.
+- **Plan 2 (app integration):** serving `exandria.pmtiles` (14M) + glyphs + the generated `build/styles/*.json` from the Next app (range-capable route vs bundled `public/` asset); a `/world` route + "World" nav item; a `WorldMapCanvas` React component (MapLibre + the `pmtiles` protocol); the entity/marker overlay storing lng/lat and using MapLibre `project`/`unproject`; the per-campaign `'world'` `maps` record + get-or-create API; loading/error overlays; **and the 4-theme switcher** (`setStyle()` between `build/styles/<id>.json`, default `classic`, persisted preference).
 - **Plan 3 (retire the sub-project-6 mode):** remove the promote-a-tiled-map → World Map flow, Terra Draw drawing, the `map_features` table + CRUD + `FeatureFormDialog`, and the raster-Mercator `vtiles` route + `mercator-adapter`; keep the uploaded static/tiled map viewers intact.
 
-Plans 2 and 3 will be written against the concrete artifacts and contracts this plan produces (real source-layer names, real file size, the tuned style), rather than against guesses.
+Plans 2 and 3 will be written against the concrete artifacts and contracts this plan produced (real source-layer names, 14M file size, the tuned themes) — see `world-data/README.md`'s handoff section.
+
+## Execution notes (what actually happened, vs. the plan as written above)
+
+Plan 1 executed successfully and produced a verified, rendering, deeply-zoomable Exandria map with a working 4-theme toggle. Three deviations from the plan text above are worth recording:
+
+1. **Preview server: Node, not Python.** Task 6's `python3 -m http.server` was found (empirically) to ignore HTTP `Range` and return the whole 14M file with a `200`, which breaks the PMTiles reader. Replaced with a tiny dependency-free Node range-capable server (`scripts/world/serve-preview.js`, run by `serve-preview.sh`). **Do not use python's http.server for PMTiles.**
+2. **GeoJSON inspection uses `fs.readFileSync` + `JSON.parse`, not `require()`.** Node does not parse a `.geojson` extension as JSON, so the `require('./…geojson')` snippets in Task 2 Step 3 fail; read the file and `JSON.parse` instead.
+3. **Themes + toggle added** (at the DM's request during live tuning): `world-data/themes.json` (per-theme paint overrides) + `scripts/world/build-themes.js` generate four complete styles (Classic/Vibrant/Antique/Dark) from the base `style.json`. The spec was updated to match.
 ```

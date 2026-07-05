@@ -15,6 +15,7 @@ The campaign primarily takes place in **Wildemount**, with **Tal'Dorei** include
 - Keep the existing entity/marker system fully intact on the world map: place Character/Location/Faction/Sub-map/Note pins, click to open, link to detail pages, "View on Map" reverse links, and drag to reposition.
 - Fully self-hosted: MapLibre + a single static PMTiles file + self-hosted glyphs and sprite. No Mapbox SaaS, no external CDN.
 - Retire the superseded sub-project-6 World-Map mode (promote-a-tiled-map + Terra Draw drawing).
+- Ship **multiple switchable art themes** with an in-app toggle (Classic Atlas default, plus Vibrant Painted, Antique Sepia, and Dark/Night), so the map's look can be chosen. *(Added during Plan 1's live style-tuning at the DM's request — a small, bounded addition since a theme is a palette swap over one shared layer structure.)*
 
 ## Non-Goals
 
@@ -47,10 +48,11 @@ Three parts: a build-time data-prep pipeline that produces static artifacts; tho
 - **Sprite** — a small sprite sheet (icons for city types / POIs as needed), served statically.
 - **`style.json`** — the custom MapLibre GL style (below), referencing the pmtiles source, the glyphs, and the sprite.
 
-### 3. The MapLibre style (the "look")
+### 3. The MapLibre style(s) (the "look")
 
-- A hand-authored MapLibre GL style defining, bottom to top: background (sea + parchment), water fill with bathymetry-based depth shading, land fill, coastline stroke, landcover fills (forest / mountain / etc.), rivers and inland water, roads by class, and label layers (cities, regions) with zoom-dependent text sizing, halos, and collision-based decluttering (`text-allow-overlap: false`).
-- The redgiants aesthetic lives here and is **iterative**: implementation starts from a redgiants-like palette and refines the style live in the browser preview. Treated as a first-class, tunable deliverable, not an afterthought.
+- A hand-authored MapLibre GL style defining, bottom to top: background (sea), bathymetry fill, land fill, landcover fills split by the data's `type` category (forest / mountain / swamp / snow / etc.), inland water, coastline stroke, roads (styled **uniformly** — the source data has no road-class field), and label layers (cities with `Name`, regions coalescing `Name`/`name`) with zoom-dependent text sizing, halos, and collision-based decluttering (`text-allow-overlap: false`). Text renders from the self-hosted glyphs; v1 needs **no sprite** (labels are text-only).
+- **Themes:** the base structure + Classic palette lives in one `style.json`; each additional theme's per-layer paint overrides live in `themes.json`, and a small generator (`build-themes.js`) stamps out one complete style per theme. v1 themes: **Classic Atlas** (default), **Vibrant Painted**, **Antique Sepia**, **Dark/Night**. The in-app switcher swaps the whole style via MapLibre `setStyle()` (camera preserved) and persists the choice.
+- The redgiants aesthetic lives here and is **iterative**: it was tuned live in the browser preview during Plan 1, which produced all four themes as committed, verified artifacts.
 
 ### 4. The `/world` viewer + marker overlay
 
