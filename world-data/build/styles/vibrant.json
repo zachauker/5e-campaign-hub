@@ -1,0 +1,275 @@
+{
+  "version": 8,
+  "name": "Exandria — Vibrant Painted",
+  "glyphs": "build/glyphs/{fontstack}/{range}.pbf",
+  "sources": {
+    "exandria": {
+      "type": "vector",
+      "url": "pmtiles://build/exandria.pmtiles"
+    }
+  },
+  "layers": [
+    {
+      "id": "sea",
+      "type": "background",
+      "paint": {
+        "background-color": "#5f9fc4"
+      }
+    },
+    {
+      "id": "bathymetry",
+      "type": "fill",
+      "source": "exandria",
+      "source-layer": "bathymetry",
+      "paint": {
+        "fill-color": "#4585ab",
+        "fill-opacity": 0.6
+      }
+    },
+    {
+      "id": "land",
+      "type": "fill",
+      "source": "exandria",
+      "source-layer": "land",
+      "paint": {
+        "fill-color": "#ecdcae"
+      }
+    },
+    {
+      "id": "landcover",
+      "type": "fill",
+      "source": "exandria",
+      "source-layer": "landcover",
+      "paint": {
+        "fill-color": [
+          "match",
+          [
+            "get",
+            "type"
+          ],
+          "forest",
+          "#b9c79a",
+          "vermaloc",
+          "#8f9e79",
+          "frosted_forest",
+          "#d3ddcf",
+          "dead_forest",
+          "#b7ab8e",
+          "grass",
+          "#c6d3a2",
+          "moorland",
+          "#bcb583",
+          "swamp",
+          "#a9b389",
+          "mountain",
+          "#cbc3ad",
+          "snow",
+          "#eef1f2",
+          "ashlands",
+          "#a89f92",
+          "penumbra",
+          "#a99db0",
+          "dirt",
+          "#d3c09a",
+          "pallid",
+          "#d8d2c0",
+          "grey valley",
+          "#c3c3bb",
+          "grey valley white area",
+          "#dcdcd4",
+          "#d9cfa8"
+        ],
+        "fill-opacity": 0.92
+      }
+    },
+    {
+      "id": "inland-water",
+      "type": "fill",
+      "source": "exandria",
+      "source-layer": "inland_water",
+      "paint": {
+        "fill-color": "#5f9fc4"
+      }
+    },
+    {
+      "id": "coastline",
+      "type": "line",
+      "source": "exandria",
+      "source-layer": "land",
+      "paint": {
+        "line-color": "#6b5836",
+        "line-width": 1.5
+      }
+    },
+    {
+      "id": "roads",
+      "type": "line",
+      "source": "exandria",
+      "source-layer": "roads",
+      "paint": {
+        "line-color": "#6a4a26",
+        "line-width": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          4,
+          0.5,
+          8,
+          1.4,
+          12,
+          3
+        ]
+      }
+    },
+    {
+      "id": "region-labels",
+      "type": "symbol",
+      "source": "exandria",
+      "source-layer": "labels",
+      "layout": {
+        "text-field": [
+          "coalesce",
+          [
+            "get",
+            "Name"
+          ],
+          [
+            "get",
+            "name"
+          ]
+        ],
+        "text-font": [
+          "Noto Serif Italic"
+        ],
+        "text-size": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          4,
+          11,
+          9,
+          20
+        ],
+        "text-letter-spacing": 0.15,
+        "text-transform": "uppercase",
+        "text-allow-overlap": false
+      },
+      "paint": {
+        "text-color": "#43391f",
+        "text-halo-color": "#ecdcae",
+        "text-halo-width": 1.4
+      }
+    },
+    {
+      "id": "city-dots",
+      "type": "circle",
+      "source": "exandria",
+      "source-layer": "cities",
+      "paint": {
+        "circle-radius": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          4,
+          1.6,
+          12,
+          4
+        ],
+        "circle-color": "#2d2416",
+        "circle-stroke-color": "#f2ecda",
+        "circle-stroke-width": 1
+      }
+    },
+    {
+      "id": "city-labels",
+      "type": "symbol",
+      "source": "exandria",
+      "source-layer": "cities",
+      "layout": {
+        "text-field": [
+          "get",
+          "Name"
+        ],
+        "text-font": [
+          "Noto Sans Bold"
+        ],
+        "text-size": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          4,
+          10,
+          12,
+          16
+        ],
+        "text-anchor": "top",
+        "text-offset": [
+          0,
+          0.4
+        ],
+        "text-allow-overlap": false
+      },
+      "paint": {
+        "text-color": "#241d10",
+        "text-halo-color": "#f4eeda",
+        "text-halo-width": 1.6
+      }
+    },
+    {
+      "id": "poi-labels",
+      "type": "symbol",
+      "source": "exandria",
+      "source-layer": "pois",
+      "minzoom": 7,
+      "layout": {
+        "text-field": [
+          "get",
+          "Name"
+        ],
+        "text-font": [
+          "Noto Sans Regular"
+        ],
+        "text-size": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          7,
+          10,
+          12,
+          13
+        ],
+        "text-anchor": "top",
+        "text-offset": [
+          0,
+          0.3
+        ],
+        "text-allow-overlap": false
+      },
+      "paint": {
+        "text-color": "#4a3f28",
+        "text-halo-color": "#f2ecda",
+        "text-halo-width": 1.4
+      }
+    }
+  ]
+}

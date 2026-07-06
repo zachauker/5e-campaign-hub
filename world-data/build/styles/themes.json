@@ -1,0 +1,24 @@
+{
+  "themes": [
+    {
+      "id": "classic",
+      "label": "Classic Atlas",
+      "default": true
+    },
+    {
+      "id": "vibrant",
+      "label": "Vibrant Painted",
+      "default": false
+    },
+    {
+      "id": "antique",
+      "label": "Antique Sepia",
+      "default": false
+    },
+    {
+      "id": "dark",
+      "label": "Dark / Night",
+      "default": false
+    }
+  ]
+}

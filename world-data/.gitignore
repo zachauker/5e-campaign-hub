@@ -1,3 +1,7 @@
-# Large, regenerable artifacts — reproduce with the scripts in scripts/world/
+# Raw source GeoJSON — large + regenerable via scripts/world/fetch-geojson.sh
 src/
-build/
+
+# NOTE: build/ (exandria.pmtiles + glyphs/ + styles/, ~17MB) IS committed so a
+# clean CI checkout can bake it into the Docker image (see Dockerfile). It's a
+# rarely-changing static asset; regenerate with the scripts/world/* steps and
+# re-commit if you re-style the map.
