@@ -59,6 +59,16 @@ function composeDescription(category, continent, props) {
   return `Region — ${readableRegionKind(props.type)} · ${continent}`;
 }
 
+// Coarse locations.type category from a source feature.
+function deriveType(category, props) {
+  if (category === "region") return "region";
+  if (category === "poi") return "poi";
+  const t = String(props.Type || "").toLowerCase();
+  if (t === "metropolis" || t === "city") return "city";
+  if (t === "ruins") return "poi";
+  return "town";
+}
+
 function featureName(props) {
   const n = props.Name || props.name;
   return typeof n === "string" && n.trim() ? n.trim() : null;
@@ -82,6 +92,7 @@ function loadRecords() {
         continent: layer.continent,
         description: composeDescription(layer.category, layer.continent, ft.properties || {}),
         minZoom: MIN_ZOOM[layer.category],
+        type: deriveType(layer.category, ft.properties || {}),
       });
     }
   }
@@ -121,6 +132,7 @@ function dedupe(raw) {
       continent: r.continent,
       description: r.description,
       minZoom: r.minZoom,
+      type: r.type,
     });
   }
   return out;
@@ -198,7 +210,10 @@ function seed(db, campaignId, records) {
 
   const findLoc = db.prepare("SELECT id FROM locations WHERE campaign_id = ? AND lower(name) = ?");
   const insLoc = db.prepare(
-    "INSERT INTO locations (id, campaign_id, name, notion_url, description, created_at, updated_at) VALUES (?,?,?,?,?,?,?)"
+    "INSERT INTO locations (id, campaign_id, name, notion_url, description, type, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)"
+  );
+  const backfillType = db.prepare(
+    "UPDATE locations SET type = ?, updated_at = ? WHERE id = ? AND (type IS NULL OR type = 'other')"
   );
   const findMarker = db.prepare(
     "SELECT id FROM map_markers WHERE map_id = ? AND type = 'location' AND entity_id = ?"
@@ -211,6 +226,7 @@ function seed(db, campaignId, records) {
   let locSkipped = 0;
   let mkCreated = 0;
   let mkSkipped = 0;
+  let typeBackfilled = 0;
 
   const run = db.transaction((recs) => {
     for (const r of recs) {
@@ -219,10 +235,11 @@ function seed(db, campaignId, records) {
       if (existingLoc) {
         locId = existingLoc.id;
         locSkipped++;
+        if (backfillType.run(r.type, nowSec(), locId).changes > 0) typeBackfilled++;
       } else {
         locId = crypto.randomUUID();
         const t = nowSec();
-        insLoc.run(locId, campaignId, r.name, null, r.description, t, t);
+        insLoc.run(locId, campaignId, r.name, null, r.description, r.type, t, t);
         locCreated++;
       }
       if (findMarker.get(worldMapId, locId)) {
@@ -251,6 +268,7 @@ function seed(db, campaignId, records) {
 
   console.log(`Locations: ${locCreated} created, ${locSkipped} existing.`);
   console.log(`Markers:   ${mkCreated} created, ${mkSkipped} existing.`);
+  console.log(`Types:     ${typeBackfilled} backfilled on existing rows.`);
 }
 
 module.exports = { readableRegionKind, composeDescription, loadRecords, dedupe };
