@@ -96,6 +96,20 @@ Verified in-browser (Plan 1): all four themes render correctly and the live
 toggle works with no console errors, at both overview and deep (z12) zoom with
 crisp vector labels.
 
+## Seeding location entities (optional)
+
+`scripts/world/seed-locations.js` turns the named point features (cities, POIs,
+region labels) into `locations` rows for a campaign, each with an entity-linked
+pin on that campaign's `/world` map. Run per campaign:
+
+    node scripts/world/seed-locations.js <campaignId>
+
+It is idempotent (keyed on campaign + lower(name)), so re-running never
+duplicates. Requires the source GeoJSON (`scripts/world/fetch-geojson.sh`) and
+honors `DB_PATH` (default `./encounter-tracker.db`). Category and population are
+folded into each location's `description` (the `locations` table has no `type`
+column). Add `--dry-run` to preview counts without writing.
+
 ## Reproducibility
 
 Verified: deleting `world-data/src` and `world-data/build` entirely and re-running
