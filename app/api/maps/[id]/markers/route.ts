@@ -6,9 +6,9 @@ import { eq } from "drizzle-orm";
 
 async function resolveMarkerLabel(
   marker: typeof mapMarkers.$inferSelect
-): Promise<{ resolvedTitle: string; resolvedSubtitle: string | null }> {
+): Promise<{ resolvedTitle: string; resolvedSubtitle: string | null; entitySubtype: string | null }> {
   if (marker.type === "note") {
-    return { resolvedTitle: marker.title || "Note", resolvedSubtitle: null };
+    return { resolvedTitle: marker.title || "Note", resolvedSubtitle: null, entitySubtype: null };
   }
   if (marker.type === "submap") {
     const target = marker.targetMapId
@@ -17,22 +17,27 @@ async function resolveMarkerLabel(
     return {
       resolvedTitle: marker.title || target?.name || "Sub-map",
       resolvedSubtitle: target ? null : "Map not found",
+      entitySubtype: null,
     };
   }
   if (!marker.entityId) {
-    return { resolvedTitle: marker.title || "Untitled", resolvedSubtitle: "Entity not found" };
+    return { resolvedTitle: marker.title || "Untitled", resolvedSubtitle: "Entity not found", entitySubtype: null };
   }
   let entityName: string | undefined;
+  let entitySubtype: string | null = null;
   if (marker.type === "character") {
     entityName = (await db.query.characters.findFirst({ where: eq(characters.id, marker.entityId) }))?.name;
   } else if (marker.type === "location") {
-    entityName = (await db.query.locations.findFirst({ where: eq(locations.id, marker.entityId) }))?.name;
+    const loc = await db.query.locations.findFirst({ where: eq(locations.id, marker.entityId) });
+    entityName = loc?.name;
+    entitySubtype = loc?.type ?? null;
   } else if (marker.type === "faction") {
     entityName = (await db.query.factions.findFirst({ where: eq(factions.id, marker.entityId) }))?.name;
   }
   return {
     resolvedTitle: marker.title || entityName || "Untitled",
     resolvedSubtitle: entityName ? null : "Entity not found",
+    entitySubtype,
   };
 }
 

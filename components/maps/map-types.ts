@@ -16,6 +16,7 @@ export interface MarkerData {
 export interface ResolvedMarker extends MarkerData {
   resolvedTitle: string;
   resolvedSubtitle: string | null;
+  entitySubtype?: string | null;
 }
 
 export interface MapData {
