@@ -46,12 +46,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const existing = await db.query.locations.findFirst({ where: eq(locations.id, id) });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  const LOCATION_TYPES = ["city", "town", "poi", "region", "other"];
+  if (body.type !== undefined && !LOCATION_TYPES.includes(body.type)) {
+    return NextResponse.json({ error: `"type" must be one of ${LOCATION_TYPES.join(", ")}` }, { status: 400 });
+  }
+
   await db
     .update(locations)
     .set({
       name: body.name ?? existing.name,
       notionUrl: body.notionUrl ?? existing.notionUrl,
       description: body.description ?? existing.description,
+      type: body.type ?? existing.type,
       updatedAt: new Date(),
     })
     .where(eq(locations.id, id));

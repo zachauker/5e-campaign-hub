@@ -26,6 +26,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: '"campaignId" is required and must be a string' }, { status: 400 });
   }
 
+  const LOCATION_TYPES = ["city", "town", "poi", "region", "other"];
+  if (body.type !== undefined && !LOCATION_TYPES.includes(body.type)) {
+    return NextResponse.json({ error: `"type" must be one of ${LOCATION_TYPES.join(", ")}` }, { status: 400 });
+  }
+
   const now = new Date();
   const [location] = await db
     .insert(locations)
@@ -35,6 +40,7 @@ export async function POST(req: Request) {
       name: body.name.trim(),
       notionUrl: body.notionUrl ?? null,
       description: body.description ?? null,
+      type: body.type ?? "other",
       createdAt: now,
       updatedAt: now,
     })
