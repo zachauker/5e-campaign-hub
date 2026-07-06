@@ -2,9 +2,13 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
-  ({ className, type, ...props }, ref) => (
+  ({ className, type, placeholder, "aria-label": ariaLabel, ...props }, ref) => (
     <input
       type={type}
+      placeholder={placeholder}
+      // Fall back to the placeholder for an accessible name when no explicit
+      // label is supplied — these inputs are placeholder-only by design.
+      aria-label={ariaLabel ?? (typeof placeholder === "string" ? placeholder : undefined)}
       className={cn(
         "flex h-9 w-full rounded-md border border-border bg-muted px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
         className

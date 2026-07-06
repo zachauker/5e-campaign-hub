@@ -182,6 +182,7 @@ export function CharacterFormDialog({
 
           <textarea
             placeholder="Description / notes"
+            aria-label="Description / notes"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={3}

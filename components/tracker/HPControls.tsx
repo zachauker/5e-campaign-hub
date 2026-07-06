@@ -53,7 +53,7 @@ export function HPControls({ combatantId, hpCurrent, hpMax, hpTemp, compact = fa
           </span>
         </div>
         {hpTemp > 0 && (
-          <span className="text-xs text-blue-400 font-medium">+{hpTemp}</span>
+          <span className="text-xs text-temp-hp font-medium">+{hpTemp}</span>
         )}
       </div>
     );
@@ -72,7 +72,7 @@ export function HPControls({ combatantId, hpCurrent, hpMax, hpTemp, compact = fa
             {hpCurrent}/{hpMax}
           </span>
           {hpTemp > 0 && (
-            <span className="text-xs text-blue-300 font-medium">+{hpTemp} tmp</span>
+            <span className="text-xs text-temp-hp font-medium">+{hpTemp} tmp</span>
           )}
         </div>
       </div>
@@ -87,9 +87,9 @@ export function HPControls({ combatantId, hpCurrent, hpMax, hpTemp, compact = fa
                 "px-2 py-1 capitalize transition-colors",
                 mode === m
                   ? m === "damage"
-                    ? "bg-red-900/60 text-red-200"
+                    ? "bg-damage/20 text-damage"
                     : m === "heal"
-                    ? "bg-green-900/60 text-green-200"
+                    ? "bg-heal/20 text-heal"
                     : "bg-accent text-foreground"
                   : "bg-muted text-muted-foreground hover:bg-accent"
               )}
@@ -104,6 +104,7 @@ export function HPControls({ combatantId, hpCurrent, hpMax, hpTemp, compact = fa
           type="number"
           min="0"
           placeholder="0"
+          aria-label={mode === "damage" ? "Damage amount" : mode === "heal" ? "Healing amount" : "Set HP to"}
           value={inputVal}
           onChange={(e) => setInputVal(e.target.value)}
           onKeyDown={handleKey}
@@ -117,8 +118,8 @@ export function HPControls({ combatantId, hpCurrent, hpMax, hpTemp, compact = fa
           aria-label={mode === "damage" ? "Apply damage" : mode === "heal" ? "Apply healing" : "Set HP"}
           title={mode === "damage" ? "Apply damage" : mode === "heal" ? "Apply healing" : "Set HP"}
           className={cn(
-            mode === "damage" && "text-red-400 hover:text-red-300",
-            mode === "heal" && "text-green-400 hover:text-green-300"
+            mode === "damage" && "text-damage",
+            mode === "heal" && "text-heal"
           )}
         >
           {mode === "damage" ? <Minus className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
@@ -135,6 +136,7 @@ export function HPControls({ combatantId, hpCurrent, hpMax, hpTemp, compact = fa
             type="number"
             min="0"
             placeholder="0"
+            aria-label="Temporary HP"
             defaultValue={hpTemp}
             className="h-6 w-16 text-xs px-1"
             onBlur={(e) => setTempHP(combatantId, parseInt(e.target.value, 10) || 0)}

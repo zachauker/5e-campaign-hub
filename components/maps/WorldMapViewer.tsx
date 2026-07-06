@@ -10,6 +10,7 @@ import { useCampaignStore } from "@/lib/store/campaign-store";
 import type { ResolvedMarker } from "@/components/maps/map-types";
 import { MarkerLayerControl } from "@/components/maps/MarkerLayerControl";
 import { isMarkerVisible, readHiddenLayers } from "@/components/maps/marker-layers";
+import { useToast } from "@/components/ui/toast";
 
 const WorldMapCanvas = dynamic(
   () => import("@/components/maps/WorldMapCanvas").then((m) => m.WorldMapCanvas),
@@ -26,6 +27,7 @@ interface ThemeOption {
 
 export function WorldMapViewer() {
   const { activeCampaignId } = useCampaignStore();
+  const toast = useToast();
   const [worldMapId, setWorldMapId] = useState<string | null>(null);
   const [markers, setMarkers] = useState<ResolvedMarker[]>([]);
   const [themes, setThemes] = useState<ThemeOption[]>([]);
@@ -78,12 +80,16 @@ export function WorldMapViewer() {
         body: JSON.stringify({ campaignId: activeCampaignId }),
       });
       if (!res.ok) {
-        alert("Import failed. Please try again.");
+        toast({ title: "Import failed", description: "Please try again.", variant: "error" });
         return;
       }
       const d = (await res.json()) as { locationsCreated: number; locationsExisting: number };
       await loadMarkers(worldMapId);
-      alert(`Imported ${d.locationsCreated} Exandria locations (${d.locationsExisting} already present).`);
+      toast({
+        title: `Imported ${d.locationsCreated} Exandria locations`,
+        description: `${d.locationsExisting} already present.`,
+        variant: "success",
+      });
     } finally {
       setImporting(false);
     }
@@ -205,6 +211,7 @@ export function WorldMapViewer() {
           <select
             value={theme}
             onChange={(e) => changeTheme(e.target.value)}
+            aria-label="Map theme"
             className="text-xs bg-muted border border-border rounded-md px-2 py-1"
             title="Map theme"
           >

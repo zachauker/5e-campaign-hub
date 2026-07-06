@@ -13,6 +13,7 @@ import { RelatedCard } from "@/components/glossary/RelatedCard";
 import { StatBlock } from "@/components/tracker/StatBlock";
 import { CharacterFormDialog, type CharacterWithLinks } from "@/components/entities/CharacterFormDialog";
 import { useCampaignStore } from "@/lib/store/campaign-store";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ddbCharacterToStatBlock } from "@/lib/ddb/client";
 import type { NotionBlockData } from "@/lib/notion/client";
 import type { StatBlock as StatBlockType, DDBCharacter } from "@/lib/types";
@@ -27,6 +28,7 @@ export default function CharacterDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const { activeCampaignId } = useCampaignStore();
+  const confirm = useConfirm();
   const [character, setCharacter] = useState<CharacterWithLinks | null>(null);
   const [factions, setFactions] = useState<RelatedEntity[]>([]);
   const [locations, setLocations] = useState<RelatedEntity[]>([]);
@@ -157,7 +159,13 @@ export default function CharacterDetailPage() {
   }, [character?.ddbCharacterId]);
 
   async function remove() {
-    if (!confirm("Delete this character?")) return;
+    const ok = await confirm({
+      title: "Delete character?",
+      description: "This permanently removes the character from the campaign.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     await fetch(`/api/characters/${id}`, { method: "DELETE" });
     router.push("/characters");
   }

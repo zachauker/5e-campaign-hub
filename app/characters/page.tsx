@@ -7,11 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, Users } from "lucide-react";
 import { useCampaignStore } from "@/lib/store/campaign-store";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { CharacterFormDialog } from "@/components/entities/CharacterFormDialog";
 import type { Character } from "@/lib/db/schema";
 
 export default function CharactersPage() {
   const { activeCampaignId } = useCampaignStore();
+  const confirm = useConfirm();
   const [characters, setCharacters] = useState<Character[]>([]);
   const [query, setQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -29,7 +31,13 @@ export default function CharactersPage() {
 
   async function remove(id: string, e: React.MouseEvent) {
     e.stopPropagation();
-    if (!confirm("Delete this character?")) return;
+    const ok = await confirm({
+      title: "Delete character?",
+      description: "This permanently removes the character from the campaign.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     await fetch(`/api/characters/${id}`, { method: "DELETE" });
     setCharacters((prev) => prev.filter((c) => c.id !== id));
   }

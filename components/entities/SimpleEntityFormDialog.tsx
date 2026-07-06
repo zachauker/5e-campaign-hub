@@ -79,6 +79,7 @@ export function SimpleEntityFormDialog({
           <Input autoFocus placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
           <textarea
             placeholder="Description"
+            aria-label="Description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={3}
@@ -88,6 +89,7 @@ export function SimpleEntityFormDialog({
             <select
               value={type}
               onChange={(e) => setType(e.target.value)}
+              aria-label="Location type"
               className="w-full rounded-md border border-border bg-muted px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
               <option value="city">City</option>

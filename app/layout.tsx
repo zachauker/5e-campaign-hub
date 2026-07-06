@@ -4,6 +4,8 @@ import "./globals.css";
 import { TopBar } from "@/components/shell/TopBar";
 import { CommandPalette } from "@/components/shell/CommandPalette";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ToastProvider } from "@/components/ui/toast";
+import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,11 +33,15 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="h-full flex flex-col bg-background text-foreground overflow-hidden">
-        <TooltipProvider delayDuration={200} skipDelayDuration={100}>
-          <TopBar />
-          <main className="flex-1 min-h-0 overflow-y-auto">{children}</main>
-          <CommandPalette />
-        </TooltipProvider>
+        <ToastProvider>
+          <ConfirmProvider>
+            <TooltipProvider delayDuration={200} skipDelayDuration={100}>
+              <TopBar />
+              <main className="flex-1 min-h-0 overflow-y-auto">{children}</main>
+              <CommandPalette />
+            </TooltipProvider>
+          </ConfirmProvider>
+        </ToastProvider>
       </body>
     </html>
   );

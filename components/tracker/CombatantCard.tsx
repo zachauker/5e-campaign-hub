@@ -81,12 +81,11 @@ export function CombatantCard({ combatant: c, isActive, dragHandleProps }: Comba
     <div
       className={cn(
         "relative rounded-xl border transition-all duration-200 overflow-hidden",
-        isActive && "combatant-active border-[var(--initiative)]",
+        isActive && "combatant-active border-[var(--initiative)] bg-[var(--initiative)]/5",
         !isActive && "border-border",
         isDead && "opacity-40 [filter:grayscale(0.5)]",
         isSelected && !isActive && "border-muted-foreground",
       )}
-      style={isActive ? { backgroundColor: "rgba(212, 175, 55, 0.05)" } : undefined}
       onClick={() => selectCombatant(isSelected ? null : c.id)}
     >
       {/* HP bar strip — 6px, color-coded */}
@@ -177,14 +176,14 @@ export function CombatantCard({ combatant: c, isActive, dragHandleProps }: Comba
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span
-                    className="absolute -top-1 -right-1 flex items-center justify-center w-4 h-4 rounded-full bg-amber-500 text-black ring-2 ring-card cursor-help"
+                    className="absolute -top-1 -right-1 flex items-center justify-center w-4 h-4 rounded-full bg-warning text-black ring-2 ring-card cursor-help"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <AlertTriangle className="w-2.5 h-2.5" />
                   </span>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-[14rem]">
-                  <p className="font-semibold text-amber-400">Stale data</p>
+                  <p className="font-semibold text-warning">Stale data</p>
                   <p className="text-muted-foreground leading-snug">
                     Last D&amp;D Beyond sync failed — HP and slots may be out of date.
                   </p>
@@ -254,7 +253,7 @@ export function CombatantCard({ combatant: c, isActive, dragHandleProps }: Comba
                     <span className="text-[10px] text-muted-foreground">· {c.playerName}</span>
                   )}
                   {c.isConcentrating && (
-                    <span className="text-[10px] text-blue-400 font-medium">· Conc</span>
+                    <span className="text-[10px] text-concentration font-medium">· Conc</span>
                   )}
                 </div>
               </div>
@@ -353,6 +352,7 @@ export function CombatantCard({ combatant: c, isActive, dragHandleProps }: Comba
               <textarea
                 className="w-full bg-muted rounded-md border border-border text-xs p-2 resize-none placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                 placeholder="Notes…"
+                aria-label={`Notes for ${c.name}`}
                 rows={2}
                 defaultValue={c.notes ?? ""}
                 onBlur={(e) => useEncounterStore.getState().setNotes(c.id, e.target.value)}

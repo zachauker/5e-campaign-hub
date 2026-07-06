@@ -156,6 +156,7 @@ export function MarkerFormDialog({ mapId, campaignId, position, marker, currentZ
             <select
               value={entityId}
               onChange={(e) => setEntityId(e.target.value)}
+              aria-label={`Linked ${type}`}
               className="w-full rounded-md border border-border bg-muted px-3 py-2 text-sm"
             >
               <option value="">Select {type}...</option>
@@ -178,6 +179,7 @@ export function MarkerFormDialog({ mapId, campaignId, position, marker, currentZ
                     setUploadFile(null);
                   }
                 }}
+                aria-label="Target map"
                 className="w-full rounded-md border border-border bg-muted px-3 py-2 text-sm"
               >
                 <option value="">Select an existing map...</option>
@@ -208,6 +210,7 @@ export function MarkerFormDialog({ mapId, campaignId, position, marker, currentZ
           {type === "note" && (
             <textarea
               placeholder="Note text"
+              aria-label="Note text"
               value={note}
               onChange={(e) => setNote(e.target.value)}
               rows={3}

@@ -11,6 +11,7 @@ import { RelatedCard } from "@/components/glossary/RelatedCard";
 import { SimpleEntityFormDialog } from "@/components/entities/SimpleEntityFormDialog";
 import { Badge } from "@/components/ui/badge";
 import { useCampaignStore } from "@/lib/store/campaign-store";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { NotionBlockData } from "@/lib/notion/client";
 
 interface SimpleEntityDetailData {
@@ -34,6 +35,7 @@ export function SimpleEntityDetail({ resourcePath, label, icon: Icon }: SimpleEn
   const params = useParams();
   const id = params.id as string;
   const { activeCampaignId } = useCampaignStore();
+  const confirm = useConfirm();
   const [entity, setEntity] = useState<SimpleEntityDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
@@ -96,7 +98,13 @@ export function SimpleEntityDetail({ resourcePath, label, icon: Icon }: SimpleEn
   }, [entity?.notionUrl]);
 
   async function remove() {
-    if (!confirm(`Delete this ${label.toLowerCase().replace(/s$/, "")}?`)) return;
+    const ok = await confirm({
+      title: `Delete ${label.toLowerCase().replace(/s$/, "")}?`,
+      description: "This permanently removes it from the campaign.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     await fetch(`/api/${resourcePath}/${id}`, { method: "DELETE" });
     router.push(`/${resourcePath}`);
   }

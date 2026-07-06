@@ -499,6 +499,7 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
                 <Input
                   type="number"
                   placeholder="—"
+                  aria-label="Initiative"
                   value={npcForm.initiative}
                   onChange={(e) => setNpcForm({ ...npcForm, initiative: e.target.value })}
                 />
@@ -717,6 +718,7 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
                     <Input
                       type="number"
                       placeholder="—"
+                      aria-label="Initiative"
                       value={linkForm.initiative}
                       onChange={(e) => setLinkForm({ ...linkForm, initiative: e.target.value })}
                     />

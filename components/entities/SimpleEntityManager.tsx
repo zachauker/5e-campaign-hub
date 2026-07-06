@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Trash2, type LucideIcon } from "lucide-react";
 import { useCampaignStore } from "@/lib/store/campaign-store";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { SimpleEntityFormDialog, type SimpleEntity } from "@/components/entities/SimpleEntityFormDialog";
 
 interface SimpleEntityManagerProps {
@@ -16,6 +17,7 @@ interface SimpleEntityManagerProps {
 
 export function SimpleEntityManager({ resourcePath, label, icon: Icon }: SimpleEntityManagerProps) {
   const { activeCampaignId } = useCampaignStore();
+  const confirm = useConfirm();
   const [entities, setEntities] = useState<SimpleEntity[]>([]);
   const [query, setQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -31,9 +33,16 @@ export function SimpleEntityManager({ resourcePath, label, icon: Icon }: SimpleE
     load();
   }, [load]);
 
+  const singular = label.toLowerCase().replace(/s$/, "");
   async function remove(id: string, e: React.MouseEvent) {
     e.stopPropagation();
-    if (!confirm(`Delete this ${label.toLowerCase().replace(/s$/, "")}?`)) return;
+    const ok = await confirm({
+      title: `Delete ${singular}?`,
+      description: "This permanently removes it from the campaign.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     await fetch(`/api/${resourcePath}/${id}`, { method: "DELETE" });
     setEntities((prev) => prev.filter((x) => x.id !== id));
   }

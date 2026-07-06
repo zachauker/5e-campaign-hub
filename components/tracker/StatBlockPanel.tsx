@@ -84,7 +84,7 @@ export function StatBlockPanel({ onRefresh, lastSyncedAt, syncing, syncErrors }:
                 {/* Stale data warning */}
                 {hasError && (
                   <span
-                    className="flex items-center gap-0.5 text-[10px] text-amber-400 shrink-0"
+                    className="flex items-center gap-0.5 text-[10px] text-warning shrink-0"
                     title="Sync failed — data may be stale"
                   >
                     <AlertTriangle className="w-3 h-3" />

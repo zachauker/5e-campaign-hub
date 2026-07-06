@@ -23,6 +23,11 @@
   --color-hp-med: var(--hp-med);
   --color-hp-low: var(--hp-low);
   --color-initiative: var(--initiative);
+  --color-damage: var(--damage);
+  --color-heal: var(--heal);
+  --color-temp-hp: var(--temp-hp);
+  --color-concentration: var(--concentration);
+  --color-warning: var(--warning);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -55,6 +60,11 @@
   --hp-med: #f39c12;
   --hp-low: #c0392b;
   --initiative: #d4af37;
+  --damage: #ef4444;
+  --heal: #22c55e;
+  --temp-hp: #60a5fa;
+  --concentration: #60a5fa;
+  --warning: #f59e0b;
   --marker-location: #b8925a;
   --marker-faction: #9b6bb0;
   --marker-character: #4fae8f;
@@ -93,15 +103,20 @@ body {
   transition: width 0.3s ease, background-color 0.3s ease;
 }
 
-/* Active combatant glow */
+/* Active combatant glow — derived from the initiative token so a palette change
+   propagates instead of drifting from the hard-coded gold. */
 .combatant-active {
-  box-shadow: 0 0 0 1px var(--initiative), 0 0 0 4px rgba(212, 175, 55, 0.12), 0 0 24px rgba(212, 175, 55, 0.22);
+  box-shadow:
+    0 0 0 1px var(--initiative),
+    0 0 0 4px color-mix(in srgb, var(--initiative) 12%, transparent),
+    0 0 24px color-mix(in srgb, var(--initiative) 22%, transparent);
 }
 
 /* Map marker selection glow — same recipe as .combatant-active, applied via
    drop-shadow (not box-shadow) since markers are SVGs, not boxes. */
 .marker-selected {
-  filter: drop-shadow(0 0 3px var(--initiative)) drop-shadow(0 0 8px rgba(212, 175, 55, 0.6));
+  filter: drop-shadow(0 0 3px var(--initiative))
+    drop-shadow(0 0 8px color-mix(in srgb, var(--initiative) 60%, transparent));
 }
 
 /* Drag-and-drop ghost */

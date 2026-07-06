@@ -8,6 +8,9 @@ import { cn } from "@/lib/utils";
 import { useCampaignStore } from "@/lib/store/campaign-store";
 import { useUIStore } from "@/lib/store/ui-store";
 import { useEncounterStore } from "@/lib/store/encounter-store";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { Campaign } from "@/lib/db/schema";
 
 const SECTIONS = [
@@ -26,6 +29,9 @@ export function TopBar() {
   const setCommandPaletteOpen = useUIStore((s) => s.setCommandPaletteOpen);
   const encounterStatus = useEncounterStore((s) => s.encounter?.status);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [newOpen, setNewOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
 
   // Combat focus mode: while running a live encounter, the hub nav is dead
   // weight competing with the initiative list. Collapse it to a thin strip that
@@ -54,22 +60,59 @@ export function TopBar() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function handleCampaignChange(value: string) {
+  function handleCampaignChange(value: string) {
     if (value === "__new__") {
-      const name = window.prompt("Campaign name:");
-      if (!name?.trim()) return;
-      const res = await fetch("/api/campaigns", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim() }),
-      });
-      const campaign: Campaign = await res.json();
-      setCampaigns((prev) => [campaign, ...prev]);
-      setActiveCampaignId(campaign.id);
+      setNewName("");
+      setNewOpen(true);
       return;
     }
     setActiveCampaignId(value);
   }
+
+  async function createCampaign() {
+    const name = newName.trim();
+    if (!name) return;
+    setCreating(true);
+    try {
+      const res = await fetch("/api/campaigns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const campaign: Campaign = await res.json();
+      setCampaigns((prev) => [campaign, ...prev]);
+      setActiveCampaignId(campaign.id);
+      setNewOpen(false);
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  const newCampaignDialog = (
+    <Dialog open={newOpen} onOpenChange={(o) => !o && setNewOpen(false)}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>New campaign</DialogTitle>
+        </DialogHeader>
+        <Input
+          autoFocus
+          placeholder="Campaign name"
+          aria-label="Campaign name"
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && createCampaign()}
+        />
+        <div className="flex justify-end gap-2 pt-1">
+          <Button variant="outline" onClick={() => setNewOpen(false)}>
+            Cancel
+          </Button>
+          <Button onClick={createCampaign} disabled={creating || !newName.trim()}>
+            {creating ? "Creating…" : "Create"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 
   const bar = (
     <div className="px-4 h-12 flex items-center gap-4">
@@ -107,6 +150,7 @@ export function TopBar() {
         <select
           value={activeCampaignId ?? ""}
           onChange={(e) => handleCampaignChange(e.target.value)}
+          aria-label="Active campaign"
           className="text-xs bg-muted border border-border rounded-md px-2 py-1 max-w-[140px] flex-none"
         >
           {campaigns.map((c) => (
@@ -129,9 +173,12 @@ export function TopBar() {
 
   if (!inCombat) {
     return (
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-40 flex-none">
-        {bar}
-      </header>
+      <>
+        <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-40 flex-none">
+          {bar}
+        </header>
+        {newCampaignDialog}
+      </>
     );
   }
 
@@ -155,6 +202,7 @@ export function TopBar() {
       >
         {bar}
       </div>
+      {newCampaignDialog}
     </header>
   );
 }

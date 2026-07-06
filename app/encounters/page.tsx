@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { cn, formatDate } from "@/lib/utils";
 import { useCampaignStore } from "@/lib/store/campaign-store";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { Encounter } from "@/lib/db/schema";
 
 const STATUS_CONFIG = {
@@ -25,6 +26,7 @@ const STATUS_CONFIG = {
 
 export default function EncountersPage() {
   const router = useRouter();
+  const confirm = useConfirm();
   const { activeCampaignId } = useCampaignStore();
   const [encounters, setEncounters] = useState<Encounter[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,7 +61,13 @@ export default function EncountersPage() {
 
   async function deleteEncounter(id: string, e: React.MouseEvent) {
     e.stopPropagation();
-    if (!confirm("Delete this encounter?")) return;
+    const ok = await confirm({
+      title: "Delete encounter?",
+      description: "This permanently removes the encounter and its combatants.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     await fetch(`/api/encounters/${id}`, { method: "DELETE" });
     setEncounters((prev) => prev.filter((enc) => enc.id !== id));
   }
