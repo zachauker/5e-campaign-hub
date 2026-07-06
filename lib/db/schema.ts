@@ -84,6 +84,7 @@ export const locations = sqliteTable("locations", {
   name: text("name").notNull(),
   notionUrl: text("notion_url"),
   description: text("description"),
+  type: text("type", { enum: ["city", "town", "poi", "region", "other"] }).notNull().default("other"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });

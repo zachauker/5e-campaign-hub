@@ -184,6 +184,7 @@ export function runMigrations() {
   addColumnIfMissing("maps", "height", "INTEGER");
   addColumnIfMissing("maps", "max_zoom", "INTEGER");
   addColumnIfMissing("map_markers", "min_zoom", "INTEGER");
+  addColumnIfMissing("locations", "type", "TEXT NOT NULL DEFAULT 'other'");
 
   // Sub-project 6 retired: drop the abandoned map_features table if a prior
   // version created it. The orphaned legacy world-map flag column on maps is
