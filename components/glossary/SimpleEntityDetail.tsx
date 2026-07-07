@@ -9,7 +9,6 @@ import { ArrowLeft, Pencil, Trash2, Loader2, Map as MapIcon, type LucideIcon } f
 import { NotionBlocks } from "@/components/glossary/NotionBlocks";
 import { RelatedCard } from "@/components/glossary/RelatedCard";
 import { SimpleEntityFormDialog } from "@/components/entities/SimpleEntityFormDialog";
-import { Badge } from "@/components/ui/badge";
 import { useCampaignStore } from "@/lib/store/campaign-store";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { NotionBlockData } from "@/lib/notion/client";
@@ -29,6 +28,13 @@ interface SimpleEntityDetailProps {
   label: string;
   icon: LucideIcon;
 }
+
+// Shared with the list pages and the world-map markers.
+const ACCENT: Record<SimpleEntityDetailProps["resourcePath"], string> = {
+  locations: "var(--marker-location)",
+  items: "var(--marker-item)",
+  factions: "var(--marker-faction)",
+};
 
 export function SimpleEntityDetail({ resourcePath, label, icon: Icon }: SimpleEntityDetailProps) {
   const router = useRouter();
@@ -134,8 +140,10 @@ export function SimpleEntityDetail({ resourcePath, label, icon: Icon }: SimpleEn
     other: "Other",
   };
 
+  const accent = ACCENT[resourcePath];
+
   return (
-    <div className="max-w-3xl mx-auto px-6 py-8 space-y-6">
+    <div className="max-w-3xl mx-auto px-6 py-10">
       <Link
         href={`/${resourcePath}`}
         className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 w-fit"
@@ -143,16 +151,22 @@ export function SimpleEntityDetail({ resourcePath, label, icon: Icon }: SimpleEn
         <ArrowLeft className="w-3.5 h-3.5" /> {label}
       </Link>
 
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold flex items-center gap-2">
-          <Icon className="w-5 h-5 text-muted-foreground" /> {entity.name}
+      <header className="mt-5 flex items-start justify-between gap-4 border-b border-border pb-5">
+        <div className="min-w-0">
+          <div className="flex items-center gap-3.5">
+            <Icon className="w-7 h-7 flex-none" style={{ color: accent }} />
+            <h1 className="font-display text-4xl leading-none">{entity.name}</h1>
+          </div>
           {resourcePath === "locations" && entity.type && (
-            <Badge variant="outline" className="text-xs font-normal uppercase tracking-wide">
+            <span
+              className="inline-flex mt-3 items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+              style={{ color: accent, backgroundColor: `color-mix(in srgb, ${accent} 15%, transparent)` }}
+            >
               {LOCATION_TYPE_LABELS[entity.type] ?? entity.type}
-            </Badge>
+            </span>
           )}
-        </h1>
-        <div className="flex gap-2">
+        </div>
+        <div className="flex gap-2 flex-none">
           <Button size="sm" variant="outline" onClick={() => setEditOpen(true)} className="gap-1.5">
             <Pencil className="w-3.5 h-3.5" /> Edit
           </Button>
@@ -160,20 +174,24 @@ export function SimpleEntityDetail({ resourcePath, label, icon: Icon }: SimpleEn
             <Trash2 className="w-3.5 h-3.5" /> Delete
           </Button>
         </div>
-      </div>
+      </header>
 
-      <Tabs defaultValue="overview">
+      <Tabs defaultValue="overview" className="mt-6">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="notion">Notion Notes</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-4 pt-4">
-          {entity.description && <p className="text-sm text-muted-foreground">{entity.description}</p>}
+        <TabsContent value="overview" className="space-y-6 pt-5">
+          {entity.description && (
+            <p className="text-[15px] leading-relaxed text-foreground/85 max-w-[68ch]">
+              {entity.description}
+            </p>
+          )}
 
           {entity.mapMarkers && entity.mapMarkers.length > 0 && (
             <div className="space-y-3">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">On the Map</h3>
+              <h3 className="font-display text-lg">On the map</h3>
               <div className="flex flex-wrap gap-2">
                 {entity.mapMarkers.map((m) => (
                   <Link
@@ -191,9 +209,7 @@ export function SimpleEntityDetail({ resourcePath, label, icon: Icon }: SimpleEn
 
           {entity.linkedCharacters.length > 0 && (
             <div className="space-y-3">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Linked Characters
-              </h3>
+              <h3 className="font-display text-lg">Linked characters</h3>
               <div className="flex flex-wrap gap-2">
                 {entity.linkedCharacters.map((c) => (
                   <RelatedCard

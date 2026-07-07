@@ -7,7 +7,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ArrowLeft, Pencil, Trash2, Loader2, Map as MapIcon } from "lucide-react";
+import { ArrowLeft, Pencil, Trash2, Loader2, Map as MapIcon, UserRound } from "lucide-react";
 import { NotionBlocks } from "@/components/glossary/NotionBlocks";
 import { RelatedCard } from "@/components/glossary/RelatedCard";
 import { StatBlock } from "@/components/tracker/StatBlock";
@@ -190,7 +190,7 @@ export default function CharacterDetailPage() {
   const ddbStatBlock: StatBlockType | null = ddbCharacter ? ddbCharacterToStatBlock(ddbCharacter) : null;
 
   return (
-    <div className="max-w-3xl mx-auto px-6 py-8 space-y-6">
+    <div className="max-w-3xl mx-auto px-6 py-10">
       <Link
         href="/characters"
         className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 w-fit"
@@ -198,14 +198,20 @@ export default function CharacterDetailPage() {
         <ArrowLeft className="w-3.5 h-3.5" /> Characters
       </Link>
 
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h1 className="text-xl font-bold">{character.name}</h1>
-          <Badge variant={character.type === "pc" ? "hp" : "outline"} className="capitalize">
+      <header className="mt-5 flex items-start justify-between gap-4 border-b border-border pb-5">
+        <div className="min-w-0">
+          <div className="flex items-center gap-3.5">
+            <UserRound className="w-7 h-7 flex-none text-[var(--marker-character)]" />
+            <h1 className="font-display text-4xl leading-none">{character.name}</h1>
+          </div>
+          <Badge
+            variant={character.type === "pc" ? "hp" : "outline"}
+            className="capitalize mt-3"
+          >
             {character.type}
           </Badge>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-none">
           <Button size="sm" variant="outline" onClick={() => setEditOpen(true)} className="gap-1.5">
             <Pencil className="w-3.5 h-3.5" /> Edit
           </Button>
@@ -213,21 +219,25 @@ export default function CharacterDetailPage() {
             <Trash2 className="w-3.5 h-3.5" /> Delete
           </Button>
         </div>
-      </div>
+      </header>
 
-      <Tabs defaultValue="overview">
+      <Tabs defaultValue="overview" className="mt-6">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="notion">Notion Notes</TabsTrigger>
           <TabsTrigger value="ddb">D&D Beyond</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-4 pt-4">
-          {character.description && <p className="text-sm text-muted-foreground">{character.description}</p>}
+        <TabsContent value="overview" className="space-y-6 pt-5">
+          {character.description && (
+            <p className="text-[15px] leading-relaxed text-foreground/85 max-w-[68ch]">
+              {character.description}
+            </p>
+          )}
 
           {character.mapMarkers.length > 0 && (
             <div className="space-y-3">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">On the Map</h3>
+              <h3 className="font-display text-lg">On the map</h3>
               <div className="flex flex-wrap gap-2">
                 {character.mapMarkers.map((m) => (
                   <Link
@@ -245,7 +255,7 @@ export default function CharacterDetailPage() {
 
           {(factions.length > 0 || locations.length > 0 || items.length > 0) && (
             <div className="space-y-3">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Related</h3>
+              <h3 className="font-display text-lg">Related</h3>
               <div className="flex flex-wrap gap-2">
                 {factions.map((f) => (
                   <RelatedCard key={f.id} href={`/factions/${f.id}`} name={f.name} type="Faction" />

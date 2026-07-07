@@ -112,14 +112,14 @@ export default function SettingsPage() {
           <Button size="icon-sm" variant="ghost" onClick={() => router.push("/")} aria-label="Back to dashboard" title="Back to dashboard">
             <ArrowLeft className="w-4 h-4" />
           </Button>
-          <h1 className="font-bold text-lg">Settings</h1>
+          <h1 className="font-display text-2xl leading-none">Settings</h1>
         </div>
       </header>
 
       <main className="max-w-2xl mx-auto px-6 py-8 space-y-6">
         {/* General */}
         <section className="rounded-xl border border-border bg-card p-6 space-y-4">
-          <h2 className="font-semibold">General</h2>
+          <h2 className="font-display text-xl">General</h2>
           <div>
             <label className="text-sm text-muted-foreground block mb-1.5">Campaign Name</label>
             <Input
@@ -133,7 +133,7 @@ export default function SettingsPage() {
         {/* D&D Beyond Characters */}
         <section className="rounded-xl border border-border bg-card p-6 space-y-4">
           <div>
-            <h2 className="font-semibold">D&D Beyond Characters</h2>
+            <h2 className="font-display text-xl">D&D Beyond Characters</h2>
             <p className="text-sm text-muted-foreground mt-0.5">
               Add each PC’s character sheet URL. They’ll appear in the D&D Beyond tab when adding combatants.
             </p>
@@ -220,7 +220,7 @@ export default function SettingsPage() {
         {/* Notion Integration */}
         <section className="rounded-xl border border-border bg-card p-6 space-y-4">
           <div>
-            <h2 className="font-semibold">Notion Integration</h2>
+            <h2 className="font-display text-xl">Notion Integration</h2>
             <p className="text-sm text-muted-foreground mt-0.5">
               Paste your Notion internal integration secret to pull linked page content into character, location, item, and faction detail pages. Create one at{" "}
               <a href="https://www.notion.so/my-integrations" target="_blank" rel="noreferrer" className="text-primary hover:underline">

@@ -73,9 +73,9 @@
   --initiative: #d4af37;
   --damage: oklch(0.54 0.19 27);
   --heal: oklch(0.6 0.14 150);
-  --temp-hp: #60a5fa;
-  --concentration: #60a5fa;
-  --warning: #f59e0b;
+  --temp-hp: oklch(0.64 0.13 250);
+  --concentration: oklch(0.64 0.13 250);
+  --warning: oklch(0.72 0.14 70);
   --marker-location: #b8925a;
   --marker-faction: #9b6bb0;
   --marker-character: #4fae8f;
