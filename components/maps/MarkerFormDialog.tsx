@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { MapPin, Flag, UserRound, Layers, StickyNote, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MarkerType, MarkerData } from "@/components/maps/map-types";
 export type { MarkerData };
@@ -29,12 +30,14 @@ interface MarkerFormDialogProps {
   onSaved: () => void;
 }
 
-const TYPE_OPTIONS: { value: MarkerType; label: string }[] = [
-  { value: "location", label: "Location" },
-  { value: "faction", label: "Faction" },
-  { value: "character", label: "Character" },
-  { value: "submap", label: "Sub-map" },
-  { value: "note", label: "Note" },
+// Each type carries its own marker color + icon (shared with the map pins), so
+// the picker reads as the legend it is instead of a generic red toggle set.
+const TYPE_OPTIONS: { value: MarkerType; label: string; icon: LucideIcon; color: string }[] = [
+  { value: "location", label: "Location", icon: MapPin, color: "var(--marker-location)" },
+  { value: "faction", label: "Faction", icon: Flag, color: "var(--marker-faction)" },
+  { value: "character", label: "Character", icon: UserRound, color: "var(--marker-character)" },
+  { value: "submap", label: "Sub-map", icon: Layers, color: "var(--marker-submap)" },
+  { value: "note", label: "Note", icon: StickyNote, color: "var(--marker-note)" },
 ];
 
 export function MarkerFormDialog({ mapId, campaignId, position, marker, currentZoom, onClose, onSaved }: MarkerFormDialogProps) {
@@ -126,30 +129,45 @@ export function MarkerFormDialog({ mapId, campaignId, position, marker, currentZ
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{marker ? "Edit Marker" : "New Marker"}</DialogTitle>
+          <DialogTitle>{marker ? "Edit marker" : "New marker"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3 pt-2">
           <div className="grid grid-cols-5 gap-1.5">
-            {TYPE_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => {
-                  setType(opt.value);
-                  setEntityId("");
-                  setTargetMapId("");
-                  setUploadName("");
-                  setUploadFile(null);
-                }}
-                className={cn(
-                  "rounded-md border px-2 py-1.5 text-xs transition-colors",
-                  type === opt.value
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {opt.label}
-              </button>
-            ))}
+            {TYPE_OPTIONS.map((opt) => {
+              const selected = type === opt.value;
+              const Icon = opt.icon;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => {
+                    setType(opt.value);
+                    setEntityId("");
+                    setTargetMapId("");
+                    setUploadName("");
+                    setUploadFile(null);
+                  }}
+                  className={cn(
+                    "flex flex-col items-center gap-1 rounded-md border px-1 py-2 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    !selected &&
+                      "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground/40"
+                  )}
+                  style={
+                    selected
+                      ? {
+                          color: opt.color,
+                          borderColor: opt.color,
+                          backgroundColor: `color-mix(in srgb, ${opt.color} 14%, transparent)`,
+                        }
+                      : undefined
+                  }
+                >
+                  <Icon className="w-4 h-4" />
+                  {opt.label}
+                </button>
+              );
+            })}
           </div>
 
           {(type === "character" || type === "location" || type === "faction") && (
@@ -157,9 +175,9 @@ export function MarkerFormDialog({ mapId, campaignId, position, marker, currentZ
               value={entityId}
               onChange={(e) => setEntityId(e.target.value)}
               aria-label={`Linked ${type}`}
-              className="w-full rounded-md border border-border bg-muted px-3 py-2 text-sm"
+              className="w-full rounded-md border border-border bg-muted px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
-              <option value="">Select {type}...</option>
+              <option value="">Select a {type}…</option>
               {entityOptions.map((o) => (
                 <option key={o.id} value={o.id}>
                   {o.name}
@@ -180,9 +198,9 @@ export function MarkerFormDialog({ mapId, campaignId, position, marker, currentZ
                   }
                 }}
                 aria-label="Target map"
-                className="w-full rounded-md border border-border bg-muted px-3 py-2 text-sm"
+                className="w-full rounded-md border border-border bg-muted px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
-                <option value="">Select an existing map...</option>
+                <option value="">Select an existing map…</option>
                 {mapOptions.map((o) => (
                   <option key={o.id} value={o.id}>
                     {o.name}
@@ -202,14 +220,15 @@ export function MarkerFormDialog({ mapId, campaignId, position, marker, currentZ
                 type="file"
                 accept="image/*"
                 onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
-                className="w-full text-xs text-muted-foreground"
+                aria-label="Map image"
+                className="w-full text-xs text-muted-foreground file:mr-2 file:rounded file:border-0 file:bg-accent file:px-2 file:py-1 file:text-xs file:text-foreground file:cursor-pointer hover:file:bg-accent/70"
               />
             </div>
           )}
 
           {type === "note" && (
             <textarea
-              placeholder="Note text"
+              placeholder="Write a note…"
               aria-label="Note text"
               value={note}
               onChange={(e) => setNote(e.target.value)}
@@ -218,39 +237,41 @@ export function MarkerFormDialog({ mapId, campaignId, position, marker, currentZ
             />
           )}
 
-          {currentZoom !== undefined && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <label className="flex items-center gap-1.5">
-                <input
-                  type="checkbox"
-                  checked={minZoom === null}
-                  onChange={(e) => setMinZoom(e.target.checked ? null : currentZoom)}
-                />
-                Always visible
-              </label>
-              {minZoom !== null && (
-                <>
-                  <span>Visible from zoom</span>
-                  <input
-                    type="number"
-                    min={0}
-                    value={minZoom}
-                    onChange={(e) => setMinZoom(Number(e.target.value))}
-                    className="w-14 rounded-md border border-border bg-muted px-1.5 py-1 text-xs"
-                  />
-                </>
-              )}
-            </div>
-          )}
-
           <Input
             placeholder={type === "note" ? "Title" : "Title override (optional)"}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
 
+          {currentZoom !== undefined && (
+            <div className="flex items-center justify-between gap-2 rounded-md border border-border bg-muted/40 px-3 py-2">
+              <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={minZoom === null}
+                  onChange={(e) => setMinZoom(e.target.checked ? null : currentZoom)}
+                  className="accent-[var(--primary)]"
+                />
+                Always visible
+              </label>
+              {minZoom !== null && (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span>from zoom</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={minZoom}
+                    onChange={(e) => setMinZoom(Number(e.target.value))}
+                    aria-label="Minimum zoom to reveal"
+                    className="w-14 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
           <Button className="w-full" onClick={save} disabled={saving || !canSave}>
-            {saving ? "Saving..." : marker ? "Save Changes" : "Place Marker"}
+            {saving ? "Saving…" : marker ? "Save changes" : "Place marker"}
           </Button>
         </div>
       </DialogContent>
