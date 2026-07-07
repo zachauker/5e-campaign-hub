@@ -124,6 +124,42 @@ body {
   opacity: 0.4;
 }
 
+/* Floating HP delta — a brief number rises from the HP bar on damage/heal, the
+   "small but satisfying physical response" to an HP change. The X translate is
+   baked into the keyframe so it survives while the element stays centered.
+   The global reduced-motion rule below collapses this to instant (invisible). */
+@keyframes hp-float {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 3px) scale(0.9);
+  }
+  20% {
+    opacity: 1;
+    transform: translate(-50%, -1px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -15px) scale(1);
+  }
+}
+.hp-float {
+  animation: hp-float 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Death blow — a single red flare as a combatant drops to 0 HP, right before
+   the card settles into its greyed-out downed state. The peak of the fight. */
+@keyframes death-blow {
+  0% {
+    box-shadow: 0 0 0 2px var(--hp-low), 0 0 26px color-mix(in srgb, var(--hp-low) 55%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+.death-blow {
+  animation: death-blow 0.6s ease-out;
+}
+
 /* Reduced motion: honor the OS setting app-wide. PRODUCT.md mandates instant
    transitions for reduced-motion users — this neutralizes the pulse, spin, and
    entrance animations (the active-combatant dot, loaders, toasts) while leaving

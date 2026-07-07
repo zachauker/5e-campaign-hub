@@ -23,6 +23,17 @@ export function HPControls({ combatantId, hpCurrent, hpMax, hpTemp, compact = fa
   const [showTempInput, setShowTempInput] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Floating damage/heal number: capture the HP delta during render (React's
+  // adjust-state-on-change pattern, guarded so it fires once per change) and let
+  // it rise from the compact bar. Only the always-visible compact bar renders it.
+  const [prevHp, setPrevHp] = useState(hpCurrent);
+  const [floater, setFloater] = useState<{ delta: number; seq: number } | null>(null);
+  if (hpCurrent !== prevHp) {
+    const delta = hpCurrent - prevHp;
+    setPrevHp(hpCurrent);
+    if (delta !== 0) setFloater((f) => ({ delta, seq: (f?.seq ?? 0) + 1 }));
+  }
+
   const pct = hpPercent(hpCurrent, hpMax);
   const color = hpColor(hpCurrent, hpMax);
 
@@ -42,7 +53,7 @@ export function HPControls({ combatantId, hpCurrent, hpMax, hpTemp, compact = fa
 
   if (compact) {
     return (
-      <div className="flex items-center gap-1">
+      <div className="relative flex items-center gap-1">
         <div className="relative w-24 h-5 bg-muted rounded overflow-hidden">
           <div
             className="hp-bar absolute inset-y-0 left-0 rounded"
@@ -54,6 +65,19 @@ export function HPControls({ combatantId, hpCurrent, hpMax, hpTemp, compact = fa
         </div>
         {hpTemp > 0 && (
           <span className="text-xs text-temp-hp font-medium">+{hpTemp}</span>
+        )}
+        {floater && (
+          <span
+            key={floater.seq}
+            onAnimationEnd={() => setFloater(null)}
+            aria-hidden
+            className={cn(
+              "hp-float pointer-events-none absolute left-12 -top-1 z-10 text-xs font-bold tabular-nums [text-shadow:0_1px_2px_rgba(0,0,0,0.8)]",
+              floater.delta < 0 ? "text-damage" : "text-heal"
+            )}
+          >
+            {floater.delta < 0 ? floater.delta : `+${floater.delta}`}
+          </span>
         )}
       </div>
     );

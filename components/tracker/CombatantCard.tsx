@@ -66,6 +66,14 @@ export function CombatantCard({ combatant: c, isActive, dragHandleProps }: Comba
   const typeColor = TYPE_COLORS[c.type];
   const isDead = c.hpCurrent <= 0 && c.hpMax > 0;
 
+  // Fire the death-blow flash once, at the moment a combatant crosses to 0 HP.
+  const [prevDead, setPrevDead] = useState(isDead);
+  const [dying, setDying] = useState(false);
+  if (isDead !== prevDead) {
+    setPrevDead(isDead);
+    if (isDead) setDying(true);
+  }
+
   function commitInit() {
     const val = parseFloat(initVal);
     setInitiative(c.id, isNaN(val) ? null : val);
@@ -85,8 +93,12 @@ export function CombatantCard({ combatant: c, isActive, dragHandleProps }: Comba
         !isActive && "border-border",
         isDead && "opacity-40 [filter:grayscale(0.5)]",
         isSelected && !isActive && "border-muted-foreground",
+        dying && "death-blow",
       )}
       onClick={() => selectCombatant(isSelected ? null : c.id)}
+      onAnimationEnd={(e) => {
+        if (e.animationName === "death-blow") setDying(false);
+      }}
     >
       {/* HP bar strip — 6px, color-coded */}
       {c.hpMax > 0 && (

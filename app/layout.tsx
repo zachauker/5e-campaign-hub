@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { TopBar } from "@/components/shell/TopBar";
 import { CommandPalette } from "@/components/shell/CommandPalette";
+import { ConsoleEgg } from "@/components/shell/ConsoleEgg";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ToastProvider } from "@/components/ui/toast";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
@@ -39,6 +40,7 @@ export default function RootLayout({
               <TopBar />
               <main className="flex-1 min-h-0 overflow-y-auto">{children}</main>
               <CommandPalette />
+              <ConsoleEgg />
             </TooltipProvider>
           </ConfirmProvider>
         </ToastProvider>
