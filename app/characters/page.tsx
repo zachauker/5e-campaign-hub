@@ -45,53 +45,70 @@ export default function CharactersPage() {
   const filtered = characters.filter((c) => c.name.toLowerCase().includes(query.toLowerCase()));
 
   return (
-    <div className="max-w-3xl mx-auto px-6 py-8 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="font-bold text-lg flex items-center gap-2">
-          <Users className="w-4 h-4" /> Characters
-        </h1>
-        <Button size="sm" onClick={() => setDialogOpen(true)} className="gap-1.5">
-          <Plus className="w-4 h-4" /> New Character
+    <div className="max-w-3xl mx-auto px-6 py-10">
+      <header className="flex items-end justify-between gap-4 border-b border-border pb-5">
+        <div className="flex items-center gap-3.5 min-w-0">
+          <Users className="w-7 h-7 flex-none text-[var(--marker-character)]" />
+          <div className="min-w-0">
+            <h1 className="font-display text-4xl leading-none">Characters</h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              <span className="tabular-nums font-medium text-foreground">{characters.length}</span>{" "}
+              {characters.length === 1 ? "hero and villain" : "heroes and villains"} in your campaign
+            </p>
+          </div>
+        </div>
+        <Button size="sm" onClick={() => setDialogOpen(true)} className="gap-1.5 flex-none">
+          <Plus className="w-4 h-4" /> New character
         </Button>
-      </div>
+      </header>
 
-      <Input placeholder="Search characters..." value={query} onChange={(e) => setQuery(e.target.value)} />
+      <Input
+        className="mt-6"
+        placeholder="Search characters…"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+      />
 
-      <div className="space-y-2">
-        {filtered.length === 0 && (
-          <div className="text-center py-12 border border-dashed border-border rounded-xl text-muted-foreground">
-            No characters yet.
-          </div>
-        )}
-        {filtered.map((c) => (
-          <div
-            key={c.id}
-            className="relative flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-accent/30 transition-colors group"
-          >
-            {/* Stretched link makes the whole row a keyboard-focusable nav target */}
-            <Link
-              href={`/characters/${c.id}`}
-              aria-label={`Open character: ${c.name}`}
-              className="absolute inset-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-            />
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-sm">{c.name}</p>
-            </div>
-            <Badge variant={c.type === "pc" ? "hp" : "outline"} className="capitalize">
-              {c.type}
-            </Badge>
-            <Button
-              size="icon-sm"
-              variant="ghost"
-              aria-label={`Delete character: ${c.name}`}
-              className="relative z-10 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-destructive hover:text-destructive"
-              onClick={(e) => remove(c.id, e)}
+      {filtered.length === 0 ? (
+        <div className="mt-6 text-center py-16 border border-dashed border-border rounded-xl text-muted-foreground">
+          {characters.length === 0 ? "No characters yet." : "Nothing matches that search."}
+        </div>
+      ) : (
+        <div className="mt-3 divide-y divide-border/60">
+          {filtered.map((c) => (
+            <div
+              key={c.id}
+              className="relative flex items-center gap-3 px-2 py-3.5 hover:bg-accent/40 transition-colors group"
             >
-              <Trash2 className="w-3.5 h-3.5" />
-            </Button>
-          </div>
-        ))}
-      </div>
+              {/* Stretched link keeps the whole row a keyboard-focusable nav target */}
+              <Link
+                href={`/characters/${c.id}`}
+                aria-label={`Open character: ${c.name}`}
+                className="absolute inset-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+              />
+              <span
+                className="w-1.5 h-1.5 rounded-full flex-none bg-[var(--marker-character)]"
+                aria-hidden
+              />
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-[15px] leading-tight truncate">{c.name}</p>
+              </div>
+              <Badge variant={c.type === "pc" ? "hp" : "outline"} className="capitalize relative z-10">
+                {c.type}
+              </Badge>
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                aria-label={`Delete character: ${c.name}`}
+                className="relative z-10 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-destructive hover:text-destructive"
+                onClick={(e) => remove(c.id, e)}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
 
       <CharacterFormDialog
         open={dialogOpen}

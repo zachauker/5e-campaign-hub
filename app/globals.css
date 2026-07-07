@@ -28,12 +28,19 @@
   --color-temp-hp: var(--temp-hp);
   --color-concentration: var(--concentration);
   --color-warning: var(--warning);
+  --color-marker-location: var(--marker-location);
+  --color-marker-faction: var(--marker-faction);
+  --color-marker-character: var(--marker-character);
+  --color-marker-item: var(--marker-item);
+  --color-marker-submap: var(--marker-submap);
+  --color-marker-note: var(--marker-note);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-newsreader);
 }
 
 :root {
@@ -68,6 +75,7 @@
   --marker-location: #b8925a;
   --marker-faction: #9b6bb0;
   --marker-character: #4fae8f;
+  --marker-item: #cd7f4b;
   --marker-submap: #5a7ab8;
   --marker-note: #7a8079;
 }

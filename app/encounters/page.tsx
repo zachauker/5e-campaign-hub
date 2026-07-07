@@ -73,55 +73,62 @@ export default function EncountersPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-6 py-8 space-y-8">
-      <div className="rounded-xl border border-border bg-card p-6 space-y-3">
-        <h2 className="font-semibold">New Encounter</h2>
-        <div className="flex gap-2">
-          <Input
-            placeholder="Encounter name..."
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && createEncounter()}
-            className="flex-1"
-          />
-          <Button onClick={createEncounter} disabled={creating || !newName.trim()} className="gap-1.5">
-            <Plus className="w-4 h-4" />
-            {creating ? "Creating..." : "Create"}
-          </Button>
+    <div className="max-w-3xl mx-auto px-6 py-10">
+      <header className="flex items-end justify-between gap-4 border-b border-border pb-5">
+        <div className="flex items-center gap-3.5 min-w-0">
+          <Swords className="w-7 h-7 flex-none text-primary" />
+          <div className="min-w-0">
+            <h1 className="font-display text-4xl leading-none">Encounters</h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              <span className="tabular-nums font-medium text-foreground">{encounters.length}</span>{" "}
+              {encounters.length === 1 ? "encounter" : "encounters"} logged
+            </p>
+          </div>
         </div>
+      </header>
+
+      {/* Quick-create — name it and drop straight into the fight */}
+      <div className="mt-6 flex gap-2">
+        <Input
+          placeholder="Name a new encounter…"
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && createEncounter()}
+          className="flex-1"
+        />
+        <Button onClick={createEncounter} disabled={creating || !newName.trim()} className="gap-1.5 flex-none">
+          <Plus className="w-4 h-4" />
+          {creating ? "Creating…" : "Create"}
+        </Button>
       </div>
 
-      <div className="space-y-3">
-        <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">
-          Encounters ({encounters.length})
-        </h2>
+      {loading && <div className="text-center py-10 text-muted-foreground text-sm">Loading…</div>}
 
-        {loading && <div className="text-center py-8 text-muted-foreground text-sm">Loading...</div>}
+      {!loading && encounters.length === 0 && (
+        <div className="mt-6 text-center py-16 border border-dashed border-border rounded-xl">
+          <Swords className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
+          <p className="text-muted-foreground">No encounters yet. Name one above to begin.</p>
+        </div>
+      )}
 
-        {!loading && encounters.length === 0 && (
-          <div className="text-center py-12 border border-dashed border-border rounded-xl">
-            <Swords className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
-            <p className="text-muted-foreground">No encounters yet. Create one above.</p>
-          </div>
-        )}
-
-        <div className="space-y-2">
+      {encounters.length > 0 && (
+        <div className="mt-4 divide-y divide-border/60">
           {encounters.map((enc) => {
             const status = STATUS_CONFIG[enc.status as keyof typeof STATUS_CONFIG];
             return (
               <div
                 key={enc.id}
-                className="relative flex items-center gap-3 p-4 rounded-xl border border-border bg-card hover:border-primary/50 hover:bg-accent/30 transition-colors group"
+                className="relative flex items-center gap-3 px-2 py-3 hover:bg-accent/40 transition-colors group"
               >
-                {/* Stretched link makes the whole row a keyboard-focusable nav target */}
+                {/* Stretched link keeps the whole row a keyboard-focusable nav target */}
                 <Link
                   href={`/encounters/${enc.id}`}
                   aria-label={`Open encounter: ${enc.name}`}
-                  className="absolute inset-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                  className="absolute inset-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                 />
                 <div
                   className={cn(
-                    "w-10 h-10 rounded-lg border flex items-center justify-center flex-none",
+                    "w-9 h-9 rounded-lg border flex items-center justify-center flex-none",
                     enc.status === "active" && "border-primary/40 bg-primary/10",
                     enc.status === "idle" && "border-border bg-muted",
                     enc.status === "completed" && "border-muted bg-muted/50"
@@ -130,15 +137,14 @@ export default function EncountersPage() {
                   <Swords
                     className={cn(
                       "w-4 h-4",
-                      enc.status === "active" && "text-primary",
-                      (enc.status === "idle" || enc.status === "completed") && "text-muted-foreground"
+                      enc.status === "active" ? "text-primary" : "text-muted-foreground"
                     )}
                   />
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium truncate">{enc.name}</p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="font-medium text-[15px] leading-tight truncate">{enc.name}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     {formatDate(new Date(enc.updatedAt))}
                     {enc.round > 1 && ` · Round ${enc.round}`}
                   </p>
@@ -168,7 +174,7 @@ export default function EncountersPage() {
             );
           })}
         </div>
-      </div>
+      )}
     </div>
   );
 }
