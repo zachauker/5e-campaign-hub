@@ -5,11 +5,15 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Loader2, Plus, X, ChevronRight, Move } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ArrowLeft, Loader2, Plus, X, ChevronRight, Move, Pencil, Trash2 } from "lucide-react";
 import { StaticMapCanvas } from "@/components/maps/StaticMapCanvas";
 import { MarkerFormDialog } from "@/components/maps/MarkerFormDialog";
 import { MarkerInfoPanel } from "@/components/maps/MarkerInfoPanel";
 import { useCampaignStore } from "@/lib/store/campaign-store";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useToast } from "@/components/ui/toast";
 import type { MapData, ResolvedMarker } from "@/components/maps/map-types";
 import { MarkerLayerControl } from "@/components/maps/MarkerLayerControl";
 import { isMarkerVisible, readHiddenLayers } from "@/components/maps/marker-layers";
@@ -25,6 +29,12 @@ export function MapViewer() {
   const router = useRouter();
   const id = params.id as string;
   const { activeCampaignId } = useCampaignStore();
+  const confirm = useConfirm();
+  const toast = useToast();
+
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const [renameSaving, setRenameSaving] = useState(false);
 
   const [map, setMap] = useState<MapData | null>(null);
   const [markers, setMarkers] = useState<ResolvedMarker[]>([]);
@@ -157,6 +167,47 @@ export function MapViewer() {
     );
   }
 
+  function openRename() {
+    if (!map) return;
+    setRenameValue(map.name);
+    setRenameOpen(true);
+  }
+
+  async function submitRename() {
+    const name = renameValue.trim();
+    if (!map || !name) return;
+    setRenameSaving(true);
+    try {
+      await fetch(`/api/maps/${map.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      setMap({ ...map, name });
+      setRenameOpen(false);
+    } finally {
+      setRenameSaving(false);
+    }
+  }
+
+  async function removeMap() {
+    if (!map) return;
+    const ok = await confirm({
+      title: `Delete “${map.name}”?`,
+      description: "This permanently deletes the map and its image.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
+    const res = await fetch(`/api/maps/${map.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      toast({ title: "Couldn’t delete map", description: data.error ?? "Please try again.", variant: "error" });
+      return;
+    }
+    router.push("/maps");
+  }
+
   const sharedCanvasProps = {
     map,
     markers: markers.filter((m) => isMarkerVisible(m, hidden)),
@@ -186,6 +237,24 @@ export function MapViewer() {
           ))}
           <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
           <span className="font-medium truncate">{map.name}</span>
+          <div className="flex items-center gap-0.5 flex-none pl-1">
+            <button
+              onClick={openRename}
+              aria-label="Rename map"
+              title="Rename map"
+              className="p-1 rounded text-muted-foreground/60 hover:text-foreground transition-colors"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={removeMap}
+              aria-label="Delete map"
+              title="Delete map"
+              className="p-1 rounded text-muted-foreground/60 hover:text-destructive transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
         <div className="flex items-center gap-1.5 flex-none">
           <MarkerLayerControl markers={markers} hidden={hidden} onChange={updateHidden} />
@@ -274,6 +343,30 @@ export function MapViewer() {
           }}
         />
       )}
+
+      <Dialog open={renameOpen} onOpenChange={(o) => !o && setRenameOpen(false)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Rename map</DialogTitle>
+          </DialogHeader>
+          <Input
+            autoFocus
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && submitRename()}
+            placeholder="Map name"
+            aria-label="Map name"
+          />
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="outline" onClick={() => setRenameOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={submitRename} disabled={renameSaving || !renameValue.trim()}>
+              {renameSaving ? "Saving…" : "Save"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
