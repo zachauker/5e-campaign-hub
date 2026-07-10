@@ -21,6 +21,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   return NextResponse.json({
     ...row,
     linkedCharacters: linkedCharacters.map((c) => ({ id: c.id, name: c.name, type: c.type })),
+    notionProps: row.notionProps
+      ? (JSON.parse(row.notionProps) as Array<{ label: string; value: string }>)
+      : [],
   });
 }
 
