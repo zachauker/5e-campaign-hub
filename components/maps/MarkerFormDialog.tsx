@@ -49,8 +49,10 @@ export function MarkerFormDialog({ mapId, campaignId, position, marker, currentZ
       if (type === "character" || type === "location" || type === "faction") {
         const path = type === "character" ? "characters" : type === "location" ? "locations" : "factions";
         const res = await fetch(`/api/${path}?campaignId=${campaignId}`);
+        const data = res.ok ? await res.json() : [];
         if (cancelled) return;
-        setEntityOptions(res.ok ? await res.json() : []);
+        // characters/factions now return { items, archivedCount }; locations is still a bare array.
+        setEntityOptions(Array.isArray(data) ? data : (data.items ?? []));
       } else if (type === "submap") {
         const res = await fetch(`/api/maps?campaignId=${campaignId}&includeNested=true`);
         if (cancelled) return;
