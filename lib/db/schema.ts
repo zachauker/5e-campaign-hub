@@ -74,6 +74,10 @@ export const characters = sqliteTable("characters", {
   ddbCharacterId: text("ddb_character_id"),
   notionUrl: text("notion_url"),
   description: text("description"),
+  notionPageId: text("notion_page_id"),
+  notionProps: text("notion_props"),
+  archived: integer("archived", { mode: "boolean" }).notNull().default(false),
+  notionSyncedAt: integer("notion_synced_at", { mode: "timestamp" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
@@ -95,6 +99,10 @@ export const items = sqliteTable("items", {
   name: text("name").notNull(),
   notionUrl: text("notion_url"),
   description: text("description"),
+  notionPageId: text("notion_page_id"),
+  notionProps: text("notion_props"),
+  archived: integer("archived", { mode: "boolean" }).notNull().default(false),
+  notionSyncedAt: integer("notion_synced_at", { mode: "timestamp" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
@@ -105,9 +113,26 @@ export const factions = sqliteTable("factions", {
   name: text("name").notNull(),
   notionUrl: text("notion_url"),
   description: text("description"),
+  notionPageId: text("notion_page_id"),
+  notionProps: text("notion_props"),
+  archived: integer("archived", { mode: "boolean" }).notNull().default(false),
+  notionSyncedAt: integer("notion_synced_at", { mode: "timestamp" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
+
+export const notionSources = sqliteTable(
+  "notion_sources",
+  {
+    campaignId: text("campaign_id").notNull().references(() => campaigns.id, { onDelete: "cascade" }),
+    entityType: text("entity_type", { enum: ["characters", "items", "factions"] }).notNull(),
+    databaseUrl: text("database_url").notNull(),
+    dataSourceId: text("data_source_id"),
+    lastSyncedAt: integer("last_synced_at", { mode: "timestamp" }),
+    lastStatus: text("last_status"),
+  },
+  (t) => [primaryKey({ columns: [t.campaignId, t.entityType] })]
+);
 
 export const characterFactions = sqliteTable(
   "character_factions",
@@ -183,6 +208,8 @@ export type Item = typeof items.$inferSelect;
 export type NewItem = typeof items.$inferInsert;
 export type Faction = typeof factions.$inferSelect;
 export type NewFaction = typeof factions.$inferInsert;
+export type NotionSource = typeof notionSources.$inferSelect;
+export type NewNotionSource = typeof notionSources.$inferInsert;
 export type MapRow = typeof maps.$inferSelect;
 export type NewMapRow = typeof maps.$inferInsert;
 export type MapMarker = typeof mapMarkers.$inferSelect;

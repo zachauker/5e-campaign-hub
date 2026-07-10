@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ArrowLeft, Pencil, Trash2, Loader2, Map as MapIcon, UserRound } from "lucide-react";
 import { NotionBlocks } from "@/components/glossary/NotionBlocks";
+import { NotionPropsTable } from "@/components/glossary/NotionPropsTable";
 import { RelatedCard } from "@/components/glossary/RelatedCard";
 import { StatBlock } from "@/components/tracker/StatBlock";
 import { CharacterFormDialog, type CharacterWithLinks } from "@/components/entities/CharacterFormDialog";
@@ -233,6 +234,13 @@ export default function CharacterDetailPage() {
             <p className="text-[15px] leading-relaxed text-foreground/85 max-w-[68ch]">
               {character.description}
             </p>
+          )}
+
+          {character.notionProps && character.notionProps.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="font-display text-lg">Notion properties</h3>
+              <NotionPropsTable props={character.notionProps} />
+            </div>
           )}
 
           {character.mapMarkers.length > 0 && (

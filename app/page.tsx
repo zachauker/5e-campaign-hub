@@ -39,7 +39,7 @@ export default function DashboardPage() {
       fetch(`/api/factions?campaignId=${activeCampaignId}`).then((r) => r.json()),
     ])
       .then(([c, l, i, f]) =>
-        setCounts({ characters: c.length, locations: l.length, items: i.length, factions: f.length })
+        setCounts({ characters: c.items.length, locations: l.length, items: i.items.length, factions: f.items.length })
       )
       .catch(() => {
         // Section counts are supplementary; leave them at their default (0) on failure.

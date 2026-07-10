@@ -22,19 +22,40 @@ const ACCENT: Record<SimpleEntityManagerProps["resourcePath"], string> = {
   factions: "var(--marker-faction)",
 };
 
+// Locations have no `archived` column (unlike items/factions), so the API for that
+// resource still returns a bare array and has no archived-toggle support.
+const SUPPORTS_ARCHIVED: Record<SimpleEntityManagerProps["resourcePath"], boolean> = {
+  locations: false,
+  items: true,
+  factions: true,
+};
+
 export function SimpleEntityManager({ resourcePath, label, icon: Icon }: SimpleEntityManagerProps) {
   const { activeCampaignId } = useCampaignStore();
   const confirm = useConfirm();
   const [entities, setEntities] = useState<SimpleEntity[]>([]);
+  const [archivedCount, setArchivedCount] = useState(0);
+  const [showArchived, setShowArchived] = useState(false);
   const [query, setQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const supportsArchived = SUPPORTS_ARCHIVED[resourcePath];
 
   const load = useCallback(() => {
     if (!activeCampaignId) return;
-    fetch(`/api/${resourcePath}?campaignId=${activeCampaignId}`)
+    const url = `/api/${resourcePath}?campaignId=${activeCampaignId}${
+      supportsArchived && showArchived ? "&includeArchived=1" : ""
+    }`;
+    fetch(url)
       .then((r) => r.json())
-      .then(setEntities);
-  }, [activeCampaignId, resourcePath]);
+      .then((data) => {
+        if (supportsArchived) {
+          setEntities(data.items);
+          setArchivedCount(data.archivedCount);
+        } else {
+          setEntities(data);
+        }
+      });
+  }, [activeCampaignId, resourcePath, supportsArchived, showArchived]);
 
   useEffect(() => {
     load();
@@ -71,9 +92,16 @@ export function SimpleEntityManager({ resourcePath, label, icon: Icon }: SimpleE
             </p>
           </div>
         </div>
-        <Button size="sm" onClick={() => setDialogOpen(true)} className="gap-1.5 flex-none">
-          <Plus className="w-4 h-4" /> New {singular}
-        </Button>
+        <div className="flex items-center gap-2 flex-none">
+          {supportsArchived && archivedCount > 0 && (
+            <Button size="sm" variant="outline" onClick={() => setShowArchived((v) => !v)}>
+              {showArchived ? "Hide archived" : `Show archived (${archivedCount})`}
+            </Button>
+          )}
+          <Button size="sm" onClick={() => setDialogOpen(true)} className="gap-1.5 flex-none">
+            <Plus className="w-4 h-4" /> New {singular}
+          </Button>
+        </div>
       </header>
 
       <Input

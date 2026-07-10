@@ -15,15 +15,21 @@ export default function CharactersPage() {
   const { activeCampaignId } = useCampaignStore();
   const confirm = useConfirm();
   const [characters, setCharacters] = useState<Character[]>([]);
+  const [archivedCount, setArchivedCount] = useState(0);
+  const [showArchived, setShowArchived] = useState(false);
   const [query, setQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const load = useCallback(() => {
     if (!activeCampaignId) return;
-    fetch(`/api/characters?campaignId=${activeCampaignId}`)
+    const url = `/api/characters?campaignId=${activeCampaignId}${showArchived ? "&includeArchived=1" : ""}`;
+    fetch(url)
       .then((r) => r.json())
-      .then(setCharacters);
-  }, [activeCampaignId]);
+      .then((data) => {
+        setCharacters(data.items);
+        setArchivedCount(data.archivedCount);
+      });
+  }, [activeCampaignId, showArchived]);
 
   useEffect(() => {
     load();
@@ -57,9 +63,16 @@ export default function CharactersPage() {
             </p>
           </div>
         </div>
-        <Button size="sm" onClick={() => setDialogOpen(true)} className="gap-1.5 flex-none">
-          <Plus className="w-4 h-4" /> New character
-        </Button>
+        <div className="flex items-center gap-2 flex-none">
+          {archivedCount > 0 && (
+            <Button size="sm" variant="outline" onClick={() => setShowArchived((v) => !v)}>
+              {showArchived ? "Hide archived" : `Show archived (${archivedCount})`}
+            </Button>
+          )}
+          <Button size="sm" onClick={() => setDialogOpen(true)} className="gap-1.5 flex-none">
+            <Plus className="w-4 h-4" /> New character
+          </Button>
+        </div>
       </header>
 
       <Input

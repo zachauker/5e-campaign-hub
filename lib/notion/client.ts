@@ -8,6 +8,53 @@ export function extractNotionPageId(url: string): string | null {
   return match[1].replace(/-/g, "");
 }
 
+// Database and page ids share the same 32-hex shape; reuse the existing pattern.
+export function extractNotionDatabaseId(url: string): string | null {
+  return extractNotionPageId(url);
+}
+
+export interface NotionRow {
+  id: string;
+  url: string;
+  properties: Record<string, unknown>;
+}
+
+// v5 API (2025-09-03): a database has one or more data sources. Resolve the
+// pasted database URL to its first data source id, then query that.
+export async function resolveDataSourceId(databaseId: string, token: string): Promise<string> {
+  const notion = new Client({ auth: token });
+  const db = (await notion.databases.retrieve({ database_id: databaseId })) as unknown as {
+    data_sources?: Array<{ id: string }>;
+  };
+  const first = db.data_sources?.[0]?.id;
+  if (!first) throw new Error("That database has no data source");
+  return first;
+}
+
+export async function queryDataSource(dataSourceId: string, token: string): Promise<NotionRow[]> {
+  const notion = new Client({ auth: token });
+  const rows: NotionRow[] = [];
+  let cursor: string | undefined;
+
+  do {
+    const res = (await notion.dataSources.query({
+      data_source_id: dataSourceId,
+      start_cursor: cursor,
+      page_size: 100,
+    })) as unknown as {
+      results: Array<{ id: string; url: string; properties: Record<string, unknown> }>;
+      has_more: boolean;
+      next_cursor: string | null;
+    };
+    for (const p of res.results) {
+      rows.push({ id: p.id, url: p.url, properties: p.properties });
+    }
+    cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined;
+  } while (cursor);
+
+  return rows;
+}
+
 export interface NotionRichText {
   text: string;
   bold?: boolean;

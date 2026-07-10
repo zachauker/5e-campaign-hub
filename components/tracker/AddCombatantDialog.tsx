@@ -113,7 +113,8 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
         ? `/api/characters?campaignId=${encounter.campaignId}`
         : "/api/characters";
       const res = await fetch(url);
-      setCharacterEntities(await res.json());
+      const data = await res.json();
+      setCharacterEntities(data.items);
     } finally {
       setLoadingCharacters(false);
     }

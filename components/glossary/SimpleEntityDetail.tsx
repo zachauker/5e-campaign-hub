@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ArrowLeft, Pencil, Trash2, Loader2, Map as MapIcon, type LucideIcon } from "lucide-react";
 import { NotionBlocks } from "@/components/glossary/NotionBlocks";
+import { NotionPropsTable } from "@/components/glossary/NotionPropsTable";
 import { RelatedCard } from "@/components/glossary/RelatedCard";
 import { SimpleEntityFormDialog } from "@/components/entities/SimpleEntityFormDialog";
 import { useCampaignStore } from "@/lib/store/campaign-store";
@@ -21,6 +22,7 @@ interface SimpleEntityDetailData {
   notionUrl: string | null;
   linkedCharacters: { id: string; name: string; type: string }[];
   mapMarkers?: { mapId: string; mapName: string; markerId: string; renderMode: "static" | "tiled" | "world" }[];
+  notionProps?: { label: string; value: string }[];
 }
 
 interface SimpleEntityDetailProps {
@@ -187,6 +189,13 @@ export function SimpleEntityDetail({ resourcePath, label, icon: Icon }: SimpleEn
             <p className="text-[15px] leading-relaxed text-foreground/85 max-w-[68ch]">
               {entity.description}
             </p>
+          )}
+
+          {entity.notionProps && entity.notionProps.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="font-display text-lg">Notion properties</h3>
+              <NotionPropsTable props={entity.notionProps} />
+            </div>
           )}
 
           {entity.mapMarkers && entity.mapMarkers.length > 0 && (

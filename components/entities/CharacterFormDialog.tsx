@@ -18,6 +18,7 @@ export type CharacterWithLinks = Character & {
   locationIds: string[];
   itemIds: string[];
   mapMarkers: { mapId: string; mapName: string; markerId: string; renderMode: "static" | "tiled" | "world" }[];
+  notionProps?: { label: string; value: string }[];
 };
 
 interface CharacterFormDialogProps {
@@ -82,9 +83,9 @@ export function CharacterFormDialog({
       fetch("/api/items").then((r) => r.json()),
     ])
       .then(([f, l, i]) => {
-        setFactions(f);
+        setFactions(f.items);
         setLocations(l);
-        setItems(i);
+        setItems(i.items);
       })
       .catch(() => {
         // Relationship lookups are optional for the form; leave lists empty on failure.

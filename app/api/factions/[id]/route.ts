@@ -37,6 +37,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     ...row,
     linkedCharacters: linkedCharacters.map((c) => ({ id: c.id, name: c.name, type: c.type })),
     mapMarkers: resolvedMapMarkers,
+    notionProps: row.notionProps
+      ? (JSON.parse(row.notionProps) as Array<{ label: string; value: string }>)
+      : [],
   });
 }
 

@@ -1,9 +1,8 @@
 import Database from "better-sqlite3";
 import path from "path";
 
-const DB_PATH = process.env.DB_PATH || path.join(process.cwd(), "encounter-tracker.db");
-
 export function runMigrations() {
+  const DB_PATH = process.env.DB_PATH || path.join(process.cwd(), "encounter-tracker.db");
   const sqlite = new Database(DB_PATH);
   sqlite.pragma("foreign_keys = ON");
 
@@ -135,6 +134,16 @@ export function runMigrations() {
       PRIMARY KEY (character_id, item_id)
     );
 
+    CREATE TABLE IF NOT EXISTS notion_sources (
+      campaign_id TEXT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+      entity_type TEXT NOT NULL,
+      database_url TEXT NOT NULL,
+      data_source_id TEXT,
+      last_synced_at INTEGER,
+      last_status TEXT,
+      PRIMARY KEY (campaign_id, entity_type)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_characters_campaign ON characters(campaign_id);
     CREATE INDEX IF NOT EXISTS idx_locations_campaign ON locations(campaign_id);
     CREATE INDEX IF NOT EXISTS idx_items_campaign ON items(campaign_id);
@@ -185,6 +194,12 @@ export function runMigrations() {
   addColumnIfMissing("maps", "max_zoom", "INTEGER");
   addColumnIfMissing("map_markers", "min_zoom", "INTEGER");
   addColumnIfMissing("locations", "type", "TEXT NOT NULL DEFAULT 'other'");
+  for (const table of ["characters", "items", "factions"]) {
+    addColumnIfMissing(table, "notion_page_id", "TEXT");
+    addColumnIfMissing(table, "notion_props", "TEXT");
+    addColumnIfMissing(table, "archived", "INTEGER NOT NULL DEFAULT 0");
+    addColumnIfMissing(table, "notion_synced_at", "INTEGER");
+  }
 
   // Sub-project 6 retired: drop the abandoned map_features table if a prior
   // version created it. The orphaned legacy world-map flag column on maps is

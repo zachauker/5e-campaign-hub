@@ -2,18 +2,29 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { factions } from "@/lib/db/schema";
 import { generateId } from "@/lib/utils";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, and } from "drizzle-orm";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const campaignId = searchParams.get("campaignId");
-  const rows = campaignId
-    ? await db.query.factions.findMany({
-        where: eq(factions.campaignId, campaignId),
-        orderBy: [asc(factions.name)],
-      })
-    : await db.query.factions.findMany({ orderBy: [asc(factions.name)] });
-  return NextResponse.json(rows);
+  const includeArchived = searchParams.get("includeArchived") === "1";
+
+  const scope = campaignId ? eq(factions.campaignId, campaignId) : undefined;
+  const where = includeArchived
+    ? scope
+    : scope
+      ? and(scope, eq(factions.archived, false))
+      : eq(factions.archived, false);
+
+  const rows = await db.query.factions.findMany({
+    where,
+    orderBy: [asc(factions.name)],
+  });
+
+  const archivedWhere = scope ? and(scope, eq(factions.archived, true)) : eq(factions.archived, true);
+  const archivedCount = (await db.select().from(factions).where(archivedWhere)).length;
+
+  return NextResponse.json({ items: rows, archivedCount });
 }
 
 export async function POST(req: Request) {
