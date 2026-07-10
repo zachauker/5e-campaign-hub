@@ -84,7 +84,7 @@ export function CharacterFormDialog({
     ])
       .then(([f, l, i]) => {
         setFactions(f.items);
-        setLocations(l);
+        setLocations(l.items);
         setItems(i.items);
       })
       .catch(() => {

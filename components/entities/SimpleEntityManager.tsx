@@ -22,10 +22,8 @@ const ACCENT: Record<SimpleEntityManagerProps["resourcePath"], string> = {
   factions: "var(--marker-faction)",
 };
 
-// Locations have no `archived` column (unlike items/factions), so the API for that
-// resource still returns a bare array and has no archived-toggle support.
 const SUPPORTS_ARCHIVED: Record<SimpleEntityManagerProps["resourcePath"], boolean> = {
-  locations: false,
+  locations: true,
   items: true,
   factions: true,
 };

@@ -2,18 +2,27 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { locations } from "@/lib/db/schema";
 import { generateId } from "@/lib/utils";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, and } from "drizzle-orm";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const campaignId = searchParams.get("campaignId");
-  const rows = campaignId
-    ? await db.query.locations.findMany({
-        where: eq(locations.campaignId, campaignId),
-        orderBy: [asc(locations.name)],
-      })
-    : await db.query.locations.findMany({ orderBy: [asc(locations.name)] });
-  return NextResponse.json(rows);
+  const includeArchived = searchParams.get("includeArchived") === "1";
+
+  const conditions = [];
+  if (campaignId) conditions.push(eq(locations.campaignId, campaignId));
+  if (!includeArchived) conditions.push(eq(locations.archived, false));
+
+  const rows = await db.query.locations.findMany({
+    where: conditions.length ? and(...conditions) : undefined,
+    orderBy: [asc(locations.name)],
+  });
+
+  const archivedConditions = [eq(locations.archived, true)];
+  if (campaignId) archivedConditions.push(eq(locations.campaignId, campaignId));
+  const archived = await db.query.locations.findMany({ where: and(...archivedConditions) });
+
+  return NextResponse.json({ items: rows, archivedCount: archived.length });
 }
 
 export async function POST(req: Request) {
