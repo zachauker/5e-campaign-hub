@@ -44,9 +44,24 @@ export function NotionSyncPanel({ campaignId }: { campaignId: string | null }) {
     setUrls(Object.fromEntries(SOURCES.map((s) => [s.type, m[s.type]?.databaseUrl ?? ""])));
   }, [campaignId]);
 
+  // Load on mount / campaign change with a cancellation guard so a stale
+  // response can't set state after the effect is torn down (the state writes
+  // are async, past an await — not synchronous in the effect body).
   useEffect(() => {
-    load();
-  }, [load]);
+    if (!campaignId) return;
+    let cancelled = false;
+    (async () => {
+      const r = await fetch(`/api/notion/sources?campaignId=${campaignId}`);
+      const data = await r.json();
+      if (cancelled) return;
+      const m: Record<string, SourceState> = data.sources ?? {};
+      setMeta(m);
+      setUrls(Object.fromEntries(SOURCES.map((s) => [s.type, m[s.type]?.databaseUrl ?? ""])));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [campaignId]);
 
   async function saveSource(type: string) {
     if (!campaignId) return;
