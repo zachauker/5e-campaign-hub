@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { notionSources } from "@/lib/db/schema";
 import { extractNotionDatabaseId } from "@/lib/notion/client";
 
-const TYPES = ["characters", "items", "factions"] as const;
+const TYPES = ["characters", "items", "factions", "locations"] as const;
 type EntityType = (typeof TYPES)[number];
 
 export async function GET(req: Request) {

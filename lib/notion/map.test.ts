@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { mapFactionRow, mapCharacterRow, mapItemRow } from "./map";
+import { mapLocationRow } from "./map";
 
 const page = (id: string, properties: Record<string, unknown>) => ({
   id,
@@ -83,5 +84,41 @@ describe("mapItemRow", () => {
       { label: "Type", value: "Quest Item" },
       { label: "Rarity", value: "Artifact" },
     ]);
+  });
+});
+
+describe("mapLocationRow", () => {
+  const page = (id: string, properties: Record<string, unknown>) => ({
+    id, url: `https://www.notion.so/${id.replace(/-/g, "")}`, properties,
+  });
+
+  it("maps description (when present), Type/Status/Region props, and Notable NPCs", () => {
+    const m = mapLocationRow(page("2855c727-add4-4710-a87b-e0f40879f3a4", {
+      Name: { type: "title", title: [{ plain_text: "Druvenlode" }] },
+      Description: { type: "rich_text", rich_text: [{ plain_text: "A mining town." }] },
+      Type: { type: "select", select: { name: "City" } },
+      Status: { type: "select", select: { name: "Explored" } },
+      Region: { type: "select", select: { name: "Marrow Valley" } },
+      "Notable NPCs": { type: "relation", relation: [{ id: "213e996b-e66d-80d6-a7cd-f142c199b757" }] },
+    }));
+    expect(m.name).toBe("Druvenlode");
+    expect(m.archived).toBe(false);
+    expect(m.extra).toEqual({ description: "A mining town." });
+    expect(m.notableNpcPageIds).toEqual(["213e996be66d80d6a7cdf142c199b757"]);
+    expect(m.notionProps).toEqual([
+      { label: "Type", value: "City" },
+      { label: "Status", value: "Explored" },
+      { label: "Region", value: "Marrow Valley" },
+    ]);
+    expect("type" in m.extra).toBe(false);
+  });
+
+  it("omits description from extra when the Notion field is empty", () => {
+    const m = mapLocationRow(page("loc2", {
+      Name: { type: "title", title: [{ plain_text: "Blank" }] },
+    }));
+    expect(m.extra).toEqual({});
+    expect(m.notableNpcPageIds).toEqual([]);
+    expect(m.notionProps).toEqual([]);
   });
 });

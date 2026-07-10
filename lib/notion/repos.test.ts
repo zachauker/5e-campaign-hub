@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { createTestDb } from "./test-helpers";
-import { makeEntityRepo, linkCharacterFactionsByName, linkCharacterItemsByPageId } from "./repos";
+import { makeEntityRepo, linkCharacterFactionsByName, linkCharacterItemsByPageId, linkCharacterLocationsByPageId } from "./repos";
 import { reconcileEntity } from "./reconcile";
-import { characters, factions, items, characterFactions, characterItems } from "@/lib/db/schema";
+import { characters, factions, items, characterFactions, characterItems, locations, characterLocations } from "@/lib/db/schema";
 import type { MappedEntity } from "./map";
 
 const m = (over: Partial<MappedEntity> & { name: string; notionPageId: string }): MappedEntity => ({
@@ -71,5 +71,30 @@ describe("link helpers (additive)", () => {
     linkCharacterItemsByPageId(db, itm.id, ["cPAGE", "unknownPage"]);
     const links = db.select().from(characterItems).where(and(eq(characterItems.itemId, itm.id), eq(characterItems.characterId, chr.id))).all();
     expect(links).toHaveLength(1);
+  });
+});
+
+describe("linkCharacterLocationsByPageId", () => {
+  it("links a location to characters by notion page id, additively", () => {
+    const { db, campaignId } = createTestDb();
+    const cRepo = makeEntityRepo(db, characters, campaignId);
+    const lRepo = makeEntityRepo(db, locations, campaignId);
+    const chr = reconcileEntity(cRepo, m({ name: "Beilar", notionPageId: "cPAGE", extra: { type: "npc" } }));
+    const loc = reconcileEntity(lRepo, m({ name: "Oreland", notionPageId: "l1" }));
+
+    linkCharacterLocationsByPageId(db, loc.id, ["cPAGE", "unknownPage"]);
+    linkCharacterLocationsByPageId(db, loc.id, ["cPAGE"]); // re-run: no duplicate
+
+    const links = db.select().from(characterLocations)
+      .where(and(eq(characterLocations.locationId, loc.id), eq(characterLocations.characterId, chr.id))).all();
+    expect(links).toHaveLength(1);
+  });
+
+  it("creates a new location with default type 'other'", () => {
+    const { db, campaignId } = createTestDb();
+    const lRepo = makeEntityRepo(db, locations, campaignId);
+    const loc = reconcileEntity(lRepo, m({ name: "New Place", notionPageId: "l9" }));
+    const row = db.select().from(locations).where(eq(locations.id, loc.id)).get()!;
+    expect(row.type).toBe("other");
   });
 });

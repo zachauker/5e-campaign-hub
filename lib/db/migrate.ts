@@ -194,7 +194,7 @@ export function runMigrations() {
   addColumnIfMissing("maps", "max_zoom", "INTEGER");
   addColumnIfMissing("map_markers", "min_zoom", "INTEGER");
   addColumnIfMissing("locations", "type", "TEXT NOT NULL DEFAULT 'other'");
-  for (const table of ["characters", "items", "factions"]) {
+  for (const table of ["characters", "items", "factions", "locations"]) {
     addColumnIfMissing(table, "notion_page_id", "TEXT");
     addColumnIfMissing(table, "notion_props", "TEXT");
     addColumnIfMissing(table, "archived", "INTEGER NOT NULL DEFAULT 0");

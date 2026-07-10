@@ -15,6 +15,7 @@ export interface MappedEntity {
   extra: Record<string, unknown>;
   affiliations?: string[];
   heldByPageIds?: string[];
+  notableNpcPageIds?: string[];
 }
 
 export interface NotionRow {
@@ -85,5 +86,28 @@ export function mapItemRow(row: NotionRow): MappedEntity {
     notionProps: props,
     extra: { description: readText(prop(row, "Description")) || null },
     heldByPageIds: readRelationIds(prop(row, "Held By")),
+  };
+}
+
+export function mapLocationRow(row: NotionRow): MappedEntity {
+  const props: PropEntry[] = [];
+  pushIf(props, "Type", readSelect(prop(row, "Type")));
+  pushIf(props, "Status", readSelect(prop(row, "Status")));
+  pushIf(props, "Region", readSelect(prop(row, "Region")));
+
+  // Notion wins only if non-empty: omit description from `extra` when blank so
+  // reconcile never overwrites existing (often world-composed) text with "".
+  const description = readText(prop(row, "Description"));
+  const extra: Record<string, unknown> = {};
+  if (description) extra.description = description;
+
+  return {
+    notionPageId: pageId(row),
+    notionUrl: row.url,
+    name: readTitle(prop(row, "Name")),
+    archived: false, // Locations has no Active property; removal drives archival
+    notionProps: props,
+    extra, // never contains `type` → hub type stays world-authoritative
+    notableNpcPageIds: readRelationIds(prop(row, "Notable NPCs")),
   };
 }

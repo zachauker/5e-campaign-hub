@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { eq } from "drizzle-orm";
 import { createTestDb } from "./test-helpers";
 import { syncCampaign, type SourceConfig } from "./sync";
-import { characters, factions, items, characterFactions } from "@/lib/db/schema";
+import { characters, factions, items, characterFactions, locations, characterLocations } from "@/lib/db/schema";
 import type { NotionRow } from "./client";
 
 const page = (id: string, properties: Record<string, unknown>): NotionRow => ({
@@ -82,5 +82,50 @@ describe("syncCampaign", () => {
     });
     expect(summary.characters.error).toContain("not shared");
     expect(summary.factions.created).toBe(1);
+  });
+});
+
+describe("syncCampaign — locations", () => {
+  it("adopts a world-seeded location by name without clobbering type, and links Notable NPCs", async () => {
+    const { db, campaignId } = createTestDb();
+    const now = new Date();
+    const seededId = "seed-druvenlode";
+    db.insert(locations).values({
+      id: seededId, campaignId, name: "Druvenlode",
+      description: "City · Wildemount", type: "city", createdAt: now, updatedAt: now,
+    } as never).run();
+
+    const rows: Record<string, NotionRow[]> = {
+      dsC: [page("chrBeilar", { Name: title("Beilar"), Type: sel("NPC"), Active: chk(true) })],
+      dsL: [page("locDruv", {
+        Name: title("Druvenlode"),
+        Description: { type: "rich_text", rich_text: [{ plain_text: "A hard-bitten mining town." }] },
+        Type: sel("City"),
+        "Notable NPCs": { type: "relation", relation: [{ id: "chrBeilar" }] },
+      })],
+    };
+    const summary = await syncCampaign({
+      db, campaignId,
+      sources: [
+        { entityType: "characters", dataSourceId: "dsC" },
+        { entityType: "locations", dataSourceId: "dsL" },
+      ],
+      queryRows: async (id) => rows[id] ?? [],
+    });
+
+    expect(summary.locations.adopted).toBe(1);
+    const locs = db.select().from(locations).where(eq(locations.campaignId, campaignId)).all();
+    expect(locs).toHaveLength(1);
+    const loc = locs[0];
+    expect(loc.id).toBe(seededId);
+    expect(loc.type).toBe("city");
+    expect(loc.description).toBe("A hard-bitten mining town.");
+    expect(loc.notionPageId).toBeTruthy();
+
+    const chr = db.select().from(characters).where(eq(characters.campaignId, campaignId)).get()!;
+    const links = db.select().from(characterLocations)
+      .where(eq(characterLocations.locationId, loc.id)).all();
+    expect(links).toHaveLength(1);
+    expect(links[0].characterId).toBe(chr.id);
   });
 });
