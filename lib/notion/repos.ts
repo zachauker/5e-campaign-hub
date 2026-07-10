@@ -2,13 +2,13 @@ import crypto from "crypto";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import {
-  characters, items, factions, characterFactions, characterItems,
+  characters, items, factions, characterFactions, characterItems, locations, characterLocations,
 } from "@/lib/db/schema";
 import type { EntityRepo, EntityRow } from "./reconcile";
 import type { MappedEntity } from "./map";
 
 type Db = BetterSQLite3Database<Record<string, unknown>>;
-type SyncTable = typeof characters | typeof items | typeof factions;
+type SyncTable = typeof characters | typeof items | typeof factions | typeof locations;
 
 /** Columns every synced entity table shares plus the table-specific `extra`. */
 function baseValues(m: MappedEntity, now: Date) {
@@ -92,5 +92,16 @@ export function linkCharacterItemsByPageId(
     const chr = db.select().from(characters).where(eq(characters.notionPageId, pid)).get();
     if (!chr) continue;
     db.insert(characterItems).values({ characterId: chr.id, itemId }).onConflictDoNothing().run();
+  }
+}
+
+/** Additive: add character↔location links, resolving characters by notion page id. */
+export function linkCharacterLocationsByPageId(
+  db: Db, locationId: string, characterPageIds: string[],
+): void {
+  for (const pid of characterPageIds) {
+    const chr = db.select().from(characters).where(eq(characters.notionPageId, pid)).get();
+    if (!chr) continue;
+    db.insert(characterLocations).values({ characterId: chr.id, locationId }).onConflictDoNothing().run();
   }
 }
