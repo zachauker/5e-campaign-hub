@@ -4,8 +4,8 @@ import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { MapPin, Flag, UserRound, Layers, StickyNote, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { MARKER_TYPE_META, MARKER_TYPES } from "@/components/maps/marker-meta";
 import type { MarkerType, MarkerData } from "@/components/maps/map-types";
 export type { MarkerData };
 
@@ -29,16 +29,6 @@ interface MarkerFormDialogProps {
   onClose: () => void;
   onSaved: () => void;
 }
-
-// Each type carries its own marker color + icon (shared with the map pins), so
-// the picker reads as the legend it is instead of a generic red toggle set.
-const TYPE_OPTIONS: { value: MarkerType; label: string; icon: LucideIcon; color: string }[] = [
-  { value: "location", label: "Location", icon: MapPin, color: "var(--marker-location)" },
-  { value: "faction", label: "Faction", icon: Flag, color: "var(--marker-faction)" },
-  { value: "character", label: "Character", icon: UserRound, color: "var(--marker-character)" },
-  { value: "submap", label: "Sub-map", icon: Layers, color: "var(--marker-submap)" },
-  { value: "note", label: "Note", icon: StickyNote, color: "var(--marker-note)" },
-];
 
 export function MarkerFormDialog({ mapId, campaignId, position, marker, currentZoom, onClose, onSaved }: MarkerFormDialogProps) {
   const [type, setType] = useState<MarkerType>(marker?.type ?? "note");
@@ -133,16 +123,17 @@ export function MarkerFormDialog({ mapId, campaignId, position, marker, currentZ
         </DialogHeader>
         <div className="space-y-3 pt-2">
           <div className="grid grid-cols-5 gap-1.5">
-            {TYPE_OPTIONS.map((opt) => {
-              const selected = type === opt.value;
-              const Icon = opt.icon;
+            {MARKER_TYPES.map((value) => {
+              const meta = MARKER_TYPE_META[value];
+              const selected = type === value;
+              const Icon = meta.icon;
               return (
                 <button
-                  key={opt.value}
+                  key={value}
                   type="button"
                   aria-pressed={selected}
                   onClick={() => {
-                    setType(opt.value);
+                    setType(value);
                     setEntityId("");
                     setTargetMapId("");
                     setUploadName("");
@@ -156,15 +147,15 @@ export function MarkerFormDialog({ mapId, campaignId, position, marker, currentZ
                   style={
                     selected
                       ? {
-                          color: opt.color,
-                          borderColor: opt.color,
-                          backgroundColor: `color-mix(in srgb, ${opt.color} 14%, transparent)`,
+                          color: meta.color,
+                          borderColor: meta.color,
+                          backgroundColor: `color-mix(in srgb, ${meta.color} 14%, transparent)`,
                         }
                       : undefined
                   }
                 >
                   <Icon className="w-4 h-4" />
-                  {opt.label}
+                  {meta.label}
                 </button>
               );
             })}
