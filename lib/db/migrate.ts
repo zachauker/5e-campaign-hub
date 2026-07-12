@@ -1,10 +1,12 @@
 import Database from "better-sqlite3";
 import path from "path";
+import { loadVec } from "./load-vec";
 
 export function runMigrations() {
   const DB_PATH = process.env.DB_PATH || path.join(process.cwd(), "encounter-tracker.db");
   const sqlite = new Database(DB_PATH);
   sqlite.pragma("foreign_keys = ON");
+  loadVec(sqlite);
 
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS encounters (

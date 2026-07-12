@@ -5,6 +5,7 @@ import path from "path";
 import crypto from "crypto";
 import * as schema from "@/lib/db/schema";
 import { runMigrations } from "@/lib/db/migrate";
+import { loadVec } from "@/lib/db/load-vec";
 
 export type TestDb = ReturnType<typeof drizzle<typeof schema>>;
 
@@ -16,6 +17,7 @@ export function createTestDb(): { db: TestDb; campaignId: string } {
 
   const sqlite = new Database(file);
   sqlite.pragma("foreign_keys = ON");
+  loadVec(sqlite);
   const db = drizzle(sqlite, { schema });
 
   const campaignId = crypto.randomUUID();
