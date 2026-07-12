@@ -8,6 +8,7 @@ import { ArrowLeft, Check, Loader2, Plus, Trash2, User, Info } from "lucide-reac
 import { cn } from "@/lib/utils";
 import { useCampaignStore } from "@/lib/store/campaign-store";
 import { NotionSyncPanel } from "@/components/settings/NotionSyncPanel";
+import { AssistantPanel } from "@/components/settings/AssistantPanel";
 
 interface SavedCharacterUrl {
   id: string;
@@ -273,6 +274,9 @@ export default function SettingsPage() {
 
         {/* Notion Sync */}
         <NotionSyncPanel campaignId={activeCampaignId} />
+
+        {/* Campaign Assistant */}
+        <AssistantPanel />
 
         <Button onClick={save} disabled={saving} className="gap-1.5 w-full">
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <Check className="w-4 h-4" /> : null}
