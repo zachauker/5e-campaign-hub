@@ -19,7 +19,10 @@ describe("buildTools", () => {
     const { db, campaignId } = createTestDb();
     const tools = buildTools(db, campaignId);
     const tool = tools.find((t) => t.name === "propose_notion_sync")!;
-    const result = await tool.run({}, {} as never);
+    // `tools` is a union of tool types, so `.run`'s param narrows to the intersection
+    // of all input schemas; cast to call propose_notion_sync (empty input) directly.
+    const run = tool.run as (input: Record<string, never>) => Promise<string>;
+    const result = await run({});
     expect(JSON.parse(result as string)).toMatchObject({ proposal: { targetRoute: "/api/notion/sync" } });
   });
 });
