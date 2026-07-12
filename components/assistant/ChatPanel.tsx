@@ -26,6 +26,7 @@ export function ChatPanel() {
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [notices, setNotices] = useState<string[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const consumed = useRef<string | null>(null);
@@ -35,6 +36,7 @@ export function ChatPanel() {
     const nextMsgs: ChatMessage[] = [...messages, { role: "user", content: question }];
     setMessages([...nextMsgs, { role: "assistant", content: "" }]);
     setProposals([]);
+    setNotices([]);
     setBusy(true);
     try {
       const res = await fetch("/api/assistant", {
@@ -42,7 +44,9 @@ export function ChatPanel() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           campaignId: activeCampaignId,
-          messages: nextMsgs.map((m) => ({ role: m.role, content: m.content })),
+          messages: nextMsgs
+            .map((m) => ({ role: m.role, content: m.content }))
+            .filter((m) => m.content.trim() !== ""),
         }),
       });
       if (!res.ok || !res.body) {
@@ -113,9 +117,9 @@ export function ChatPanel() {
       body: JSON.stringify(p.payload),
     });
     const ok = res.ok;
-    setMessages((m) => [
-      ...m,
-      { role: "assistant", content: ok ? `✓ Done: ${p.summary}` : `⚠️ Failed: ${p.summary} (${res.status})` },
+    setNotices((n) => [
+      ...n,
+      ok ? `✓ Done: ${p.summary}` : `⚠️ Failed: ${p.summary} (${res.status})`,
     ]);
   }
 
@@ -152,6 +156,11 @@ export function ChatPanel() {
                 Dismiss
               </Button>
             </div>
+          </div>
+        ))}
+        {notices.map((n, i) => (
+          <div key={`n${i}`} className="text-xs text-muted-foreground">
+            {n}
           </div>
         ))}
       </div>

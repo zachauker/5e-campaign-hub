@@ -23,6 +23,7 @@ export function CommandPalette() {
   const { activeCampaignId } = useCampaignStore();
   const [query, setQuery] = useState("");
   const [allResults, setAllResults] = useState<SearchResult[]>([]);
+  const [assistantConfigured, setAssistantConfigured] = useState(false);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -43,6 +44,22 @@ export function CommandPalette() {
       .then(setAllResults);
   }, [open, activeCampaignId]);
 
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled) setAssistantConfigured(data.anthropic_api_key === "configured");
+      })
+      .catch(() => {
+        if (!cancelled) setAssistantConfigured(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
     return (q ? allResults.filter((r) => r.name.toLowerCase().includes(q)) : allResults).slice(0, 8);
@@ -59,6 +76,7 @@ export function CommandPalette() {
   }
 
   function ask() {
+    if (!assistantConfigured) return;
     const q = query.trim();
     if (!q) return;
     setOpen(false);
@@ -102,11 +120,16 @@ export function CommandPalette() {
           {query.trim() && (
             <button
               onClick={ask}
-              className="flex w-full items-center gap-2 border-t border-border px-3 py-2 text-left text-sm hover:bg-muted"
+              disabled={!assistantConfigured}
+              className={`flex w-full items-center gap-2 border-t border-border px-3 py-2 text-left text-sm ${
+                assistantConfigured ? "hover:bg-muted" : "cursor-not-allowed opacity-60"
+              }`}
             >
               <span className="text-muted-foreground">Ask the assistant:</span>
               <span className="truncate">&ldquo;{query.trim()}&rdquo;</span>
-              <span className="ml-auto text-xs text-muted-foreground">⌘↵</span>
+              <span className="ml-auto text-xs text-muted-foreground">
+                {assistantConfigured ? "⌘↵" : "Configure in Settings"}
+              </span>
             </button>
           )}
         </div>

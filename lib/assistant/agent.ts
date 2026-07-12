@@ -70,12 +70,29 @@ export async function runAssistant(
     system: SYSTEM,
     tools,
     messages: opts.messages,
+    stream: true,
   });
 
-  for await (const message of runner) {
-    for (const block of message.content) {
-      if (block.type === "text" && block.text) onEvent({ type: "text", text: block.text });
+  let lastMessage: Anthropic.Beta.BetaMessage | undefined;
+  let emittedText = false;
+  for await (const messageStream of runner) {
+    for await (const event of messageStream) {
+      if (
+        event.type === "content_block_delta" &&
+        event.delta.type === "text_delta" &&
+        event.delta.text
+      ) {
+        emittedText = true;
+        onEvent({ type: "text", text: event.delta.text });
+      }
     }
+    lastMessage = await messageStream.finalMessage();
+  }
+
+  if (lastMessage?.stop_reason === "refusal") {
+    onEvent({ type: "text", text: "I can't help with that." });
+  } else if (!emittedText) {
+    onEvent({ type: "text", text: "I wasn't able to produce an answer — try rephrasing." });
   }
 
   for (const proposal of proposals) {
