@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildEncounterProposal, buildEntityProposal, buildMarkerProposal, buildNotionSyncProposal, assertHubAuthored } from "./proposals";
+import { buildEncounterProposal, buildEntityProposal, buildMarkerProposal, buildNotionSyncProposal, assertHubAuthored, HUB_AUTHORED } from "./proposals";
 
 describe("assertHubAuthored", () => {
   it("rejects Notion-synced fields", () => {
@@ -33,6 +33,18 @@ describe("buildEntityProposal", () => {
   });
   it("throws when fields include a synced column", () => {
     expect(() => buildEntityProposal("camp1", { kind: "location", fields: { name: "X", type: "poi" } })).toThrow(/not hub-authored/);
+    expect(() => buildEntityProposal("camp1", { kind: "character", fields: { type: "pc" } })).toThrow(/not hub-authored/);
+  });
+});
+
+describe("HUB_AUTHORED allowlist", () => {
+  it("never exposes sync-managed columns", () => {
+    expect(HUB_AUTHORED.character).not.toEqual(expect.arrayContaining(["type", "ddbCharacterId", "notionProps", "archived"]));
+    expect(HUB_AUTHORED.location).not.toContain("type");
+    expect(HUB_AUTHORED.item).not.toContain("description");
+    for (const kind of ["character", "location", "item", "faction"] as const) {
+      expect(HUB_AUTHORED[kind]).not.toEqual(expect.arrayContaining(["notionProps", "notionPageId", "notionSyncedAt", "archived"]));
+    }
   });
 });
 

@@ -36,5 +36,30 @@ export async function POST(req: Request) {
     })
     .returning();
 
+  if (Array.isArray(body.combatants)) {
+    for (const [index, c] of body.combatants.entries()) {
+      await db.insert(combatants).values({
+        id: generateId(),
+        encounterId: id,
+        name: c.name,
+        type: c.type ?? "monster",
+        initiative: c.initiative ?? null,
+        initiativeBonus: c.initiativeBonus ?? 0,
+        hpCurrent: c.hpCurrent ?? c.hpMax ?? 0,
+        hpMax: c.hpMax ?? 0,
+        hpTemp: 0,
+        ac: c.ac ?? 10,
+        speed: c.speed ?? 30,
+        conditions: JSON.stringify([]),
+        notes: c.notes ?? null,
+        isConcentrating: false,
+        isVisible: true,
+        sortOrder: index,
+        characterId: c.characterId ?? null,
+        monsterSlug: c.monsterSlug ?? null,
+      });
+    }
+  }
+
   return NextResponse.json(encounter, { status: 201 });
 }

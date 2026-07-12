@@ -9,8 +9,8 @@ export interface Proposal {
 
 // Only these fields may be written per entity kind. Notion-synced columns
 // (type on locations, description on items, notionProps, etc.) are deliberately absent.
-const HUB_AUTHORED: Record<EntityKind, string[]> = {
-  character: ["name", "type", "description", "ddbCharacterId", "notionUrl"],
+export const HUB_AUTHORED: Record<EntityKind, string[]> = {
+  character: ["name", "description", "notionUrl"], // NOT `type`/`ddbCharacterId` — sync-managed via mapCharacterRow extra
   location: ["name", "description", "notionUrl"], // NOT `type` — world-derived, drives map layering
   item: ["name", "notionUrl"],                    // NOT `description` — synced from Notion
   faction: ["name", "description", "notionUrl"],
