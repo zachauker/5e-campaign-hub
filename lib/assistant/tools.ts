@@ -3,6 +3,8 @@ import { z } from "zod";
 import type { AppDb, EntityKind } from "./read-tools";
 import { searchEntities, listEntities, getEntity, getRelationships, listMonsters, getMapContext } from "./read-tools";
 import { buildEncounterProposal, buildEntityProposal, buildMarkerProposal, buildNotionSyncProposal } from "./proposals";
+import { searchReference } from "@/lib/reference/retrieve";
+import { embed } from "@/lib/reference/embed";
 
 const kindEnum = z.enum(["character", "location", "item", "faction"]);
 const j = (v: unknown) => JSON.stringify(v);
@@ -44,6 +46,12 @@ export function buildTools(db: AppDb, campaignId: string) {
       description: "Get a map's markers and linked entities by map id. Use when the user asks about what is on a map or wants to place a marker.",
       inputSchema: z.object({ mapId: z.string() }),
       run: async ({ mapId }) => j(getMapContext(db, campaignId, { mapId })),
+    }),
+    betaZodTool({
+      name: "search_reference",
+      description: "Search indexed rulebooks and setting sourcebooks (SRD rules, loaded campaign-setting books, the DM's homebrew notes) for rules, mechanics, or published-setting lore. Call this for ANY rules/mechanics question or published-setting question, and cite the returned sources in your answer. Prefer this over answering rules from memory. Returns passages with a `sourceRef` citation each.",
+      inputSchema: z.object({ query: z.string(), collection: z.string().optional() }),
+      run: async ({ query, collection }) => j(await searchReference(db, { query, embed, collection })),
     }),
     betaZodTool({
       name: "propose_encounter",

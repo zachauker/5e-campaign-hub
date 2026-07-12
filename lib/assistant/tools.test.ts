@@ -11,7 +11,7 @@ describe("buildTools", () => {
       "get_entity", "get_map_context", "get_relationships",
       "list_entities", "list_monsters",
       "propose_encounter", "propose_entity", "propose_marker", "propose_notion_sync",
-      "search_entities",
+      "search_entities", "search_reference",
     ]);
   });
 
