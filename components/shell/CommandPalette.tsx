@@ -19,6 +19,7 @@ export function CommandPalette() {
   const router = useRouter();
   const open = useUIStore((s) => s.commandPaletteOpen);
   const setOpen = useUIStore((s) => s.setCommandPaletteOpen);
+  const openAssistantWith = useUIStore((s) => s.openAssistantWith);
   const { activeCampaignId } = useCampaignStore();
   const [query, setQuery] = useState("");
   const [allResults, setAllResults] = useState<SearchResult[]>([]);
@@ -57,6 +58,13 @@ export function CommandPalette() {
     router.push(href);
   }
 
+  function ask() {
+    const q = query.trim();
+    if (!q) return;
+    setOpen(false);
+    openAssistantWith(q);
+  }
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-lg p-0 gap-0">
@@ -68,6 +76,12 @@ export function CommandPalette() {
             placeholder="Jump to a character, location, item, faction, or encounter..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                e.preventDefault();
+                ask();
+              }
+            }}
             className="border-0 shadow-none focus-visible:ring-0"
           />
         </div>
@@ -85,6 +99,16 @@ export function CommandPalette() {
               <span className="text-xs text-muted-foreground capitalize">{r.type}</span>
             </button>
           ))}
+          {query.trim() && (
+            <button
+              onClick={ask}
+              className="flex w-full items-center gap-2 border-t border-border px-3 py-2 text-left text-sm hover:bg-muted"
+            >
+              <span className="text-muted-foreground">Ask the assistant:</span>
+              <span className="truncate">&ldquo;{query.trim()}&rdquo;</span>
+              <span className="ml-auto text-xs text-muted-foreground">⌘↵</span>
+            </button>
+          )}
         </div>
       </DialogContent>
     </Dialog>
