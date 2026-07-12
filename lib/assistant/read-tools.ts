@@ -38,6 +38,9 @@ export function getEntity(db: AppDb, campaignId: string, input: { kind: EntityKi
 }
 
 export function getRelationships(db: AppDb, campaignId: string, input: { kind: EntityKind; id: string }) {
+  const t = TABLES[input.kind];
+  const owner = db.select().from(t).where(and(eq(t.campaignId, campaignId), eq(t.id, input.id))).get();
+  if (!owner) return { characters: [] };
   const linkedCharIds = (() => {
     if (input.kind === "faction") return db.select().from(characterFactions).where(eq(characterFactions.factionId, input.id)).all().map((r) => r.characterId);
     if (input.kind === "location") return db.select().from(characterLocations).where(eq(characterLocations.locationId, input.id)).all().map((r) => r.characterId);
