@@ -1,6 +1,11 @@
-FROM node:22-alpine AS base
+# Debian (glibc) base, NOT Alpine (musl): onnxruntime-node (pulled in by
+# @huggingface/transformers for the reference-library embeddings) ships glibc-only
+# prebuilt binaries and fails to load on musl (__vsnprintf_chk: symbol not found).
+# better-sqlite3, sqlite-vec, and sharp all have first-class glibc builds too.
+FROM node:22-slim AS base
 WORKDIR /app
-RUN apk add --no-cache libc6-compat python3 make g++
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
 
 FROM base AS deps
 COPY package*.json ./
@@ -26,9 +31,10 @@ LABEL net.unraid.docker.icon="https://game-icons.net/icons/d4af37/000000/1x1/del
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN apk add --no-cache su-exec
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+RUN apt-get update && apt-get install -y --no-install-recommends gosu \
+  && rm -rf /var/lib/apt/lists/*
+RUN groupadd --system --gid 1001 nodejs
+RUN useradd --system --uid 1001 --gid nodejs nextjs
 
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
@@ -41,6 +47,15 @@ COPY --from=builder /app/.next/static ./.next/static
 # fixes this.
 COPY --from=builder /app/node_modules/sharp ./node_modules/sharp
 COPY --from=builder /app/node_modules/@img ./node_modules/@img
+# Same standalone-tracing gap for the reference-library native runtimes: @huggingface/transformers
+# loads onnxruntime-node's libonnxruntime.so dynamically, and sqlite-vec loads its platform
+# extension (sqlite-vec-linux-x64) via an optionalDependency — both missed by static tracing.
+# Overlay the full packages so query embeddings + vector search work at runtime.
+COPY --from=builder /app/node_modules/@huggingface/transformers ./node_modules/@huggingface/transformers
+COPY --from=builder /app/node_modules/onnxruntime-node ./node_modules/onnxruntime-node
+COPY --from=builder /app/node_modules/onnxruntime-common ./node_modules/onnxruntime-common
+COPY --from=builder /app/node_modules/sqlite-vec ./node_modules/sqlite-vec
+COPY --from=builder /app/node_modules/sqlite-vec-linux-x64 ./node_modules/sqlite-vec-linux-x64
 # Bake the world-map artifacts (pmtiles + glyphs + styles, ~17MB) into the image
 # so /api/world serves them from the default WORLD_DIR (cwd/world-data/build) with
 # no volume mount or WORLD_DATA_DIR needed. Set WORLD_DATA_DIR to override with a
