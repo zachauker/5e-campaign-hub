@@ -1,21 +1,17 @@
-import fs from "fs";
+import Database from "better-sqlite3";
 import path from "path";
-import { execFileSync } from "child_process";
+import { loadVec } from "@/lib/db/load-vec";
+import { runMigrations } from "@/lib/db/migrate";
+import { ingestSrd } from "@/lib/reference/ingest";
 
-// Ingests every .md file under reference-data/srd/ into one "SRD 5.1" collection
-// by concatenating them, then delegating to ingest.ts. The DM places the openly-
-// licensed SRD markdown there (see reference-data/srd/README.md).
-const dir = path.join(process.cwd(), "reference-data", "srd");
-const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith(".md")) : [];
-if (files.length === 0) {
-  console.error("No SRD markdown found in reference-data/srd/. See reference-data/srd/README.md.");
-  process.exit(1);
+async function main() {
+  runMigrations();
+  const dbPath = process.env.DB_PATH || path.join(process.cwd(), "encounter-tracker.db");
+  const sqlite = new Database(dbPath);
+  sqlite.pragma("foreign_keys = ON");
+  if (!loadVec(sqlite)) { console.error("sqlite-vec failed to load"); process.exit(1); }
+  const res = await ingestSrd(sqlite, { onProgress: (d, t) => console.log(`  embedded ${d}/${t}`) });
+  console.log(`Ingested SRD 5.1 — ${res.chunkCount} chunks.`);
 }
-const combined = files.map((f) => fs.readFileSync(path.join(dir, f), "utf8")).join("\n\n");
-const tmp = path.join(dir, ".srd-combined.md");
-fs.writeFileSync(tmp, combined);
-try {
-  execFileSync("npx", ["tsx", "scripts/reference/ingest.ts", tmp, "--collection", "SRD 5.1", "--label", "SRD", "--replace"], { stdio: "inherit" });
-} finally {
-  fs.unlinkSync(tmp);
-}
+
+main().catch((e) => { console.error(e); process.exit(1); });
