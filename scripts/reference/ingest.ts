@@ -17,9 +17,22 @@ async function extract(file: string): Promise<{ text: string; pageOf?: (i: numbe
   const ext = path.extname(file).toLowerCase();
   const label = path.basename(file, ext);
   if (ext === ".pdf") {
+    const { createRequire } = await import("module");
+    const requireFn = createRequire(import.meta.url);
+    // pdfjs bundles the standard 14 PDF fonts + CMaps as files it loads on demand.
+    // Without pointing it at them it warns once per glyph ("standardFontDataUrl ...")
+    // and extracts degraded text. Resolve them relative to the installed package.
+    const pdfjsDir = path.resolve(path.dirname(requireFn.resolve("pdfjs-dist/legacy/build/pdf.mjs")), "..", "..");
     const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
     const data = new Uint8Array(fs.readFileSync(file));
-    const doc = await pdfjs.getDocument({ data }).promise;
+    const doc = await pdfjs.getDocument({
+      data,
+      standardFontDataUrl: path.join(pdfjsDir, "standard_fonts") + path.sep,
+      cMapUrl: path.join(pdfjsDir, "cmaps") + path.sep,
+      cMapPacked: true,
+      useSystemFonts: false,
+      verbosity: 0, // errors only — silence the per-glyph font warnings
+    }).promise;
     let text = "";
     const pageBoundaries: { index: number; page: number }[] = [];
     for (let p = 1; p <= doc.numPages; p++) {
