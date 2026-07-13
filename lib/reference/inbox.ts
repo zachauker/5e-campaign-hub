@@ -28,5 +28,10 @@ export function resolveInboxFile(name: string): string {
   const full = path.resolve(dir, name);
   if (full !== path.join(dir, name) || !full.startsWith(dir + path.sep)) throw new Error("Invalid file path");
   if (!fs.existsSync(full) || !fs.statSync(full).isFile()) throw new Error("File not found");
+  // Defense in depth: resolve symlinks and re-confirm containment (lexical checks
+  // above don't catch a symlink inside the inbox pointing outside it).
+  const realDir = fs.realpathSync(dir);
+  const real = fs.realpathSync(full);
+  if (real !== path.join(realDir, name) && !real.startsWith(realDir + path.sep)) throw new Error("Invalid file path");
   return full;
 }

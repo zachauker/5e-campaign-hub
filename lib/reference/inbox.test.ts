@@ -36,4 +36,11 @@ describe("resolveInboxFile", () => {
     expect(() => resolveInboxFile("missing.pdf")).toThrow();
     expect(() => resolveInboxFile("ignore.zip")).toThrow();
   });
+  it("rejects a symlink that escapes the inbox", () => {
+    const outside = path.join(os.tmpdir(), `outside-${crypto.randomUUID()}.pdf`);
+    fs.writeFileSync(outside, "secret");
+    fs.symlinkSync(outside, path.join(dir, "escape.pdf"));
+    expect(() => resolveInboxFile("escape.pdf")).toThrow();
+    fs.rmSync(outside, { force: true });
+  });
 });

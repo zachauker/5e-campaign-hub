@@ -56,6 +56,9 @@ COPY --from=builder /app/node_modules/onnxruntime-node ./node_modules/onnxruntim
 COPY --from=builder /app/node_modules/onnxruntime-common ./node_modules/onnxruntime-common
 COPY --from=builder /app/node_modules/sqlite-vec ./node_modules/sqlite-vec
 COPY --from=builder /app/node_modules/sqlite-vec-linux-x64 ./node_modules/sqlite-vec-linux-x64
+# Same gap for PDF ingestion: pdfjs-dist loads its standard_fonts/ and cmaps/ data
+# dirs dynamically at runtime, which static tracing misses.
+COPY --from=builder /app/node_modules/pdfjs-dist ./node_modules/pdfjs-dist
 # Bake the world-map artifacts (pmtiles + glyphs + styles, ~17MB) into the image
 # so /api/world serves them from the default WORLD_DIR (cwd/world-data/build) with
 # no volume mount or WORLD_DATA_DIR needed. Set WORLD_DATA_DIR to override with a

@@ -95,7 +95,7 @@ export async function ingestSource(sqlite: DatabaseType.Database, opts: IngestOp
       for (const { id } of oldIds) sqlite.prepare("DELETE FROM vec_reference_chunks WHERE chunk_id = ?").run(id);
       db.delete(referenceCollections).where(eq(referenceCollections.id, existing.id)).run();
     }
-    const notesToStore = (opts.notes ?? undefined) !== undefined ? opts.notes! : (existing?.notes ?? null);
+    const notesToStore = opts.notes !== undefined ? opts.notes : (existing?.notes ?? null);
     db.insert(referenceCollections).values({ id: collId, name: opts.collection, sourceType, enabled: true, chunkCount: chunks.length, notes: notesToStore, createdAt: new Date() }).run();
     const chunkRows = chunks.map((c) => ({ id: crypto.randomUUID(), collectionId: collId, content: c.content, sourceRef: c.sourceRef, ordinal: c.ordinal, tokenCount: c.tokenCount }));
     for (const row of chunkRows) db.insert(referenceChunks).values(row).run();

@@ -96,6 +96,8 @@ export function ReferenceLibraryPanel() {
       }
       loadCollections();
       loadInbox();
+    } catch {
+      setIngestError("Ingest connection failed.");
     } finally {
       setBusy(null);
       setProgress(null);
