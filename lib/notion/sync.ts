@@ -1,15 +1,16 @@
 import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
-import { characters, items, factions, locations } from "@/lib/db/schema";
+import { characters, items, factions, locations, sessionNotes } from "@/lib/db/schema";
 import type { NotionRow } from "./client";
-import { mapFactionRow, mapCharacterRow, mapItemRow, mapLocationRow, type MappedEntity } from "./map";
+import { mapFactionRow, mapCharacterRow, mapItemRow, mapLocationRow, mapSessionNoteRow, type MappedEntity } from "./map";
 import { reconcileEntity } from "./reconcile";
 import {
-  makeEntityRepo, linkCharacterFactionsByName, linkCharacterItemsByPageId, linkCharacterLocationsByPageId,
+  makeEntityRepo, linkCharacterFactionsByName, linkCharacterItemsByPageId,
+  linkCharacterLocationsByPageId, linkSessionNoteLocationsByName,
 } from "./repos";
 
 type Db = BetterSQLite3Database<Record<string, unknown>>;
-export type EntityType = "characters" | "items" | "factions" | "locations";
+export type EntityType = "characters" | "items" | "factions" | "locations" | "sessionNotes";
 
 export interface SourceConfig {
   entityType: EntityType;
@@ -22,12 +23,14 @@ export interface SourceSummary {
 }
 export type SyncSummary = Record<EntityType, SourceSummary>;
 
-const TABLES = { characters, items, factions, locations } as const;
+const TABLES = { characters, items, factions, locations, sessionNotes } as const;
 const MAPPERS: Record<EntityType, (row: NotionRow) => MappedEntity> = {
-  factions: mapFactionRow, characters: mapCharacterRow, items: mapItemRow, locations: mapLocationRow,
+  factions: mapFactionRow, characters: mapCharacterRow, items: mapItemRow,
+  locations: mapLocationRow, sessionNotes: mapSessionNoteRow,
 };
-// Dependency order: link targets (factions, characters) before linkers.
-const ORDER: EntityType[] = ["factions", "characters", "locations", "items"];
+// Dependency order: link targets before linkers. sessionNotes AFTER locations
+// so Setting(s)->location name matching resolves.
+const ORDER: EntityType[] = ["factions", "characters", "locations", "items", "sessionNotes"];
 
 function emptySummary(): SourceSummary {
   return { created: 0, adopted: 0, updated: 0, unchanged: 0, archived: 0, warnings: [] };
@@ -41,7 +44,8 @@ export async function syncCampaign(opts: {
 }): Promise<SyncSummary> {
   const { db, campaignId, sources, queryRows } = opts;
   const summary: SyncSummary = {
-    characters: emptySummary(), items: emptySummary(), factions: emptySummary(), locations: emptySummary(),
+    characters: emptySummary(), items: emptySummary(), factions: emptySummary(),
+    locations: emptySummary(), sessionNotes: emptySummary(),
   };
 
   for (const type of ORDER) {
@@ -77,6 +81,14 @@ export async function syncCampaign(opts: {
       if (type === "locations" && mapped.notableNpcPageIds?.length) {
         linkCharacterLocationsByPageId(db, result.id, mapped.notableNpcPageIds);
       }
+      if (type === "sessionNotes" && mapped.settingNames?.length) {
+        const unmatched = linkSessionNoteLocationsByName(db, campaignId, result.id, mapped.settingNames);
+        for (const name of unmatched) {
+          if (!s.warnings.includes(`No hub location matches setting "${name}"`)) {
+            s.warnings.push(`No hub location matches setting "${name}"`);
+          }
+        }
+      }
     }
 
     s.archived += archiveUnseen(db, table, campaignId, seenPageIds);
@@ -86,7 +98,7 @@ export async function syncCampaign(opts: {
 }
 
 /** Archive (never delete) rows that have a notionPageId but weren't in this sync. */
-function archiveUnseen(db: Db, table: typeof characters | typeof items | typeof factions | typeof locations, campaignId: string, seenPageIds: string[]): number {
+function archiveUnseen(db: Db, table: typeof characters | typeof items | typeof factions | typeof locations | typeof sessionNotes, campaignId: string, seenPageIds: string[]): number {
   const t = table as unknown as typeof characters;
   const now = new Date();
   const conditions = [

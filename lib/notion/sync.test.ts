@@ -2,7 +2,10 @@ import { describe, it, expect } from "vitest";
 import { eq } from "drizzle-orm";
 import { createTestDb } from "./test-helpers";
 import { syncCampaign, type SourceConfig } from "./sync";
-import { characters, factions, items, characterFactions, locations, characterLocations } from "@/lib/db/schema";
+import {
+  characters, factions, items, characterFactions, locations, characterLocations,
+  sessionNotes, sessionNoteLocations,
+} from "@/lib/db/schema";
 import type { NotionRow } from "./client";
 
 const page = (id: string, properties: Record<string, unknown>): NotionRow => ({
@@ -127,5 +130,58 @@ describe("syncCampaign — locations", () => {
       .where(eq(characterLocations.locationId, loc.id)).all();
     expect(links).toHaveLength(1);
     expect(links[0].characterId).toBe(chr.id);
+  });
+});
+
+describe("syncCampaign — session notes", () => {
+  it("creates notes, links Setting(s) to locations, and archives removed notes", async () => {
+    const { db, campaignId } = createTestDb();
+    const now = new Date();
+    db.insert(locations).values({
+      id: "loc-rex", campaignId, name: "Rexxentrum", type: "city", createdAt: now, updatedAt: now,
+    } as never).run();
+
+    const dateProp = (s: string) => ({ type: "date", date: { start: s, end: null } });
+    const ms = (n: string) => ({ type: "multi_select", multi_select: [{ name: n }] });
+    const rows: Record<string, NotionRow[]> = {
+      dsL: [page("locRex", { Name: title("Rexxentrum"), Type: sel("City") })],
+      dsS: [page("noteCobalt", {
+        Name: title("Cobalt Soul Reunion"), Type: sel("Character Event"),
+        Status: sel("Not started"), Date: dateProp("2026-07-19"), "Setting(s)": ms("Rexxentrum"),
+      })],
+    };
+    const config: SourceConfig[] = [
+      { entityType: "locations", dataSourceId: "dsL" },
+      { entityType: "sessionNotes", dataSourceId: "dsS" },
+    ];
+    const summary = await syncCampaign({ db, campaignId, sources: config, queryRows: async (id) => rows[id] ?? [] });
+
+    expect(summary.sessionNotes.created).toBe(1);
+    const note = db.select().from(sessionNotes).where(eq(sessionNotes.campaignId, campaignId)).get()!;
+    expect(note.noteType).toBe("Character Event");
+    expect(note.date).toBe("2026-07-19");
+    const links = db.select().from(sessionNoteLocations).where(eq(sessionNoteLocations.sessionNoteId, note.id)).all();
+    expect(links).toHaveLength(1);
+
+    const summary2 = await syncCampaign({
+      db, campaignId, sources: config,
+      queryRows: async (id) => (id === "dsL" ? rows.dsL : []),
+    });
+    expect(summary2.sessionNotes.archived).toBe(1);
+    expect(Boolean(db.select().from(sessionNotes).where(eq(sessionNotes.id, note.id)).get()!.archived)).toBe(true);
+  });
+
+  it("adds unmatched Setting(s) names as warnings", async () => {
+    const { db, campaignId } = createTestDb();
+    const ms = (n: string) => ({ type: "multi_select", multi_select: [{ name: n }] });
+    const rows: Record<string, NotionRow[]> = {
+      dsS: [page("noteRoad", { Name: title("On the Road"), Type: sel("RP Encounter"), "Setting(s)": ms("Travel") })],
+    };
+    const summary = await syncCampaign({
+      db, campaignId,
+      sources: [{ entityType: "sessionNotes", dataSourceId: "dsS" }],
+      queryRows: async (id) => rows[id] ?? [],
+    });
+    expect(summary.sessionNotes.warnings.join(" ")).toContain("Travel");
   });
 });
