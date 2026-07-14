@@ -10,10 +10,10 @@ import type { MapCanvasProps, ResolvedMarker } from "@/components/maps/map-types
 
 const CRS = L.CRS.Simple;
 
-function markerIcon(type: ResolvedMarker["type"], selected: boolean) {
+function markerIcon(type: ResolvedMarker["type"], subtype: string | null | undefined, selected: boolean) {
   return L.divIcon({
     className: "",
-    html: renderToStaticMarkup(<MapMarkerPin type={type} selected={selected} />),
+    html: renderToStaticMarkup(<MapMarkerPin type={type} subtype={subtype} selected={selected} />),
     iconSize: [28, 36],
     iconAnchor: [14, 36],
   });
@@ -106,7 +106,10 @@ function MarkerWithReveal({
     },
   });
 
-  const icon = useMemo(() => markerIcon(marker.type, selected), [marker.type, selected]);
+  const icon = useMemo(
+    () => markerIcon(marker.type, marker.entitySubtype, selected),
+    [marker.type, marker.entitySubtype, selected]
+  );
 
   if (marker.minZoom !== null && zoom < marker.minZoom) return null;
 

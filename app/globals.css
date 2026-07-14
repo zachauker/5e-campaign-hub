@@ -34,6 +34,7 @@
   --color-marker-item: var(--marker-item);
   --color-marker-submap: var(--marker-submap);
   --color-marker-note: var(--marker-note);
+  --color-marker-event: var(--marker-event);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -82,6 +83,7 @@
   --marker-item: #cd7f4b;
   --marker-submap: #5a7ab8;
   --marker-note: #7a8079;
+  --marker-event: #a855f7;
 }
 
 * {

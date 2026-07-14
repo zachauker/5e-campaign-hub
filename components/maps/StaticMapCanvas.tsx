@@ -102,7 +102,7 @@ export function StaticMapCanvas({
                   onMarkerClick(m);
                 }}
               >
-                <MapMarkerPin type={m.type} selected={m.id === selectedId} />
+                <MapMarkerPin type={m.type} subtype={m.entitySubtype} selected={m.id === selectedId} />
               </div>
             ))}
           </div>

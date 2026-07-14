@@ -187,7 +187,9 @@ export function WorldMapCanvas({
       let inst = instances.get(marker.id);
       if (!inst) {
         const el = document.createElement("div");
-        el.innerHTML = renderToStaticMarkup(<MapMarkerPin type={marker.type} selected={sel} />);
+        el.innerHTML = renderToStaticMarkup(
+          <MapMarkerPin type={marker.type} subtype={marker.entitySubtype} selected={sel} />
+        );
         el.dataset.sel = sel ? "1" : "0";
         // Staggered rise-in for newly-revealed pins (skip the selected one — it
         // gets the bloom instead, and two transform animations would fight).
@@ -216,7 +218,9 @@ export function WorldMapCanvas({
         // selected pin play its one-shot arrival bloom exactly once.
         const el = inst.getElement();
         if (el.dataset.sel !== (sel ? "1" : "0")) {
-          el.innerHTML = renderToStaticMarkup(<MapMarkerPin type={marker.type} selected={sel} />);
+          el.innerHTML = renderToStaticMarkup(
+            <MapMarkerPin type={marker.type} subtype={marker.entitySubtype} selected={sel} />
+          );
           el.dataset.sel = sel ? "1" : "0";
         }
       }

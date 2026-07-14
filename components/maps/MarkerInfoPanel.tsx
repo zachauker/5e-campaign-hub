@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { X } from "lucide-react";
-import { MARKER_TYPE_META } from "@/components/maps/marker-meta";
+import { markerVisual } from "@/components/maps/marker-meta";
 import type { ResolvedMarker } from "@/components/maps/map-types";
 
 const ENTITY_PATH: Partial<Record<ResolvedMarker["type"], string>> = {
@@ -24,7 +24,7 @@ interface MarkerInfoPanelProps {
  * Shared by the world map and the local map viewers.
  */
 export function MarkerInfoPanel({ marker, onClose, onEdit, onDelete }: MarkerInfoPanelProps) {
-  const meta = MARKER_TYPE_META[marker.type];
+  const meta = markerVisual(marker);
   const Icon = meta.icon;
   const entityPath = ENTITY_PATH[marker.type];
 

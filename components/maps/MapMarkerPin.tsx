@@ -1,19 +1,13 @@
 "use client";
 
-import { MapPin, Flag, UserRound, Layers, StickyNote, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MapMarker } from "@/lib/db/schema";
+import { visualForType } from "@/components/maps/marker-meta";
 
-const MARKER_META: Record<MapMarker["type"], { color: string; icon: LucideIcon }> = {
-  location: { color: "var(--marker-location)", icon: MapPin },
-  faction: { color: "var(--marker-faction)", icon: Flag },
-  character: { color: "var(--marker-character)", icon: UserRound },
-  submap: { color: "var(--marker-submap)", icon: Layers },
-  note: { color: "var(--marker-note)", icon: StickyNote },
-};
-
-export function MapMarkerPin({ type, selected }: { type: MapMarker["type"]; selected?: boolean }) {
-  const meta = MARKER_META[type] ?? MARKER_META.note;
+export function MapMarkerPin({
+  type, subtype, selected,
+}: { type: MapMarker["type"]; subtype?: string | null; selected?: boolean }) {
+  const meta = visualForType(type, subtype);
   const Icon = meta.icon;
   return (
     <div className={cn("relative", selected && "marker-selected marker-bloom")}>
