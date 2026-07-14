@@ -3,12 +3,13 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import {
   characters, items, factions, characterFactions, characterItems, locations, characterLocations,
+  sessionNotes, sessionNoteLocations,
 } from "@/lib/db/schema";
 import type { EntityRepo, EntityRow } from "./reconcile";
 import type { MappedEntity } from "./map";
 
 type Db = BetterSQLite3Database<Record<string, unknown>>;
-type SyncTable = typeof characters | typeof items | typeof factions | typeof locations;
+type SyncTable = typeof characters | typeof items | typeof factions | typeof locations | typeof sessionNotes;
 
 /** Columns every synced entity table shares plus the table-specific `extra`. */
 function baseValues(m: MappedEntity, now: Date) {
@@ -104,4 +105,23 @@ export function linkCharacterLocationsByPageId(
     if (!chr) continue;
     db.insert(characterLocations).values({ characterId: chr.id, locationId }).onConflictDoNothing().run();
   }
+}
+
+/**
+ * Additive: link a session note to hub Locations by matching each Setting(s)
+ * name (case-insensitive). Never removes links. Returns the setting names that
+ * matched no location, for surfacing as sync warnings.
+ */
+export function linkSessionNoteLocationsByName(
+  db: Db, campaignId: string, sessionNoteId: string, settingNames: string[],
+): string[] {
+  const unmatched: string[] = [];
+  for (const name of settingNames) {
+    const loc = db.select().from(locations)
+      .where(and(eq(locations.campaignId, campaignId), sql`lower(${locations.name}) = lower(${name})`))
+      .get();
+    if (!loc) { unmatched.push(name); continue; }
+    db.insert(sessionNoteLocations).values({ sessionNoteId, locationId: loc.id }).onConflictDoNothing().run();
+  }
+  return unmatched;
 }

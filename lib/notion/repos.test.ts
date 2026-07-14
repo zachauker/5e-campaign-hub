@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { createTestDb } from "./test-helpers";
-import { makeEntityRepo, linkCharacterFactionsByName, linkCharacterItemsByPageId, linkCharacterLocationsByPageId } from "./repos";
+import { makeEntityRepo, linkCharacterFactionsByName, linkCharacterItemsByPageId, linkCharacterLocationsByPageId, linkSessionNoteLocationsByName } from "./repos";
 import { reconcileEntity } from "./reconcile";
-import { characters, factions, items, characterFactions, characterItems, locations, characterLocations } from "@/lib/db/schema";
+import { characters, factions, items, characterFactions, characterItems, locations, characterLocations, sessionNotes, sessionNoteLocations } from "@/lib/db/schema";
 import type { MappedEntity } from "./map";
 
 const m = (over: Partial<MappedEntity> & { name: string; notionPageId: string }): MappedEntity => ({
@@ -96,5 +96,30 @@ describe("linkCharacterLocationsByPageId", () => {
     const loc = reconcileEntity(lRepo, m({ name: "New Place", notionPageId: "l9" }));
     const row = db.select().from(locations).where(eq(locations.id, loc.id)).get()!;
     expect(row.type).toBe("other");
+  });
+});
+
+describe("linkSessionNoteLocationsByName", () => {
+  it("links a session note to locations by case-insensitive name, additively", () => {
+    const { db, campaignId } = createTestDb();
+    const lRepo = makeEntityRepo(db, locations, campaignId);
+    const nRepo = makeEntityRepo(db, sessionNotes, campaignId);
+    const loc = reconcileEntity(lRepo, m({ name: "Rexxentrum", notionPageId: "l1" }));
+    const note = reconcileEntity(nRepo, m({ name: "Cobalt Soul Reunion", notionPageId: "n1", extra: { noteType: "Character Event" } }));
+
+    linkSessionNoteLocationsByName(db, campaignId, note.id, ["rexxentrum", "Travel"]);
+    linkSessionNoteLocationsByName(db, campaignId, note.id, ["Rexxentrum"]); // re-run: no duplicate
+
+    const links = db.select().from(sessionNoteLocations)
+      .where(and(eq(sessionNoteLocations.sessionNoteId, note.id), eq(sessionNoteLocations.locationId, loc.id))).all();
+    expect(links).toHaveLength(1);
+  });
+
+  it("returns unmatched setting names as warnings", () => {
+    const { db, campaignId } = createTestDb();
+    const nRepo = makeEntityRepo(db, sessionNotes, campaignId);
+    const note = reconcileEntity(nRepo, m({ name: "On the Road", notionPageId: "n2", extra: { noteType: "RP Encounter" } }));
+    const unmatched = linkSessionNoteLocationsByName(db, campaignId, note.id, ["Travel", "On the Road"]);
+    expect(unmatched).toEqual(["Travel", "On the Road"]);
   });
 });
