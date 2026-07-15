@@ -44,7 +44,7 @@ export function SessionNotesBrowser() {
   return (
     <div className="max-w-3xl mx-auto px-6 py-10">
       <div className="flex items-center gap-2 mb-6">
-        <ScrollText className="w-5 h-5" style={{ color: "var(--marker-note)" }} />
+        <ScrollText className="w-5 h-5" style={{ color: "var(--marker-event)" }} />
         <h1 className="font-display text-2xl">Sessions</h1>
         {archivedCount > 0 && (
           <span className="text-xs text-muted-foreground ml-auto">{archivedCount} archived</span>

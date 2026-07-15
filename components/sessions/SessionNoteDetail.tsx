@@ -91,7 +91,7 @@ export function SessionNoteDetail() {
         <ArrowLeft className="w-3.5 h-3.5" /> Sessions
       </Link>
       <div className="flex items-center gap-2 mb-1">
-        <ScrollText className="w-5 h-5" style={{ color: "var(--marker-note)" }} />
+        <ScrollText className="w-5 h-5" style={{ color: "var(--marker-event)" }} />
         <h1 className="font-display text-2xl">{note.name}</h1>
       </div>
       {note.noteType && <p className="text-sm text-muted-foreground mb-4">{note.noteType}</p>}
