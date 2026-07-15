@@ -17,6 +17,8 @@ import { useToast } from "@/components/ui/toast";
 import type { MapData, ResolvedMarker } from "@/components/maps/map-types";
 import { MarkerLayerControl } from "@/components/maps/MarkerLayerControl";
 import { isMarkerVisible, readHiddenLayers } from "@/components/maps/marker-layers";
+import { EventDateFilter } from "@/components/maps/EventDateFilter";
+import { eventDatesOf, defaultEventDate, filterByEventDate, todayISO } from "@/components/maps/event-date-filter";
 
 const TiledMapCanvas = dynamic(
   () => import("@/components/maps/TiledMapCanvas").then((mod) => mod.TiledMapCanvas),
@@ -66,6 +68,23 @@ export function MapViewer() {
   function updateHidden(next: Set<string>) {
     setHidden(next);
     window.localStorage.setItem(`markerLayers:${id}`, JSON.stringify([...next]));
+  }
+
+  // Seed the selected session date ONCE, the first time event dates appear,
+  // defaulting to the next upcoming session. After that the user's choice
+  // (including "All dates" = null) is preserved across marker reloads; we only
+  // override when a chosen date has disappeared from the set, falling back to
+  // the default (or null if no dates remain). Done during render, mirroring the
+  // `hidden` block above, rather than in an effect.
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [dateFilterSeeded, setDateFilterSeeded] = useState(false);
+  const eventDates = eventDatesOf(markers);
+  if (!dateFilterSeeded && eventDates.length > 0) {
+    setDateFilterSeeded(true);
+    setSelectedDate(defaultEventDate(eventDates, todayISO()));
+  } else if (selectedDate !== null && !eventDates.includes(selectedDate)) {
+    // the user's chosen date disappeared — fall back
+    setSelectedDate(eventDates.length > 0 ? defaultEventDate(eventDates, todayISO()) : null);
   }
 
   const loadMarkers = useCallback(async () => {
@@ -210,7 +229,7 @@ export function MapViewer() {
 
   const sharedCanvasProps = {
     map,
-    markers: markers.filter((m) => isMarkerVisible(m, hidden)),
+    markers: filterByEventDate(markers.filter((m) => isMarkerVisible(m, hidden)), selectedDate),
     addMode,
     markersDraggable: moveMode,
     selectedId,
@@ -257,6 +276,7 @@ export function MapViewer() {
           </div>
         </div>
         <div className="flex items-center gap-1.5 flex-none">
+          <EventDateFilter dates={eventDates} selected={selectedDate} onChange={setSelectedDate} />
           <MarkerLayerControl markers={markers} hidden={hidden} onChange={updateHidden} />
           <Button
             size="sm"
