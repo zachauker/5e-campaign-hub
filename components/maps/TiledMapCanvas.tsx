@@ -6,14 +6,20 @@ import L from "leaflet";
 import { renderToStaticMarkup } from "react-dom/server";
 import "leaflet/dist/leaflet.css";
 import { MapMarkerPin } from "@/components/maps/MapMarkerPin";
+import { MarkerLabel } from "@/components/maps/MarkerLabel";
 import type { MapCanvasProps, ResolvedMarker } from "@/components/maps/map-types";
 
 const CRS = L.CRS.Simple;
 
-function markerIcon(type: ResolvedMarker["type"], subtype: string | null | undefined, selected: boolean) {
+function markerIcon(marker: ResolvedMarker, selected: boolean, showLabels: boolean) {
   return L.divIcon({
     className: "",
-    html: renderToStaticMarkup(<MapMarkerPin type={type} subtype={subtype} selected={selected} />),
+    html: renderToStaticMarkup(
+      <>
+        <MapMarkerPin type={marker.type} subtype={marker.entitySubtype} selected={selected} />
+        {showLabels && <MarkerLabel text={marker.resolvedTitle} />}
+      </>
+    ),
     iconSize: [28, 36],
     iconAnchor: [14, 36],
   });
@@ -78,6 +84,7 @@ function DragToggle({ addMode }: { addMode: boolean }) {
 function MarkerWithReveal({
   marker,
   selected,
+  showLabels,
   position,
   draggable,
   onMarkerClick,
@@ -89,6 +96,7 @@ function MarkerWithReveal({
 }: {
   marker: ResolvedMarker;
   selected: boolean;
+  showLabels: boolean;
   position: L.LatLng;
   draggable: boolean;
   onMarkerClick: (marker: ResolvedMarker) => void;
@@ -107,8 +115,8 @@ function MarkerWithReveal({
   });
 
   const icon = useMemo(
-    () => markerIcon(marker.type, marker.entitySubtype, selected),
-    [marker.type, marker.entitySubtype, selected]
+    () => markerIcon(marker, selected, showLabels),
+    [marker.type, marker.entitySubtype, marker.resolvedTitle, selected, showLabels]
   );
 
   if (marker.minZoom !== null && zoom < marker.minZoom) return null;
@@ -139,6 +147,7 @@ export function TiledMapCanvas({
   addMode,
   markersDraggable,
   selectedId,
+  showLabels = false,
   onImageClick,
   onMarkerClick,
   onMarkerDragMove,
@@ -192,6 +201,7 @@ export function TiledMapCanvas({
             key={m.id}
             marker={m}
             selected={m.id === selectedId}
+            showLabels={showLabels}
             position={fractionalToLatLng(m.x, m.y)}
             draggable={markersDraggable}
             onMarkerClick={onMarkerClick}
