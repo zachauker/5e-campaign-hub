@@ -190,7 +190,6 @@ export function WorldMapCanvas({
       let inst = instances.get(marker.id);
       if (!inst) {
         const el = document.createElement("div");
-        el.style.position = "relative";
         el.innerHTML = renderToStaticMarkup(
           <>
             <MapMarkerPin type={marker.type} subtype={marker.entitySubtype} selected={sel} />
