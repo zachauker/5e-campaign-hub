@@ -460,6 +460,8 @@ git commit -m "feat(maps): render marker labels on the tiled canvas"
 
 The world canvas builds markers imperatively and regenerates a pin's markup only when its selected state flips. Labels are folded into that same markup and tracked with a `data-lbl` flag so a `showLabels` toggle regenerates existing pins too.
 
+> **Correction (post-review):** an earlier draft of this task set `el.style.position = "relative"` on the marker element. Do **not** — MapLibre's own stylesheet sets `.maplibregl-marker { position: absolute }` and positions markers via a transform that assumes that absolute box origin; overriding it to `relative` displaces every pin off its coordinate. The absolutely-positioned `MarkerLabel` already anchors correctly against MapLibre's `position: absolute`, so no `position` override is needed. Steps below reflect the corrected version.
+
 - [ ] **Step 1: Import `MarkerLabel`**
 
 After the `MapMarkerPin` import (line 9):
@@ -491,12 +493,11 @@ export function WorldMapCanvas({
 
 - [ ] **Step 3: Fold the label into the create branch**
 
-In the marker-sync effect, replace the create branch (lines 188–213) so the element is a positioning context, renders the optional label, and records `data-lbl`:
+In the marker-sync effect, replace the create branch (lines 188–213) so the element renders the optional label and records `data-lbl` (do **not** set `el.style.position` — see the correction note above):
 
 ```tsx
       if (!inst) {
         const el = document.createElement("div");
-        el.style.position = "relative";
         el.innerHTML = renderToStaticMarkup(
           <>
             <MapMarkerPin type={marker.type} subtype={marker.entitySubtype} selected={sel} />
