@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import dynamic from "next/dynamic";
-import { Loader2, Plus, X, Download, Move } from "lucide-react";
+import { Loader2, Plus, X, Download, Move, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MarkerFormDialog } from "@/components/maps/MarkerFormDialog";
 import { MarkerInfoPanel } from "@/components/maps/MarkerInfoPanel";
@@ -10,6 +10,7 @@ import { useCampaignStore } from "@/lib/store/campaign-store";
 import type { ResolvedMarker } from "@/components/maps/map-types";
 import { MarkerLayerControl } from "@/components/maps/MarkerLayerControl";
 import { isMarkerVisible, readHiddenLayers } from "@/components/maps/marker-layers";
+import { readShowLabels, writeShowLabels } from "@/components/maps/marker-labels";
 import { useToast } from "@/components/ui/toast";
 
 const WorldMapCanvas = dynamic(
@@ -60,6 +61,19 @@ export function WorldMapViewer() {
   function updateHidden(next: Set<string>) {
     setHidden(next);
     if (worldMapId) window.localStorage.setItem(`markerLayers:${worldMapId}`, JSON.stringify([...next]));
+  }
+
+  const [showLabels, setShowLabels] = useState(false);
+  const [labelsLoadedFor, setLabelsLoadedFor] = useState<string | null>(null);
+  if (worldMapId && worldMapId !== labelsLoadedFor) {
+    setLabelsLoadedFor(worldMapId);
+    setShowLabels(readShowLabels(worldMapId));
+  }
+
+  function toggleLabels() {
+    const next = !showLabels;
+    setShowLabels(next);
+    if (worldMapId) writeShowLabels(worldMapId, next);
   }
 
   const visibleMarkers = markers.filter((m) => isMarkerVisible(m, hidden));
@@ -207,6 +221,16 @@ export function WorldMapViewer() {
             </Button>
           )}
           <MarkerLayerControl markers={markers} hidden={hidden} onChange={updateHidden} />
+          <Button
+            size="sm"
+            variant={showLabels ? "initiative" : "outline"}
+            onClick={toggleLabels}
+            className="gap-1.5"
+            title="Show or hide marker name labels on the map"
+          >
+            <Tag className="w-3.5 h-3.5" />
+            {showLabels ? "Hide Labels" : "Show Labels"}
+          </Button>
           <select
             value={theme}
             onChange={(e) => changeTheme(e.target.value)}
@@ -253,6 +277,7 @@ export function WorldMapViewer() {
           theme={theme}
           markers={visibleMarkers}
           selectedId={selectedId}
+          showLabels={showLabels}
           addMode={addMode}
           markersDraggable={moveMode}
           onMapClick={handleMapClick}
