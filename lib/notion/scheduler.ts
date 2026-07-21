@@ -80,3 +80,40 @@ export async function runAutoSyncTick(deps: TickDeps = {}): Promise<TickResult> 
 
   return result;
 }
+
+const MINUTE_MS = 60_000;
+/** Delay before the first tick after boot — short so a fresh container refreshes promptly. */
+export const FIRST_TICK_DELAY_MS = 30_000;
+
+let started = false;
+let timer: ReturnType<typeof setTimeout> | null = null;
+
+async function tickAndReschedule(): Promise<void> {
+  let intervalMinutes = DEFAULT_INTERVAL_MINUTES;
+  try {
+    const config = await readAutoSyncConfig();
+    intervalMinutes = config.intervalMinutes;
+    if (config.enabled) {
+      await runAutoSyncTick();
+    }
+  } catch (err) {
+    // Never let a thrown error stop the reschedule loop.
+    console.error("[notion-auto-sync] tick error", err);
+  } finally {
+    timer = setTimeout(() => void tickAndReschedule(), intervalMinutes * MINUTE_MS);
+    // Don't keep the event loop alive purely for the sync timer.
+    if (typeof timer.unref === "function") timer.unref();
+  }
+}
+
+/**
+ * Starts the background auto-sync loop. Idempotent — safe to call once at boot.
+ * The first tick fires after FIRST_TICK_DELAY_MS; subsequent ticks use the
+ * interval from settings (re-read every tick, so changes take effect live).
+ */
+export function startNotionAutoSync(): void {
+  if (started) return;
+  started = true;
+  timer = setTimeout(() => void tickAndReschedule(), FIRST_TICK_DELAY_MS);
+  if (typeof timer.unref === "function") timer.unref();
+}
