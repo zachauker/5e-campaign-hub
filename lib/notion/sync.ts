@@ -91,7 +91,19 @@ export async function syncCampaign(opts: {
       }
     }
 
-    s.archived += archiveUnseen(db, table, campaignId, seenPageIds);
+    // Guard against a transiently-empty query (Notion outage, a stale/wrong
+    // dataSourceId, or every row lacking a title) mass-archiving the whole
+    // source. With nothing verifiably seen we can't trust the result as
+    // "everything is gone", so we leave existing rows visible and warn instead.
+    if (seenPageIds.length === 0) {
+      if (rows.length === 0) {
+        s.warnings.push("Notion returned no rows; skipped archiving to avoid a mass wipe.");
+      } else {
+        s.warnings.push("No usable rows (all missing a name); skipped archiving to avoid a mass wipe.");
+      }
+    } else {
+      s.archived += archiveUnseen(db, table, campaignId, seenPageIds);
+    }
   }
 
   return summary;

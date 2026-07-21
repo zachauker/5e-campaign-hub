@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { maps } from "@/lib/db/schema";
 import { generateId } from "@/lib/utils";
 import { saveMapImage, saveTiledMapAssets } from "@/lib/maps/storage";
-import { eq, and, isNull, asc } from "drizzle-orm";
+import { eq, and, isNull, ne, asc } from "drizzle-orm";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -14,10 +14,14 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: '"campaignId" is required' }, { status: 400 });
   }
 
+  // The world map is a get-or-create singleton (renderMode "world") owned by the
+  // /world page — it has no uploaded image and must never surface in this grid,
+  // where deleting it would cascade-wipe its pins and it would just be recreated.
+  const notWorld = ne(maps.renderMode, "world");
   const rows = await db.query.maps.findMany({
     where: includeNested
-      ? eq(maps.campaignId, campaignId)
-      : and(eq(maps.campaignId, campaignId), isNull(maps.parentMapId)),
+      ? and(eq(maps.campaignId, campaignId), notWorld)
+      : and(eq(maps.campaignId, campaignId), isNull(maps.parentMapId), notWorld),
     orderBy: [asc(maps.name)],
   });
   return NextResponse.json(rows);

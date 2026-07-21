@@ -40,6 +40,16 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   const existing = await db.query.maps.findFirst({ where: eq(maps.id, id) });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // The world map is a managed singleton for the /world page. Deleting it would
+  // cascade-wipe its location pins and it would only be recreated on next visit,
+  // so refuse the delete rather than silently destroying the imported markers.
+  if (existing.renderMode === "world") {
+    return NextResponse.json(
+      { error: "The world map can't be deleted." },
+      { status: 400 }
+    );
+  }
+
   try {
     await db.delete(maps).where(eq(maps.id, id));
   } catch (err) {
