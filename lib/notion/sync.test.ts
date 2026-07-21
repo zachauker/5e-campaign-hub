@@ -68,12 +68,36 @@ describe("syncCampaign", () => {
     const first = sources(f);
     await syncCampaign({ db, campaignId, sources: first.config, queryRows: first.queryRows });
 
+    // fac1 disappears but the source still returns another row, so the query
+    // result is trusted (non-empty) and the vanished row is archived.
+    const next = sources({
+      ...f,
+      fac: [page("fac2", { Name: title("Clovis Concord"), Active: chk(true), Type: sel("Government") })],
+    });
+    const summary = await syncCampaign({ db, campaignId, sources: next.config, queryRows: next.queryRows });
+
+    expect(summary.factions.archived).toBe(1);
+    const gone = db.select().from(factions).where(eq(factions.name, "Children of Malice")).get()!;
+    expect(Boolean(gone.archived)).toBe(true);
+  });
+
+  it("does not archive anything when a source returns zero rows", async () => {
+    // A transiently-empty query (outage, wrong data source id, all-untitled
+    // rows) must never mass-archive an entire source's synced entities.
+    const { db, campaignId } = createTestDb();
+    const f = fixtures();
+    const first = sources(f);
+    await syncCampaign({ db, campaignId, sources: first.config, queryRows: first.queryRows });
+
     const empty = sources({ fac: [], chr: [], itm: [] });
     const summary = await syncCampaign({ db, campaignId, sources: empty.config, queryRows: empty.queryRows });
 
-    expect(summary.factions.archived).toBe(1);
+    expect(summary.factions.archived).toBe(0);
+    expect(summary.characters.archived).toBe(0);
+    expect(summary.items.archived).toBe(0);
     const fac = db.select().from(factions).where(eq(factions.campaignId, campaignId)).get()!;
-    expect(Boolean(fac.archived)).toBe(true);
+    expect(Boolean(fac.archived)).toBe(false);
+    expect(summary.factions.warnings.join(" ")).toMatch(/returned no rows/i);
   });
 
   it("records a per-source error without aborting the others", async () => {
@@ -163,9 +187,14 @@ describe("syncCampaign — session notes", () => {
     const links = db.select().from(sessionNoteLocations).where(eq(sessionNoteLocations.sessionNoteId, note.id)).all();
     expect(links).toHaveLength(1);
 
+    // The original note disappears but the source still returns another note,
+    // so the (non-empty) result is trusted and the vanished note is archived.
+    const laterNote = page("noteEpilogue", {
+      Name: title("Epilogue"), Type: sel("Story Outline"), Status: sel("Not started"),
+    });
     const summary2 = await syncCampaign({
       db, campaignId, sources: config,
-      queryRows: async (id) => (id === "dsL" ? rows.dsL : []),
+      queryRows: async (id) => (id === "dsL" ? rows.dsL : [laterNote]),
     });
     expect(summary2.sessionNotes.archived).toBe(1);
     expect(Boolean(db.select().from(sessionNotes).where(eq(sessionNotes.id, note.id)).get()!.archived)).toBe(true);
