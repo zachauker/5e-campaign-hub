@@ -36,6 +36,9 @@ export function NotionSyncPanel({ campaignId }: { campaignId: string | null }) {
   const [meta, setMeta] = useState<Record<string, SourceState>>({});
   const [syncing, setSyncing] = useState(false);
   const [savingType, setSavingType] = useState<string | null>(null);
+  const [autoEnabled, setAutoEnabled] = useState(true);
+  const [intervalMinutes, setIntervalMinutes] = useState(15);
+  const [savingAuto, setSavingAuto] = useState(false);
 
   const load = useCallback(async () => {
     if (!campaignId) return;
@@ -64,6 +67,20 @@ export function NotionSyncPanel({ campaignId }: { campaignId: string | null }) {
       cancelled = true;
     };
   }, [campaignId]);
+
+  // Load global auto-sync config (stored in the settings table, not per-source).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const r = await fetch("/api/settings");
+      const data = await r.json();
+      if (cancelled) return;
+      setAutoEnabled(data.notion_auto_sync_enabled !== "false");
+      const n = Number.parseInt(data.notion_auto_sync_interval_minutes ?? "", 10);
+      setIntervalMinutes(Number.isFinite(n) && n >= 1 ? n : 15);
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   async function saveSource(type: string) {
     if (!campaignId) return;
@@ -113,6 +130,27 @@ export function NotionSyncPanel({ campaignId }: { campaignId: string | null }) {
     }
   }
 
+  async function saveAutoSync(next: { enabled?: boolean; interval?: number }) {
+    const enabled = next.enabled ?? autoEnabled;
+    const interval = next.interval ?? intervalMinutes;
+    setAutoEnabled(enabled);
+    setIntervalMinutes(interval);
+    setSavingAuto(true);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          notion_auto_sync_enabled: enabled ? "true" : "false",
+          notion_auto_sync_interval_minutes: String(interval),
+        }),
+      });
+      if (!res.ok) toast({ title: "Could not save auto-sync settings", variant: "error" });
+    } finally {
+      setSavingAuto(false);
+    }
+  }
+
   if (!campaignId) return null;
 
   return (
@@ -127,6 +165,36 @@ export function NotionSyncPanel({ campaignId }: { campaignId: string | null }) {
       <p className="text-sm text-muted-foreground">
         Paste each database&apos;s Notion URL. Share each database with your integration first.
       </p>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 p-3">
+        <div>
+          <label htmlFor="auto-sync-toggle" className="text-sm font-medium">Automatic background sync</label>
+          <p className="text-xs text-muted-foreground">
+            Keeps this app up to date with Notion on a schedule. Manual sync stays available anytime.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <select
+            id="auto-sync-interval"
+            value={intervalMinutes}
+            disabled={!autoEnabled || savingAuto}
+            onChange={(e) => saveAutoSync({ interval: Number(e.target.value) })}
+            className="h-9 rounded-md border border-border bg-background px-2 text-sm disabled:opacity-50"
+          >
+            <option value={5}>Every 5 min</option>
+            <option value={15}>Every 15 min</option>
+            <option value={30}>Every 30 min</option>
+            <option value={60}>Every 60 min</option>
+          </select>
+          <input
+            id="auto-sync-toggle"
+            type="checkbox"
+            checked={autoEnabled}
+            disabled={savingAuto}
+            onChange={(e) => saveAutoSync({ enabled: e.target.checked })}
+            className="h-5 w-5 accent-primary"
+          />
+        </div>
+      </div>
       {SOURCES.map((s) => (
         <div key={s.type} className="space-y-1.5">
           <label className="text-sm text-muted-foreground block mb-1.5">{s.label}</label>
