@@ -4,6 +4,7 @@ import React, { useState, useRef } from "react";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import { MapMarkerPin } from "@/components/maps/MapMarkerPin";
 import { MarkerLabel } from "@/components/maps/MarkerLabel";
+import { resolveMarkerAppearance } from "@/components/maps/marker-appearance";
 import type { MapCanvasProps } from "@/components/maps/map-types";
 
 export function StaticMapCanvas({
@@ -13,6 +14,7 @@ export function StaticMapCanvas({
   markersDraggable,
   selectedId,
   showLabels = false,
+  typeDefaults = {},
   onImageClick,
   onMarkerClick,
   onMarkerDragMove,
@@ -93,21 +95,24 @@ export function StaticMapCanvas({
               className="max-w-none select-none"
               draggable={false}
             />
-            {markers.map((m) => (
-              <div
-                key={m.id}
-                className={`absolute -translate-x-1/2 -translate-y-full ${markersDraggable ? "cursor-move" : "cursor-pointer"}`}
-                style={{ left: `${m.x * 100}%`, top: `${m.y * 100}%` }}
-                onPointerDown={markersDraggable ? (e) => startDrag(m.id, e) : undefined}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onMarkerClick(m);
-                }}
-              >
-                <MapMarkerPin type={m.type} subtype={m.entitySubtype} selected={m.id === selectedId} />
-                {showLabels && <MarkerLabel text={m.resolvedTitle} />}
-              </div>
-            ))}
+            {markers.map((m) => {
+              const appearance = resolveMarkerAppearance(m, typeDefaults);
+              return (
+                <div
+                  key={m.id}
+                  className={`absolute -translate-x-1/2 ${appearance.anchor === "bottom" ? "-translate-y-full" : "-translate-y-1/2"} ${markersDraggable ? "cursor-move" : "cursor-pointer"}`}
+                  style={{ left: `${m.x * 100}%`, top: `${m.y * 100}%` }}
+                  onPointerDown={markersDraggable ? (e) => startDrag(m.id, e) : undefined}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onMarkerClick(m);
+                  }}
+                >
+                  <MapMarkerPin appearance={appearance} selected={m.id === selectedId} />
+                  {showLabels && !appearance.labelHidden && <MarkerLabel text={m.resolvedTitle} labelSize={appearance.labelSize} />}
+                </div>
+              );
+            })}
           </div>
         </TransformComponent>
       </TransformWrapper>

@@ -1,3 +1,5 @@
+import type { TypeAppearanceMap } from "@/components/maps/marker-appearance";
+
 export type MarkerType = "location" | "faction" | "character" | "submap" | "note" | "event";
 
 export interface MarkerData {
@@ -44,6 +46,7 @@ export interface MapCanvasProps {
   markersDraggable: boolean;
   selectedId: string | null;
   showLabels?: boolean;
+  typeDefaults?: TypeAppearanceMap;
   onImageClick: (pos: { x: number; y: number }) => void;
   onMarkerClick: (marker: ResolvedMarker) => void;
   onMarkerDragMove: (markerId: string, pos: { x: number; y: number }) => void;
