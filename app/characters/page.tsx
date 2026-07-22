@@ -5,10 +5,11 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Users } from "lucide-react";
+import { Plus, Trash2, Users, ArrowUpRight } from "lucide-react";
 import { useCampaignStore } from "@/lib/store/campaign-store";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { CharacterFormDialog } from "@/components/entities/CharacterFormDialog";
+import { EntityQuickViewPopover } from "@/components/entities/EntityQuickViewPopover";
+import { CharacterFormDialog, type CharacterWithLinks } from "@/components/entities/CharacterFormDialog";
 import type { Character } from "@/lib/db/schema";
 
 export default function CharactersPage() {
@@ -19,6 +20,7 @@ export default function CharactersPage() {
   const [showArchived, setShowArchived] = useState(false);
   const [query, setQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editCharacter, setEditCharacter] = useState<CharacterWithLinks | null>(null);
 
   const load = useCallback(() => {
     if (!activeCampaignId) return;
@@ -93,22 +95,33 @@ export default function CharactersPage() {
               key={c.id}
               className="relative flex items-center gap-3 px-2 py-3.5 hover:bg-accent/40 transition-colors group"
             >
-              {/* Stretched link keeps the whole row a keyboard-focusable nav target */}
-              <Link
-                href={`/characters/${c.id}`}
-                aria-label={`Open character: ${c.name}`}
-                className="absolute inset-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-              />
               <span
                 className="w-1.5 h-1.5 rounded-full flex-none bg-[var(--marker-character)]"
                 aria-hidden
               />
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-[15px] leading-tight truncate">{c.name}</p>
-              </div>
+              <EntityQuickViewPopover
+                resourcePath="characters"
+                id={c.id}
+                onEdit={(entity) => setEditCharacter(entity as unknown as CharacterWithLinks)}
+              >
+                <button
+                  type="button"
+                  aria-label={`Preview character: ${c.name}`}
+                  className="flex-1 min-w-0 text-left rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <p className="font-medium text-[15px] leading-tight truncate">{c.name}</p>
+                </button>
+              </EntityQuickViewPopover>
               <Badge variant={c.type === "pc" ? "hp" : "outline"} className="capitalize relative z-10">
                 {c.type}
               </Badge>
+              <Link
+                href={`/characters/${c.id}`}
+                aria-label={`Open character: ${c.name}`}
+                className="relative z-10 flex-none rounded-md p-1.5 text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <ArrowUpRight className="w-4 h-4" />
+              </Link>
               <Button
                 size="icon-sm"
                 variant="ghost"
@@ -128,6 +141,14 @@ export default function CharactersPage() {
         onClose={() => setDialogOpen(false)}
         campaignId={activeCampaignId ?? ""}
         character={null}
+        onSaved={load}
+      />
+      <CharacterFormDialog
+        key={editCharacter?.id ?? "edit"}
+        open={editCharacter !== null}
+        onClose={() => setEditCharacter(null)}
+        campaignId={activeCampaignId ?? ""}
+        character={editCharacter}
         onSaved={load}
       />
     </div>
