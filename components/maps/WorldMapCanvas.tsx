@@ -192,8 +192,16 @@ export function WorldMapCanvas({
       const lngLat: [number, number] = [marker.x, marker.y]; // x=lng, y=lat for world maps
       const sel = marker.id === selectedId;
       const appearance = resolveMarkerAppearance(marker, typeDefaults);
-      const appSig = `${appearance.width}x${appearance.height}:${appearance.shape}:${appearance.color}:${appearance.iconName}:${appearance.labelSize}:${appearance.labelHidden}`;
+      const appSig = `${appearance.width}x${appearance.height}:${appearance.shape}:${appearance.color}:${appearance.iconName}:${appearance.labelSize}:${appearance.labelHidden}:${marker.entitySubtype ?? ""}`;
       let inst = instances.get(marker.id);
+      // maplibre's marker `anchor` is fixed at construction time, so a shape
+      // change that flips the anchor (bottom <-> center) can't be applied by
+      // patching the existing instance — it has to be torn down and rebuilt.
+      if (inst && inst.getElement().dataset.anchor !== appearance.anchor) {
+        inst.remove();
+        instances.delete(marker.id);
+        inst = undefined;
+      }
       if (!inst) {
         const el = document.createElement("div");
         el.innerHTML = renderToStaticMarkup(
@@ -207,6 +215,7 @@ export function WorldMapCanvas({
         el.dataset.sel = sel ? "1" : "0";
         el.dataset.lbl = showLabels ? "1" : "0";
         el.dataset.app = appSig;
+        el.dataset.anchor = appearance.anchor;
         // Staggered rise-in for newly-revealed pins (skip the selected one — it
         // gets the bloom instead, and two transform animations would fight).
         const pin = el.firstElementChild as HTMLElement | null;
@@ -219,11 +228,12 @@ export function WorldMapCanvas({
           evt.stopPropagation();
           markerCbRef.current.onMarkerClick(marker);
         });
-        // maplibre's marker `anchor` is fixed at creation time, so a later
+        // maplibre's marker `anchor` is fixed at creation time. A later
         // appearance change that flips the anchor (bottom <-> center, e.g. a
-        // shape swap) only takes full effect once the marker is re-created
-        // (id change / remove+re-add). Size/color/icon/label updates apply
-        // live via the innerHTML re-render below.
+        // shape swap) is handled above by tearing down and recreating the
+        // instance, so this always constructs with the current anchor.
+        // Size/color/icon/label updates apply live via the innerHTML
+        // re-render below.
         inst = new Marker({ element: el, draggable: markersDraggableRef.current, anchor: appearance.anchor })
           .setLngLat(lngLat)
           .addTo(glMap);

@@ -324,6 +324,7 @@ export function WorldMapViewer() {
           <MarkerSlideOver
             key={selectedMarker.id}
             marker={selectedMarker}
+            typeDefaults={typeDefaults}
             onClose={() => setSelectedId(null)}
             onEditPin={() => {
               setEditing(selectedMarker);

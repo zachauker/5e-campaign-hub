@@ -415,6 +415,7 @@ export function MapViewer() {
           <MarkerSlideOver
             key={selectedMarker.id}
             marker={selectedMarker}
+            typeDefaults={typeDefaults}
             onClose={() => setSelectedId(null)}
             onEditPin={() => {
               setEditingMarker(selectedMarker);

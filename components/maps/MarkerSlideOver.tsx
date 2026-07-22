@@ -7,6 +7,8 @@ import { markerVisual } from "@/components/maps/marker-meta";
 import { entityTargetOf } from "@/components/maps/marker-slideover-target";
 import { EntityQuickViewBody } from "@/components/entities/EntityQuickView";
 import { EventNoteBody } from "@/components/maps/EventNoteBody";
+import { resolveMarkerAppearance } from "@/components/maps/marker-appearance";
+import type { TypeAppearanceMap } from "@/components/maps/marker-appearance";
 import type { ResolvedMarker } from "@/components/maps/map-types";
 
 interface MarkerSlideOverProps {
@@ -14,6 +16,7 @@ interface MarkerSlideOverProps {
   onClose: () => void;
   onEditPin: () => void;
   onDeletePin: () => void;
+  typeDefaults?: TypeAppearanceMap;
 }
 
 /**
@@ -21,9 +24,14 @@ interface MarkerSlideOverProps {
  * selected. One shell for every pin type: marker header, a per-type body, and a
  * single footer (Open link + Edit pin + Delete pin). Used by both map viewers.
  */
-export function MarkerSlideOver({ marker, onClose, onEditPin, onDeletePin }: MarkerSlideOverProps) {
-  const meta = markerVisual(marker);
-  const Icon = meta.icon;
+export function MarkerSlideOver({ marker, onClose, onEditPin, onDeletePin, typeDefaults }: MarkerSlideOverProps) {
+  // The header's icon/color must reflect the resolved (possibly customized)
+  // appearance — the same one rendered on the map — not just the type's
+  // built-in default. The label text still comes from the type meta, since
+  // the resolver doesn't produce one.
+  const appearance = resolveMarkerAppearance(marker, typeDefaults ?? {});
+  const label = markerVisual(marker).label;
+  const Icon = appearance.icon;
   const target = entityTargetOf(marker);
 
   let openLink: { href: string; label: string } | null = null;
@@ -40,10 +48,10 @@ export function MarkerSlideOver({ marker, onClose, onEditPin, onDeletePin }: Mar
       {/* Header */}
       <div className="flex items-start justify-between gap-2 p-3.5 border-b border-border flex-none">
         <div className="flex items-start gap-2.5 min-w-0">
-          <Icon className="w-4 h-4 mt-1 flex-none" style={{ color: meta.color }} aria-hidden />
+          <Icon className="w-4 h-4 mt-1 flex-none" style={{ color: appearance.color }} aria-hidden />
           <div className="min-w-0">
             <div className="font-display text-lg leading-tight">{marker.resolvedTitle}</div>
-            <div className="mt-0.5 text-xs font-medium" style={{ color: meta.color }}>{meta.label}</div>
+            <div className="mt-0.5 text-xs font-medium" style={{ color: appearance.color }}>{label}</div>
           </div>
         </div>
         <button onClick={onClose} aria-label="Close" className="flex-none text-muted-foreground hover:text-foreground">
