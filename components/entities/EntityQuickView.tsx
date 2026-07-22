@@ -39,19 +39,24 @@ export function EntityQuickView({ resourcePath, id, onEdit }: EntityQuickViewPro
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError(false);
-    fetch(`/api/${resourcePath}/${id}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("not ok"))))
-      .then((data: EntityDetailResponse) => {
-        if (!cancelled) setRaw(data);
-      })
-      .catch(() => {
+    async function run() {
+      setLoading(true);
+      setError(false);
+      try {
+        const res = await fetch(`/api/${resourcePath}/${id}`);
+        if (cancelled) return;
+        if (res.ok) {
+          setRaw((await res.json()) as EntityDetailResponse);
+        } else {
+          setError(true);
+        }
+      } catch {
         if (!cancelled) setError(true);
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setLoading(false);
-      });
+      }
+    }
+    run();
     return () => {
       cancelled = true;
     };
