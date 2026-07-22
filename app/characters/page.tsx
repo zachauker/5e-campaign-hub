@@ -1,24 +1,30 @@
+// app/characters/page.tsx
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Users, ArrowUpRight } from "lucide-react";
+import { Plus, Users } from "lucide-react";
 import { useCampaignStore } from "@/lib/store/campaign-store";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { EntityQuickViewPopover } from "@/components/entities/EntityQuickViewPopover";
+import { EntityListView } from "@/components/entities/EntityListView";
 import { CharacterFormDialog, type CharacterWithLinks } from "@/components/entities/CharacterFormDialog";
-import type { Character } from "@/lib/db/schema";
+import type { TypeConfig, RawEntityRow } from "@/lib/entities/entity-list-view";
+import type { EntityDetailResponse } from "@/components/entities/entity-quick-view-model";
+
+const TYPE_CONFIG: TypeConfig = {
+  label: "Type",
+  options: [
+    { value: "pc", label: "PC", badgeVariant: "hp" },
+    { value: "npc", label: "NPC", badgeVariant: "outline" },
+  ],
+};
 
 export default function CharactersPage() {
   const { activeCampaignId } = useCampaignStore();
   const confirm = useConfirm();
-  const [characters, setCharacters] = useState<Character[]>([]);
+  const [characters, setCharacters] = useState<RawEntityRow[]>([]);
   const [archivedCount, setArchivedCount] = useState(0);
   const [showArchived, setShowArchived] = useState(false);
-  const [query, setQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editCharacter, setEditCharacter] = useState<CharacterWithLinks | null>(null);
 
@@ -39,21 +45,14 @@ export default function CharactersPage() {
 
   async function remove(id: string, e: React.MouseEvent) {
     e.stopPropagation();
-    const ok = await confirm({
-      title: "Delete character?",
-      description: "This permanently removes the character from the campaign.",
-      confirmLabel: "Delete",
-      destructive: true,
-    });
+    const ok = await confirm({ title: "Delete character?", description: "This permanently removes the character from the campaign.", confirmLabel: "Delete", destructive: true });
     if (!ok) return;
     await fetch(`/api/characters/${id}`, { method: "DELETE" });
     setCharacters((prev) => prev.filter((c) => c.id !== id));
   }
 
-  const filtered = characters.filter((c) => c.name.toLowerCase().includes(query.toLowerCase()));
-
   return (
-    <div className="max-w-3xl mx-auto px-6 py-10">
+    <div className="max-w-5xl mx-auto px-6 py-10">
       <header className="flex items-end justify-between gap-4 border-b border-border pb-5">
         <div className="flex items-center gap-3.5 min-w-0">
           <Users className="w-7 h-7 flex-none text-[var(--marker-character)]" />
@@ -77,83 +76,20 @@ export default function CharactersPage() {
         </div>
       </header>
 
-      <Input
-        className="mt-6"
-        placeholder="Search characters…"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
+      <EntityListView
+        resourcePath="characters"
+        label="Characters"
+        singular="character"
+        accent="var(--marker-character)"
+        typeConfig={TYPE_CONFIG}
+        items={characters}
+        emptyHint="No characters yet."
+        onEdit={(entity: EntityDetailResponse) => setEditCharacter(entity as unknown as CharacterWithLinks)}
+        onDelete={remove}
       />
 
-      {filtered.length === 0 ? (
-        <div className="mt-6 text-center py-16 border border-dashed border-border rounded-xl text-muted-foreground">
-          {characters.length === 0 ? "No characters yet." : "Nothing matches that search."}
-        </div>
-      ) : (
-        <div className="mt-3 divide-y divide-border/60">
-          {filtered.map((c) => (
-            <div
-              key={c.id}
-              className="relative flex items-center gap-3 px-2 py-3.5 hover:bg-accent/40 transition-colors group"
-            >
-              <span
-                className="w-1.5 h-1.5 rounded-full flex-none bg-[var(--marker-character)]"
-                aria-hidden
-              />
-              <EntityQuickViewPopover
-                resourcePath="characters"
-                id={c.id}
-                // The /api/characters/{id} response is a structural superset of
-                // CharacterWithLinks (carries factionIds/locationIds/itemIds/mapMarkers),
-                // the same shape the detail page feeds this dialog.
-                onEdit={(entity) => setEditCharacter(entity as unknown as CharacterWithLinks)}
-              >
-                <button
-                  type="button"
-                  aria-label={`Preview character: ${c.name}`}
-                  className="flex-1 min-w-0 text-left rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <p className="font-medium text-[15px] leading-tight truncate">{c.name}</p>
-                </button>
-              </EntityQuickViewPopover>
-              <Badge variant={c.type === "pc" ? "hp" : "outline"} className="capitalize">
-                {c.type}
-              </Badge>
-              <Link
-                href={`/characters/${c.id}`}
-                aria-label={`Open character: ${c.name}`}
-                className="flex-none rounded-md p-1.5 text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <ArrowUpRight className="w-4 h-4" />
-              </Link>
-              <Button
-                size="icon-sm"
-                variant="ghost"
-                aria-label={`Delete character: ${c.name}`}
-                className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-destructive hover:text-destructive"
-                onClick={(e) => remove(c.id, e)}
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </Button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <CharacterFormDialog
-        open={dialogOpen}
-        onClose={() => setDialogOpen(false)}
-        campaignId={activeCampaignId ?? ""}
-        character={null}
-        onSaved={load}
-      />
-      <CharacterFormDialog
-        key={editCharacter?.id ?? "edit"}
-        open={editCharacter !== null}
-        onClose={() => setEditCharacter(null)}
-        campaignId={activeCampaignId ?? ""}
-        character={editCharacter}
-        onSaved={load}
-      />
+      <CharacterFormDialog open={dialogOpen} onClose={() => setDialogOpen(false)} campaignId={activeCampaignId ?? ""} character={null} onSaved={load} />
+      <CharacterFormDialog key={editCharacter?.id ?? "edit"} open={editCharacter !== null} onClose={() => setEditCharacter(null)} campaignId={activeCampaignId ?? ""} character={editCharacter} onSaved={load} />
     </div>
   );
 }
