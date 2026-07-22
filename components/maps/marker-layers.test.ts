@@ -5,6 +5,7 @@ import type { ResolvedMarker } from "./map-types";
 const marker = (over: Partial<ResolvedMarker>): ResolvedMarker => ({
   id: Math.random().toString(), mapId: "map", x: 0, y: 0, type: "note", entityId: null,
   targetMapId: null, title: null, note: null, minZoom: null,
+  size: null, shape: null, icon: null, labelSize: null, color: null,
   resolvedTitle: "x", resolvedSubtitle: null, ...over,
 });
 
