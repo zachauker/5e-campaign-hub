@@ -10,8 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ArrowLeft, Loader2, Plus, X, ChevronRight, Move, Pencil, Trash2, Tag } from "lucide-react";
 import { StaticMapCanvas } from "@/components/maps/StaticMapCanvas";
 import { MarkerFormDialog } from "@/components/maps/MarkerFormDialog";
-import { MarkerInfoPanel } from "@/components/maps/MarkerInfoPanel";
-import { EventNotePanel } from "@/components/maps/EventNotePanel";
+import { MarkerSlideOver } from "@/components/maps/MarkerSlideOver";
 import { UnpinnedNotesTray } from "@/components/maps/UnpinnedNotesTray";
 import { useCampaignStore } from "@/lib/store/campaign-store";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -164,10 +163,6 @@ export function MapViewer() {
   }
 
   function handleMarkerClick(marker: ResolvedMarker) {
-    if (marker.type === "submap" && marker.targetMapId) {
-      router.push(`/maps/${marker.targetMapId}`);
-      return;
-    }
     setSelectedId(marker.id === selectedId ? null : marker.id);
   }
 
@@ -396,33 +391,16 @@ export function MapViewer() {
           />
         )}
 
-        {selectedMarker && selectedMarker.type === "event" && (
-          <EventNotePanel
+        {selectedMarker && (
+          <MarkerSlideOver
             key={selectedMarker.id}
             marker={selectedMarker}
             onClose={() => setSelectedId(null)}
-            onEdit={() => {
+            onEditPin={() => {
               setEditingMarker(selectedMarker);
               setSelectedId(null);
             }}
-            onDelete={async () => {
-              await fetch(`/api/maps/markers/${selectedMarker.id}`, { method: "DELETE" });
-              setSelectedId(null);
-              loadMarkers();
-              setTrayReloadKey((k) => k + 1);
-            }}
-          />
-        )}
-        {selectedMarker && selectedMarker.type !== "event" && (
-          <MarkerInfoPanel
-            key={selectedMarker.id}
-            marker={selectedMarker}
-            onClose={() => setSelectedId(null)}
-            onEdit={() => {
-              setEditingMarker(selectedMarker);
-              setSelectedId(null);
-            }}
-            onDelete={async () => {
+            onDeletePin={async () => {
               await fetch(`/api/maps/markers/${selectedMarker.id}`, { method: "DELETE" });
               setSelectedId(null);
               loadMarkers();
