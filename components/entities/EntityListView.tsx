@@ -106,8 +106,8 @@ export function EntityListView(props: EntityListViewProps) {
     setSort((prev) => (prev.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
   }
   function toggleColumn(label: string) {
-    setColumns(() => {
-      const base = columns ?? propertyLabels.slice(0, 3);
+    setColumns((prev) => {
+      const base = prev ?? propertyLabels.slice(0, 3);
       return base.includes(label) ? base.filter((c) => c !== label) : [...base, label];
     });
   }
