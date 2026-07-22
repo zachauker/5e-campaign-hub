@@ -192,7 +192,7 @@ export function WorldMapCanvas({
       const lngLat: [number, number] = [marker.x, marker.y]; // x=lng, y=lat for world maps
       const sel = marker.id === selectedId;
       const appearance = resolveMarkerAppearance(marker, typeDefaults);
-      const appSig = `${appearance.width}x${appearance.height}:${appearance.shape}:${appearance.color}:${appearance.labelSize}:${appearance.labelHidden}`;
+      const appSig = `${appearance.width}x${appearance.height}:${appearance.shape}:${appearance.color}:${appearance.iconName}:${appearance.labelSize}:${appearance.labelHidden}`;
       let inst = instances.get(marker.id);
       if (!inst) {
         const el = document.createElement("div");

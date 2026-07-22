@@ -41,6 +41,7 @@ export interface ResolvedAppearance {
   shape: MarkerShape;
   color: string;
   icon: LucideIcon;
+  iconName: string;
   anchor: "bottom" | "center";
   labelSize: "sm" | "md" | "lg";
   labelHidden: boolean;
@@ -103,8 +104,11 @@ export function resolveMarkerAppearance(
   const shape = firstValid<MarkerShape>(SHAPE_SET, marker.shape, td.shape, "teardrop")!;
   const labelRaw = firstValid<MarkerLabelSize>(LABEL_SET, marker.labelSize, td.labelSize, "md")!;
   const color = firstNonNull(marker.color, td.color, base.color)!;
-  const iconName = firstNonNull(marker.icon, td.icon);
-  const icon = resolveIcon(iconName) ?? base.icon;
+  const wantedIcon = firstNonNull(marker.icon, td.icon);
+  const resolvedIcon = resolveIcon(wantedIcon);
+  const icon = resolvedIcon ?? base.icon;
+  // Stable identity of the effective icon, for re-render signatures (world canvas).
+  const iconName = resolvedIcon ? wantedIcon! : "@default";
 
   const scale = SIZE_SCALE[size];
   const teardrop = shape === "teardrop";
@@ -119,6 +123,7 @@ export function resolveMarkerAppearance(
     shape,
     color,
     icon,
+    iconName,
     anchor: teardrop ? "bottom" : "center",
     labelSize: labelRaw === "hide" ? "md" : labelRaw,
     labelHidden: labelRaw === "hide",
