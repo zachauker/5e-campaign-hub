@@ -54,6 +54,18 @@ describe("deriveFilterFields", () => {
   it("omits the Type field when there is no typeConfig", () => {
     expect(deriveFilterFields(ITEMS, null).find((f) => f.key === FIELD_TYPE)).toBeUndefined();
   });
+  it("disambiguates a property label that collides with the type field's label", () => {
+    const items: EntityListItem[] = [
+      { id: "1", name: "Emon", description: null, type: "city", props: [{ label: "Type", value: "Metropolis" }] },
+    ];
+    const fields = deriveFilterFields(items, TYPE_CFG);
+    // structured type field keeps label "Type"
+    expect(fields.find((f) => f.key === FIELD_TYPE)!.label).toBe("Type");
+    // the colliding Notion property keeps key "Type" but displays "Type (Notion)"
+    const prop = fields.find((f) => f.key === "Type")!;
+    expect(prop.label).toBe("Type (Notion)");
+    expect(prop.values.map((v) => v.value)).toEqual(["Metropolis"]);
+  });
 });
 
 describe("applyFilters", () => {

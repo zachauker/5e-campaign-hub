@@ -90,6 +90,7 @@ export function EntityListView(props: EntityListViewProps) {
 
   const propertyLabels = fields.filter((f) => f.key !== FIELD_TYPE).map((f) => f.key);
   const activeColumns = columns ?? propertyLabels.slice(0, 3);
+  const columnLabels = Object.fromEntries(fields.map((f) => [f.key, f.label]));
 
   function toggleFilterValue(field: string, value: string) {
     setFilters((prev) => {
@@ -139,7 +140,7 @@ export function EntityListView(props: EntityListViewProps) {
       ) : view === "gallery" ? (
         <EntityCardGrid {...viewProps} />
       ) : view === "table" ? (
-        <EntityTable items={visible} resourcePath={resourcePath} singular={singular} typeConfig={typeConfig} columns={activeColumns} sort={sort} onSort={handleSort} onEdit={onEdit} onDelete={onDelete} />
+        <EntityTable items={visible} resourcePath={resourcePath} singular={singular} typeConfig={typeConfig} columns={activeColumns} columnLabels={columnLabels} sort={sort} onSort={handleSort} onEdit={onEdit} onDelete={onDelete} />
       ) : (
         <EntityListRows {...viewProps} />
       )}

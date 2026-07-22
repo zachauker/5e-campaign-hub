@@ -71,7 +71,7 @@ export function EntityListToolbar(props: EntityListToolbarProps) {
               ) : (
                 <div className="max-h-72 overflow-y-auto">
                   <button type="button" onClick={() => setOpenField(null)} className="px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground">← {fieldLabel(fields, openField)}</button>
-                  {fields.find((f) => f.key === openField)!.values.map((v) => {
+                  {(fields.find((f) => f.key === openField)?.values ?? []).map((v) => {
                     const checked = filters.find((f) => f.field === openField)?.values.includes(v.value) ?? false;
                     return (
                       <button key={v.value} type="button" onClick={() => onToggleFilterValue(openField, v.value)} className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-md hover:bg-accent">

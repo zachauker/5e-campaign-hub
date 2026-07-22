@@ -16,6 +16,7 @@ interface EntityTableProps {
   singular: string;
   typeConfig: TypeConfig | null;
   columns: string[]; // property labels
+  columnLabels: Record<string, string>;
   sort: SortState;
   onSort: (key: string) => void;
   onEdit: (entity: EntityDetailResponse) => void;
@@ -34,7 +35,7 @@ function SortHeader({ label, sortKey, sort, onSort, className }: { label: string
   );
 }
 
-export function EntityTable({ items, resourcePath, singular, typeConfig, columns, sort, onSort, onEdit, onDelete }: EntityTableProps) {
+export function EntityTable({ items, resourcePath, singular, typeConfig, columns, columnLabels, sort, onSort, onEdit, onDelete }: EntityTableProps) {
   return (
     <div className="mt-4 overflow-x-auto rounded-xl border border-border">
       <table className="w-full text-sm">
@@ -43,7 +44,7 @@ export function EntityTable({ items, resourcePath, singular, typeConfig, columns
             <SortHeader label="Name" sortKey={SORT_NAME} sort={sort} onSort={onSort} />
             {typeConfig && <SortHeader label={typeConfig.label} sortKey={FIELD_TYPE} sort={sort} onSort={onSort} />}
             {columns.map((c) => (
-              <SortHeader key={c} label={c} sortKey={c} sort={sort} onSort={onSort} />
+              <SortHeader key={c} label={columnLabels[c] ?? c} sortKey={c} sort={sort} onSort={onSort} />
             ))}
             <th className="px-3 py-2 w-px" />
           </tr>

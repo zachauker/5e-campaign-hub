@@ -117,10 +117,11 @@ export function deriveFilterFields(items: EntityListItem[], typeConfig: TypeConf
       byLabel.get(p.label)!.add(p.value);
     }
   }
+  const typeLabel = typeConfig?.label;
   for (const label of labelOrder) {
     fields.push({
       key: label,
-      label,
+      label: label === typeLabel ? `${label} (Notion)` : label,
       values: distinct([...byLabel.get(label)!]).map((v) => ({ value: v, label: v })),
     });
   }
