@@ -2,12 +2,14 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import dynamic from "next/dynamic";
-import { Loader2, Plus, X, Download, Move, Tag } from "lucide-react";
+import { Loader2, Plus, X, Download, Move, Tag, Palette } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MarkerFormDialog } from "@/components/maps/MarkerFormDialog";
 import { MarkerSlideOver } from "@/components/maps/MarkerSlideOver";
+import { PinStylesPanel } from "@/components/maps/PinStylesPanel";
 import { useCampaignStore } from "@/lib/store/campaign-store";
 import type { ResolvedMarker } from "@/components/maps/map-types";
+import type { TypeAppearanceMap } from "@/components/maps/marker-appearance";
 import { MarkerLayerControl } from "@/components/maps/MarkerLayerControl";
 import { isMarkerVisible, readHiddenLayers } from "@/components/maps/marker-layers";
 import { readShowLabels, writeShowLabels } from "@/components/maps/marker-labels";
@@ -57,6 +59,8 @@ export function WorldMapViewer() {
   const [importing, setImporting] = useState(false);
   const [moveMode, setMoveMode] = useState(false);
   const [lastMove, setLastMove] = useState<{ markerId: string; prevX: number; prevY: number; title: string } | null>(null);
+  const [typeDefaults, setTypeDefaults] = useState<TypeAppearanceMap>({});
+  const [stylesOpen, setStylesOpen] = useState(false);
 
   function updateHidden(next: Set<string>) {
     setHidden(next);
@@ -113,6 +117,18 @@ export function WorldMapViewer() {
     fetch("/api/world/styles/themes.json")
       .then((r) => (r.ok ? r.json() : { themes: [] }))
       .then((d: { themes: ThemeOption[] }) => setThemes(d.themes));
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((s: Record<string, string>) => {
+        try {
+          setTypeDefaults(JSON.parse(s.marker_appearance ?? "{}"));
+        } catch {
+          setTypeDefaults({});
+        }
+      });
   }, []);
 
   // Reset the load state during render when the campaign changes (the fetch
@@ -231,6 +247,9 @@ export function WorldMapViewer() {
             <Tag className="w-3.5 h-3.5" />
             {showLabels ? "Hide Labels" : "Show Labels"}
           </Button>
+          <Button size="sm" variant="outline" onClick={() => setStylesOpen(true)} className="gap-1.5">
+            <Palette className="w-3.5 h-3.5" /> Pin styles
+          </Button>
           <select
             value={theme}
             onChange={(e) => changeTheme(e.target.value)}
@@ -280,6 +299,7 @@ export function WorldMapViewer() {
           showLabels={showLabels}
           addMode={addMode}
           markersDraggable={moveMode}
+          typeDefaults={typeDefaults}
           onMapClick={handleMapClick}
           onMarkerClick={(m) => setSelectedId(m.id === selectedId ? null : m.id)}
           onMarkerDragEnd={handleMarkerDragEnd}
@@ -336,6 +356,8 @@ export function WorldMapViewer() {
           }}
         />
       )}
+
+      <PinStylesPanel open={stylesOpen} value={typeDefaults} onClose={() => setStylesOpen(false)} onSaved={setTypeDefaults} />
     </div>
   );
 }

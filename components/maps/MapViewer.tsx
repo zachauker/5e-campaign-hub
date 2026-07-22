@@ -7,15 +7,17 @@ import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, Loader2, Plus, X, ChevronRight, Move, Pencil, Trash2, Tag } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, X, ChevronRight, Move, Pencil, Trash2, Tag, Palette } from "lucide-react";
 import { StaticMapCanvas } from "@/components/maps/StaticMapCanvas";
 import { MarkerFormDialog } from "@/components/maps/MarkerFormDialog";
 import { MarkerSlideOver } from "@/components/maps/MarkerSlideOver";
 import { UnpinnedNotesTray } from "@/components/maps/UnpinnedNotesTray";
+import { PinStylesPanel } from "@/components/maps/PinStylesPanel";
 import { useCampaignStore } from "@/lib/store/campaign-store";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useToast } from "@/components/ui/toast";
 import type { MapData, ResolvedMarker } from "@/components/maps/map-types";
+import type { TypeAppearanceMap } from "@/components/maps/marker-appearance";
 import { MarkerLayerControl } from "@/components/maps/MarkerLayerControl";
 import { isMarkerVisible, readHiddenLayers } from "@/components/maps/marker-layers";
 import { readShowLabels, writeShowLabels } from "@/components/maps/marker-labels";
@@ -56,6 +58,8 @@ export function MapViewer() {
   const [lastMove, setLastMove] = useState<{ markerId: string; prevX: number; prevY: number; title: string } | null>(null);
   const [pendingNoteId, setPendingNoteId] = useState<string | null>(null);
   const [trayReloadKey, setTrayReloadKey] = useState(0);
+  const [typeDefaults, setTypeDefaults] = useState<TypeAppearanceMap>({});
+  const [stylesOpen, setStylesOpen] = useState(false);
   // Snapshot of a marker's position at the start of a drag (dragMove updates
   // local state live, so the pre-drag position must be captured on first move).
   const dragOriginRef = useRef<{ id: string; x: number; y: number } | null>(null);
@@ -127,6 +131,18 @@ export function MapViewer() {
       cancelled = true;
     };
   }, [id, loadMarkers]);
+
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((s: Record<string, string>) => {
+        try {
+          setTypeDefaults(JSON.parse(s.marker_appearance ?? "{}"));
+        } catch {
+          setTypeDefaults({});
+        }
+      });
+  }, []);
 
   function handleCanvasClick(pos: { x: number; y: number }) {
     if (pendingNoteId) {
@@ -276,6 +292,7 @@ export function MapViewer() {
     markersDraggable: moveMode,
     selectedId,
     showLabels,
+    typeDefaults,
     onImageClick: handleCanvasClick,
     onMarkerClick: handleMarkerClick,
     onMarkerDragMove: handleMarkerDragMove,
@@ -330,6 +347,9 @@ export function MapViewer() {
           >
             <Tag className="w-3.5 h-3.5" />
             {showLabels ? "Hide Labels" : "Show Labels"}
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setStylesOpen(true)} className="gap-1.5">
+            <Palette className="w-3.5 h-3.5" /> Pin styles
           </Button>
           <Button
             size="sm"
@@ -429,6 +449,8 @@ export function MapViewer() {
           }}
         />
       )}
+
+      <PinStylesPanel open={stylesOpen} value={typeDefaults} onClose={() => setStylesOpen(false)} onSaved={setTypeDefaults} />
 
       <Dialog open={renameOpen} onOpenChange={(o) => !o && setRenameOpen(false)}>
         <DialogContent className="max-w-sm">
