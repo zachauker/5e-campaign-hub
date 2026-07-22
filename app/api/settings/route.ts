@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { settings } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
-const ALLOWED_KEYS = ["campaign_name", "default_roll_advantage", "ddb_share_urls", "notion_token", "anthropic_api_key", "notion_auto_sync_enabled", "notion_auto_sync_interval_minutes"];
+const ALLOWED_KEYS = ["campaign_name", "default_roll_advantage", "ddb_share_urls", "notion_token", "anthropic_api_key", "notion_auto_sync_enabled", "notion_auto_sync_interval_minutes", "marker_appearance"];
 const MASKED_KEYS = new Set(["ddb_cobalt_token", "notion_token", "anthropic_api_key"]);
 
 export async function GET() {

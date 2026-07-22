@@ -26,6 +26,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ marker
       title: body.title !== undefined ? body.title : existing.title,
       note: body.note !== undefined ? body.note : existing.note,
       minZoom: body.minZoom !== undefined ? body.minZoom : existing.minZoom,
+      size: body.size !== undefined ? body.size : existing.size,
+      shape: body.shape !== undefined ? body.shape : existing.shape,
+      icon: body.icon !== undefined ? body.icon : existing.icon,
+      labelSize: body.labelSize !== undefined ? body.labelSize : existing.labelSize,
+      color: body.color !== undefined ? body.color : existing.color,
       updatedAt: new Date(),
     })
     .where(eq(mapMarkers.id, markerId));

@@ -87,6 +87,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       title: body.title ?? null,
       note: body.note ?? null,
       minZoom: typeof body.minZoom === "number" ? body.minZoom : null,
+      size: body.size ?? null,
+      shape: body.shape ?? null,
+      icon: body.icon ?? null,
+      labelSize: body.labelSize ?? null,
+      color: body.color ?? null,
       createdAt: now,
       updatedAt: now,
     })
