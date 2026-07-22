@@ -7,6 +7,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { cn } from "@/lib/utils";
 import { MARKER_TYPE_META, MARKER_TYPES } from "@/components/maps/marker-meta";
 import type { MarkerType, MarkerData } from "@/components/maps/map-types";
+import { MarkerAppearanceEditor } from "@/components/maps/MarkerAppearanceEditor";
+import type { MarkerAppearanceOverride, MarkerSize, MarkerShape, MarkerLabelSize } from "@/components/maps/marker-appearance";
 export type { MarkerData };
 
 interface EntityOption {
@@ -37,6 +39,13 @@ export function MarkerFormDialog({ mapId, campaignId, position, marker, currentZ
   const [title, setTitle] = useState(marker?.title ?? "");
   const [note, setNote] = useState(marker?.note ?? "");
   const [minZoom, setMinZoom] = useState<number | null>(marker?.minZoom ?? currentZoom ?? null);
+  const [appearance, setAppearance] = useState<MarkerAppearanceOverride>({
+    size: (marker?.size ?? null) as MarkerSize | null,
+    shape: (marker?.shape ?? null) as MarkerShape | null,
+    icon: marker?.icon ?? null,
+    labelSize: (marker?.labelSize ?? null) as MarkerLabelSize | null,
+    color: marker?.color ?? null,
+  });
   const [entityOptions, setEntityOptions] = useState<EntityOption[]>([]);
   const [mapOptions, setMapOptions] = useState<MapOption[]>([]);
   const [uploadName, setUploadName] = useState("");
@@ -94,6 +103,11 @@ export function MarkerFormDialog({ mapId, campaignId, position, marker, currentZ
         title: title.trim() || null,
         note: type === "note" ? note.trim() || null : null,
         minZoom,
+        size: appearance.size ?? null,
+        shape: appearance.shape ?? null,
+        icon: appearance.icon ?? null,
+        labelSize: appearance.labelSize ?? null,
+        color: appearance.color ?? null,
       };
 
       if (marker) {
@@ -265,6 +279,11 @@ export function MarkerFormDialog({ mapId, campaignId, position, marker, currentZ
               )}
             </div>
           )}
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Appearance</label>
+            <MarkerAppearanceEditor value={appearance} onChange={setAppearance} type={type} subtype={null} />
+          </div>
 
           <Button className="w-full" onClick={save} disabled={saving || !canSave}>
             {saving ? "Saving…" : marker ? "Save changes" : "Place marker"}
