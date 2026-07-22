@@ -7,21 +7,24 @@ import { renderToStaticMarkup } from "react-dom/server";
 import "leaflet/dist/leaflet.css";
 import { MapMarkerPin } from "@/components/maps/MapMarkerPin";
 import { MarkerLabel } from "@/components/maps/MarkerLabel";
+import { resolveMarkerAppearance, type ResolvedAppearance, type TypeAppearanceMap } from "@/components/maps/marker-appearance";
 import type { MapCanvasProps, ResolvedMarker } from "@/components/maps/map-types";
 
 const CRS = L.CRS.Simple;
 
-function markerIcon(marker: ResolvedMarker, selected: boolean, showLabels: boolean) {
+function markerIcon(marker: ResolvedMarker, appearance: ResolvedAppearance, selected: boolean, showLabels: boolean) {
+  const anchor: [number, number] =
+    appearance.anchor === "bottom" ? [appearance.width / 2, appearance.height] : [appearance.width / 2, appearance.height / 2];
   return L.divIcon({
     className: "",
     html: renderToStaticMarkup(
       <>
-        <MapMarkerPin type={marker.type} subtype={marker.entitySubtype} selected={selected} />
-        {showLabels && <MarkerLabel text={marker.resolvedTitle} />}
+        <MapMarkerPin appearance={appearance} selected={selected} />
+        {showLabels && !appearance.labelHidden && <MarkerLabel text={marker.resolvedTitle} labelSize={appearance.labelSize} />}
       </>
     ),
-    iconSize: [28, 36],
-    iconAnchor: [14, 36],
+    iconSize: [appearance.width, appearance.height],
+    iconAnchor: anchor,
   });
 }
 
@@ -85,6 +88,7 @@ function MarkerWithReveal({
   marker,
   selected,
   showLabels,
+  typeDefaults,
   position,
   draggable,
   onMarkerClick,
@@ -97,6 +101,7 @@ function MarkerWithReveal({
   marker: ResolvedMarker;
   selected: boolean;
   showLabels: boolean;
+  typeDefaults: TypeAppearanceMap;
   position: L.LatLng;
   draggable: boolean;
   onMarkerClick: (marker: ResolvedMarker) => void;
@@ -114,10 +119,15 @@ function MarkerWithReveal({
     },
   });
 
-  const icon = useMemo(
-    () => markerIcon(marker, selected, showLabels),
+  const appearance = useMemo(
+    () => resolveMarkerAppearance(marker, typeDefaults),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [marker.type, marker.entitySubtype, marker.resolvedTitle, selected, showLabels]
+    [marker.type, marker.entitySubtype, marker.size, marker.shape, marker.icon, marker.labelSize, marker.color, typeDefaults]
+  );
+  const icon = useMemo(
+    () => markerIcon(marker, appearance, selected, showLabels),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [appearance, marker.resolvedTitle, selected, showLabels]
   );
 
   if (marker.minZoom !== null && zoom < marker.minZoom) return null;
@@ -149,6 +159,7 @@ export function TiledMapCanvas({
   markersDraggable,
   selectedId,
   showLabels = false,
+  typeDefaults = {},
   onImageClick,
   onMarkerClick,
   onMarkerDragMove,
@@ -203,6 +214,7 @@ export function TiledMapCanvas({
             marker={m}
             selected={m.id === selectedId}
             showLabels={showLabels}
+            typeDefaults={typeDefaults}
             position={fractionalToLatLng(m.x, m.y)}
             draggable={markersDraggable}
             onMarkerClick={onMarkerClick}
