@@ -448,6 +448,34 @@ describe("searchIndex", () => {
     await indexEntity(db, { campaignId, kind: "character", targetId: "c1", name: "Mereth", body: null });
     expect(await searchIndex(db, { campaignId, q: '"""' })).toEqual([]);
   });
+
+  // A DM reading "Al'Jinn" off their own screen will often type it without the
+  // punctuation. FTS tokenises the stored name as "al" + "jinn", so the single
+  // token "aljinn" prefix-matches neither and the DM gets silence.
+  it("finds a name typed without its punctuation", async () => {
+    const { db, campaignId } = createTestDb();
+    await indexEntity(db, { campaignId, kind: "character", targetId: "c1", name: "Al'Jinn", body: null });
+    expect((await searchIndex(db, { campaignId, q: "aljinn" })).map((h) => h.targetId)).toEqual(["c1"]);
+  });
+
+  it("finds a two-word name typed as one word", async () => {
+    const { db, campaignId } = createTestDb();
+    await indexEntity(db, { campaignId, kind: "character", targetId: "c1", name: "Mereth Kain", body: null });
+    expect((await searchIndex(db, { campaignId, q: "merethkain" })).map((h) => h.targetId)).toEqual(["c1"]);
+  });
+
+  it("prefers the FTS result and does not fall back when FTS already matched", async () => {
+    const { db, campaignId } = createTestDb();
+    await indexEntity(db, { campaignId, kind: "character", targetId: "exact", name: "Mereth", body: null });
+    await indexEntity(db, { campaignId, kind: "character", targetId: "other", name: "Merethkain Hall", body: null });
+    expect((await searchIndex(db, { campaignId, q: "mereth" })).map((h) => h.targetId)).toEqual(["exact", "other"]);
+  });
+
+  it("keeps the flattened fallback inside the campaign", async () => {
+    const { db, campaignId } = createTestDb();
+    await indexEntity(db, { campaignId: "other-campaign", kind: "character", targetId: "theirs", name: "Al'Jinn", body: null });
+    expect(await searchIndex(db, { campaignId, q: "aljinn" })).toEqual([]);
+  });
 });
 
 describe("removeFromIndex", () => {
@@ -612,14 +640,53 @@ export async function searchIndex(
       name
     LIMIT ${limit}
   `);
-  return rows;
+  if (rows.length > 0) return rows;
+
+  return flattenedFallback(db, opts, limit);
+}
+
+/**
+ * Last resort when FTS matched nothing.
+ *
+ * FTS5 splits "Al'Jinn" into the tokens "al" and "jinn", so a DM who reads the
+ * name off their own screen and types "aljinn" prefix-matches neither and gets
+ * silence — no error, no empty-state hint, just a wrong answer at the worst
+ * possible moment. This compares against the name with its punctuation and
+ * spaces removed, which is what they actually typed.
+ *
+ * Only runs when FTS found nothing, so the common path never pays for it. It is
+ * a full scan with string functions, which is fine over the few hundred rows one
+ * campaign holds and would not be at a much larger scale.
+ */
+function flattenedFallback(
+  db: StateDb,
+  opts: { campaignId: string; q: string; kinds?: SearchKind[] },
+  limit: number,
+): SearchHit[] {
+  const flat = opts.q.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  if (!flat) return [];
+  const kinds = opts.kinds?.length ? opts.kinds : null;
+
+  // SQLite has no regex, so the separators are stripped by nested replace().
+  // These four cover the punctuation that actually appears in entity names.
+  const flatName = sql`replace(replace(replace(replace(lower(name), '''', ''), ' ', ''), '-', ''), '.', '')`;
+
+  return db.all<{ kind: SearchKind; targetId: string; name: string }>(sql`
+    SELECT kind, target_id AS targetId, name
+    FROM search_index
+    WHERE campaign_id = ${opts.campaignId}
+      ${kinds ? sql`AND kind IN (${sql.join(kinds.map((k) => sql`${k}`), sql`, `)})` : sql``}
+      AND ${flatName} LIKE ${flat + "%"}
+    ORDER BY length(name), name
+    LIMIT ${limit}
+  `);
 }
 ```
 
 - [ ] **Step 4: Run the test**
 
 Run: `npx vitest run lib/run/search-index.test.ts`
-Expected: PASS, 9 tests.
+Expected: PASS, 13 tests.
 
 - [ ] **Step 5: Commit**
 
@@ -1776,7 +1843,7 @@ export async function generateBriefing(
 - [ ] **Step 4: Run the test**
 
 Run: `npx vitest run lib/run/briefing-agent.test.ts`
-Expected: PASS, 9 tests.
+Expected: PASS, 13 tests.
 
 If `tsc` complains that `output_config` is not a known property, the installed SDK's typings predate structured outputs. Cast the argument (`as Parameters<typeof client.messages.create>[0]`) rather than dropping the parameter, and leave a comment saying why.
 
@@ -2554,7 +2621,7 @@ export async function setMarkResolved(
 - [ ] **Step 4: Run the test**
 
 Run: `npx vitest run lib/run/marks.test.ts`
-Expected: PASS, 9 tests.
+Expected: PASS, 13 tests.
 
 - [ ] **Step 5: Commit**
 
