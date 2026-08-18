@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { sql } from "drizzle-orm";
 import { createTestDb } from "@/lib/notion/test-helpers";
-import { indexEntity, indexBriefing, removeFromIndex, searchIndex } from "./search-index";
+import { indexEntity, indexBriefing, removeFromIndex, searchIndex, rebuildSearchIndex } from "./search-index";
 
 function seedCharacter(db: ReturnType<typeof createTestDb>["db"], campaignId: string, id: string, name: string, description: string | null) {
   db.run(sql`
@@ -155,5 +155,54 @@ describe("removeFromIndex", () => {
     await indexEntity(db, { campaignId, kind: "character", targetId: "c1", name: "Mereth", body: null });
     await removeFromIndex(db, { campaignId, kind: "character", targetId: "c1" });
     expect(await searchIndex(db, { campaignId, q: "mereth" })).toEqual([]);
+  });
+});
+
+describe("rebuildSearchIndex", () => {
+  it("indexes every entity, thread, and clock in the campaign", async () => {
+    const { db, campaignId } = createTestDb();
+    db.run(sql`INSERT INTO characters (id, campaign_id, name, type, description, archived, created_at, updated_at)
+      VALUES ('c1', ${campaignId}, 'Mereth Kain', 'npc', 'A duellist.', 0, 1, 1)`);
+    db.run(sql`INSERT INTO locations (id, campaign_id, name, description, type, archived, created_at, updated_at)
+      VALUES ('l1', ${campaignId}, 'Druvenlode', 'A sunken town.', 'town', 0, 1, 1)`);
+    db.run(sql`INSERT INTO threads (id, campaign_id, title, stakes, status, archived, created_at, updated_at)
+      VALUES ('t1', ${campaignId}, 'Who forged the writ?', 'The party stays hunted.', 'open', 0, 1, 1)`);
+    db.run(sql`INSERT INTO clocks (id, campaign_id, name, segments, filled, archived, created_at, updated_at)
+      VALUES ('k1', ${campaignId}, 'Assembly closes in', 8, 2, 0, 1, 1)`);
+
+    const count = await rebuildSearchIndex(db, campaignId);
+    expect(count).toBe(4);
+
+    expect((await searchIndex(db, { campaignId, q: "mereth" }))[0].targetId).toBe("c1");
+    expect((await searchIndex(db, { campaignId, q: "druvenlode" }))[0].targetId).toBe("l1");
+    expect((await searchIndex(db, { campaignId, q: "forged" }))[0].targetId).toBe("t1");
+    expect((await searchIndex(db, { campaignId, q: "assembly" }))[0].targetId).toBe("k1");
+  });
+
+  it("skips archived entities and is safe to run twice", async () => {
+    const { db, campaignId } = createTestDb();
+    db.run(sql`INSERT INTO characters (id, campaign_id, name, type, description, archived, created_at, updated_at)
+      VALUES ('c1', ${campaignId}, 'Mereth Kain', 'npc', NULL, 0, 1, 1)`);
+    db.run(sql`INSERT INTO characters (id, campaign_id, name, type, description, archived, created_at, updated_at)
+      VALUES ('c2', ${campaignId}, 'Retired Kain', 'npc', NULL, 1, 1, 1)`);
+
+    await rebuildSearchIndex(db, campaignId);
+    await rebuildSearchIndex(db, campaignId);
+
+    const hits = await searchIndex(db, { campaignId, q: "kain" });
+    expect(hits.map((h) => h.targetId)).toEqual(["c1"]);
+  });
+
+  it("carries existing briefing aliases through a rebuild", async () => {
+    const { db, campaignId } = createTestDb();
+    db.run(sql`INSERT INTO characters (id, campaign_id, name, type, description, archived, created_at, updated_at)
+      VALUES ('c1', ${campaignId}, 'Garrick Veldros', 'npc', NULL, 0, 1, 1)`);
+    db.run(sql`INSERT INTO entity_briefings (id, campaign_id, target_kind, target_id, identity, aliases, source_hash, built_at, created_at, updated_at)
+      VALUES ('b1', ${campaignId}, 'character', 'c1', 'A broker.', '["the mask guy"]', 'h', 1, 1, 1)`);
+
+    await rebuildSearchIndex(db, campaignId);
+
+    const hits = await searchIndex(db, { campaignId, q: "mask guy" });
+    expect(hits.map((h) => h.targetId)).toEqual(["c1"]);
   });
 });

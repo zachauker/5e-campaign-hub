@@ -212,3 +212,71 @@ function flattenedFallback(
     LIMIT ${limit}
   `);
 }
+
+/**
+ * Rebuild the whole index for one campaign from the source tables. Run once per
+ * campaign at rollout, and available from Settings afterwards. Returns the row
+ * count written.
+ */
+export async function rebuildSearchIndex(db: StateDb, campaignId: string): Promise<number> {
+  db.run(sql`DELETE FROM search_index WHERE campaign_id = ${campaignId}`);
+
+  const briefings = db.all<{ targetKind: string; targetId: string; aliases: string; identity: string | null; wants: string | null; partyKnows: string | null }>(sql`
+    SELECT target_kind AS targetKind, target_id AS targetId, aliases,
+           identity, wants, party_knows AS partyKnows
+    FROM entity_briefings WHERE campaign_id = ${campaignId}
+  `);
+  const briefingByTarget = new Map(briefings.map((b) => [`${b.targetKind}:${b.targetId}`, b]));
+
+  let written = 0;
+
+  const entityTables: { table: string; kind: SearchKind }[] = [
+    { table: "characters", kind: "character" },
+    { table: "locations", kind: "location" },
+    { table: "items", kind: "item" },
+    { table: "factions", kind: "faction" },
+  ];
+
+  for (const { table, kind } of entityTables) {
+    const rows = db.all<{ id: string; name: string; description: string | null }>(sql`
+      SELECT id, name, description FROM ${sql.raw(table)}
+      WHERE campaign_id = ${campaignId} AND archived = 0
+    `);
+    for (const row of rows) {
+      const b = briefingByTarget.get(`${kind}:${row.id}`);
+      const body = b
+        ? [b.identity, b.wants, b.partyKnows].filter(Boolean).join(" ")
+        : (row.description ?? "");
+      let aliases = "";
+      if (b) {
+        try {
+          const parsed: unknown = JSON.parse(b.aliases);
+          if (Array.isArray(parsed)) aliases = parsed.filter((a) => typeof a === "string").join(" ");
+        } catch {
+          // A malformed aliases blob costs alias matching for one entity; it
+          // must not abort the whole rebuild.
+        }
+      }
+      writeRow(db, campaignId, kind, row.id, row.name, aliases, body);
+      written++;
+    }
+  }
+
+  const threads = db.all<{ id: string; title: string; stakes: string | null }>(sql`
+    SELECT id, title, stakes FROM threads WHERE campaign_id = ${campaignId} AND archived = 0
+  `);
+  for (const t of threads) {
+    writeRow(db, campaignId, "thread", t.id, t.title, "", t.stakes ?? "");
+    written++;
+  }
+
+  const clocks = db.all<{ id: string; name: string }>(sql`
+    SELECT id, name FROM clocks WHERE campaign_id = ${campaignId} AND archived = 0
+  `);
+  for (const c of clocks) {
+    writeRow(db, campaignId, "clock", c.id, c.name, "", "");
+    written++;
+  }
+
+  return written;
+}
