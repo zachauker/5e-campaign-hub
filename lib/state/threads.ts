@@ -108,10 +108,7 @@ export async function updateThread(db: StateDb, id: string, input: UpdateThreadI
       status: input.status ?? existing.status,
       resolvedSessionId:
         input.resolvedSessionId === undefined ? existing.resolvedSessionId : input.resolvedSessionId,
-      // currentDay is a required parameter (not optional): the caller always states
-      // "as of what day is this touch happening", and null is a real answer (no
-      // in-world date set yet), not "leave the old value alone". Assign directly.
-      lastTouchedDay: input.currentDay,
+      lastTouchedDay: input.currentDay ?? existing.lastTouchedDay,
       updatedAt: new Date(),
     })
     .where(eq(threads.id, id))

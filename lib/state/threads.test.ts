@@ -86,6 +86,14 @@ describe("updateThread", () => {
     const { db } = createTestDb();
     await expect(updateThread(db, "nope", { title: "x", currentDay: 1 })).rejects.toThrow(/not found/i);
   });
+
+  it("preserves the last-touched stamp when currentDay is unknown", async () => {
+    const { db, campaignId } = createTestDb();
+    const t = await createThread(db, { campaignId, title: "T", currentDay: 100 });
+
+    const updated = await updateThread(db, t.id, { title: "x", currentDay: null });
+    expect(updated.lastTouchedDay).toBe(100);
+  });
 });
 
 describe("listThreads", () => {
