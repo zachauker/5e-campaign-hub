@@ -10,12 +10,14 @@ import { NotionBlocks } from "@/components/glossary/NotionBlocks";
 import { NotionPropsTable } from "@/components/glossary/NotionPropsTable";
 import { RelatedCard } from "@/components/glossary/RelatedCard";
 import { SimpleEntityFormDialog } from "@/components/entities/SimpleEntityFormDialog";
+import { EntityThreadsBlock } from "@/components/state/EntityThreadsBlock";
 import { useCampaignStore } from "@/lib/store/campaign-store";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { NotionBlockData } from "@/lib/notion/client";
 
 interface SimpleEntityDetailData {
   id: string;
+  campaignId: string;
   name: string;
   description: string | null;
   type?: string | null;
@@ -48,6 +50,7 @@ export function SimpleEntityDetail({ resourcePath, label, icon: Icon }: SimpleEn
   const [entity, setEntity] = useState<SimpleEntityDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
+  const [hasThreadContent, setHasThreadContent] = useState(false);
 
   const [notionBlocks, setNotionBlocks] = useState<NotionBlockData[] | null>(null);
   const [notionError, setNotionError] = useState<string | null>(null);
@@ -233,6 +236,13 @@ export function SimpleEntityDetail({ resourcePath, label, icon: Icon }: SimpleEn
             </div>
           )}
 
+          <EntityThreadsBlock
+            campaignId={entity.campaignId}
+            targetKind={resourcePath.replace(/s$/, "") as "character" | "location" | "item" | "faction"}
+            targetId={entity.id}
+            onHasContentChange={setHasThreadContent}
+          />
+
           {entity.linkedSessionNotes && entity.linkedSessionNotes.length > 0 && (
             <div className="mt-4">
               <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Events here</h2>
@@ -254,9 +264,12 @@ export function SimpleEntityDetail({ resourcePath, label, icon: Icon }: SimpleEn
             </div>
           )}
 
-          {!entity.description && (!entity.mapMarkers || entity.mapMarkers.length === 0) && entity.linkedCharacters.length === 0 && (
-            <p className="text-sm text-muted-foreground">No description or linked characters yet.</p>
-          )}
+          {!entity.description &&
+            (!entity.mapMarkers || entity.mapMarkers.length === 0) &&
+            entity.linkedCharacters.length === 0 &&
+            !hasThreadContent && (
+              <p className="text-sm text-muted-foreground">No description or linked characters yet.</p>
+            )}
         </TabsContent>
 
         <TabsContent value="notion" className="pt-4">

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { createThread, listThreads } from "@/lib/state/threads";
+import { createThread, listThreads, listThreadsForTarget } from "@/lib/state/threads";
 import { getCampaignDay } from "@/lib/state/advance";
 import { toClientErrorMessage } from "@/lib/state/errors";
 import type { StateDb } from "@/lib/state/types";
@@ -13,6 +13,20 @@ export async function GET(req: Request) {
   if (!campaignId) return NextResponse.json({ error: '"campaignId" is required' }, { status: 400 });
 
   const currentDay = await getCampaignDay(sdb, campaignId);
+
+  const targetKind = searchParams.get("targetKind");
+  const targetId = searchParams.get("targetId");
+  if (targetKind && targetId) {
+    const items = await listThreadsForTarget(
+      sdb,
+      campaignId,
+      targetKind as "character" | "location" | "item" | "faction" | "session",
+      targetId,
+      currentDay,
+    );
+    return NextResponse.json({ items, currentDay });
+  }
+
   const items = await listThreads(sdb, campaignId, {
     currentDay,
     includeResolved: searchParams.get("includeResolved") === "1",
