@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { SetDatePrompt } from "./SetDatePrompt";
 import { ThreadsTab } from "./ThreadsTab";
 import { ThreadFormDialog } from "./ThreadFormDialog";
@@ -12,8 +13,8 @@ import type { CampaignStateView, ThreadView } from "./chronicle-types";
 
 type StateResult = { ok: true; state: CampaignStateView } | { ok: false; error: string };
 
-async function fetchState(campaignId: string): Promise<StateResult> {
-  const res = await fetch(`/api/campaigns/${campaignId}/state`);
+async function fetchState(campaignId: string, includeResolved: boolean): Promise<StateResult> {
+  const res = await fetch(`/api/campaigns/${campaignId}/state${includeResolved ? "?includeResolved=1" : ""}`);
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
     return { ok: false, error: body.error ?? "Could not load campaign state" };
@@ -28,8 +29,13 @@ export function ChronicleBrowser({ campaignId }: { campaignId: string }) {
   // persisted URL-as-state pattern.
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab") === "timeline" ? "timeline" : "threads";
+  const confirm = useConfirm();
   const [state, setState] = useState<CampaignStateView | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Kept apart from `error`: a failed write must not blank the page that
+  // shows what the write was for.
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [showResolved, setShowResolved] = useState(false);
   const [editingDate, setEditingDate] = useState(false);
   const [editing, setEditing] = useState<ThreadView | null>(null);
   const [creating, setCreating] = useState(false);
@@ -45,27 +51,49 @@ export function ChronicleBrowser({ campaignId }: { campaignId: string }) {
 
   /** Imperative refresh after a write. */
   const load = useCallback(async () => {
-    apply(await fetchState(campaignId));
-  }, [apply, campaignId]);
+    apply(await fetchState(campaignId, showResolved));
+  }, [apply, campaignId, showResolved]);
 
   useEffect(() => {
     let cancelled = false;
     async function run() {
-      const result = await fetchState(campaignId);
+      const result = await fetchState(campaignId, showResolved);
       if (!cancelled) apply(result);
     }
     run();
     return () => {
       cancelled = true;
     };
-  }, [apply, campaignId]);
+  }, [apply, campaignId, showResolved]);
 
-  async function resolveThread(thread: ThreadView) {
-    await fetch(`/api/threads/${thread.id}`, {
+  async function setThreadStatus(thread: ThreadView, status: "open" | "resolved") {
+    setActionError(null);
+
+    // Resolving pulls the thread out of every list the UI asks for by default,
+    // so it has to be deliberate — and the prompt says how to get back.
+    if (status === "resolved") {
+      const ok = await confirm({
+        title: `Resolve "${thread.title}"?`,
+        description:
+          "It leaves the open board and the entity pages it is linked to. Tick “Show resolved” here to find it again and reopen it.",
+        confirmLabel: "Resolve",
+      });
+      if (!ok) return;
+    }
+
+    const res = await fetch(`/api/threads/${thread.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status: "resolved" }),
+      body: JSON.stringify({ status }),
     });
+
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      setActionError(
+        body.error ?? `Could not ${status === "resolved" ? "resolve" : "reopen"} "${thread.title}".`,
+      );
+      return;
+    }
     await load();
   }
 
@@ -126,7 +154,18 @@ export function ChronicleBrowser({ campaignId }: { campaignId: string }) {
         </TabsList>
 
         <TabsContent value="threads" className="mt-4">
-          <ThreadsTab threads={state.threads} onResolve={resolveThread} onEdit={setEditing} />
+          {actionError && (
+            <p role="alert" className="mb-3 text-sm text-destructive">
+              {actionError}
+            </p>
+          )}
+          <ThreadsTab
+            threads={state.threads}
+            showResolved={showResolved}
+            onShowResolvedChange={setShowResolved}
+            onSetStatus={(t, s) => void setThreadStatus(t, s)}
+            onEdit={setEditing}
+          />
         </TabsContent>
 
         <TabsContent value="timeline" className="mt-4">
