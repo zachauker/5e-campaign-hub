@@ -39,9 +39,38 @@ export function CommandPalette() {
   useEffect(() => {
     if (!open) return;
     const url = activeCampaignId ? `/api/search?campaignId=${activeCampaignId}` : "/api/search";
-    fetch(url)
-      .then((r) => r.json())
-      .then(setAllResults);
+    // Threads are campaign-scoped data, unlike /api/search above (which tolerates
+    // a missing campaignId and returns everything). /api/threads requires
+    // campaignId, so without an active campaign we skip the fetch entirely
+    // rather than ever issuing an unscoped request — the cross-campaign leak
+    // this shell shipped once before came from exactly this file.
+    const threadsPromise = activeCampaignId
+      ? fetch(`/api/threads?campaignId=${activeCampaignId}`)
+          .then((r) => r.json())
+          .then((data: { items: { id: string; title: string }[] }) => data.items)
+      : Promise.resolve([]);
+
+    Promise.all([fetch(url).then((r) => r.json()) as Promise<SearchResult[]>, threadsPromise]).then(
+      ([entities, threadItems]) => {
+        const threadResults: SearchResult[] = threadItems.map((t) => ({
+          id: t.id,
+          name: t.title,
+          type: "thread",
+          href: `/chronicle?campaignId=${activeCampaignId}`,
+        }));
+        const commands: SearchResult[] = activeCampaignId
+          ? [
+              {
+                id: "advance-in-world-date",
+                name: "Advance in-world date",
+                type: "action",
+                href: `/chronicle?campaignId=${activeCampaignId}&tab=timeline`,
+              },
+            ]
+          : [];
+        setAllResults([...entities, ...threadResults, ...commands]);
+      },
+    );
   }, [open, activeCampaignId]);
 
   useEffect(() => {

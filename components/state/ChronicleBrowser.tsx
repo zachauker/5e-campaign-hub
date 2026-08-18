@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { SetDatePrompt } from "./SetDatePrompt";
@@ -21,6 +22,12 @@ async function fetchState(campaignId: string): Promise<StateResult> {
 }
 
 export function ChronicleBrowser({ campaignId }: { campaignId: string }) {
+  // Lets the command palette's "Advance in-world date" command land directly on
+  // the Timeline tab via /chronicle?tab=timeline. Read once at mount, not
+  // synced back on tab clicks — this is a deep-link entry point, not a
+  // persisted URL-as-state pattern.
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get("tab") === "timeline" ? "timeline" : "threads";
   const [state, setState] = useState<CampaignStateView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editingDate, setEditingDate] = useState(false);
@@ -107,7 +114,12 @@ export function ChronicleBrowser({ campaignId }: { campaignId: string }) {
         />
       )}
 
-      <Tabs defaultValue="threads">
+      {/* Keyed on initialTab: the command palette's "Advance in-world date" link
+          can land here while ChronicleBrowser is already mounted (same campaignId
+          prop, client-side navigation from an in-app search result), and Radix's
+          uncontrolled Tabs ignores a defaultValue change on an existing instance.
+          The key forces a fresh mount so the URL's tab param actually takes. */}
+      <Tabs key={initialTab} defaultValue={initialTab}>
         <TabsList>
           <TabsTrigger value="threads">Threads</TabsTrigger>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
