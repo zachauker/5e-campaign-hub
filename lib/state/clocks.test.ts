@@ -121,6 +121,35 @@ describe("applyTick", () => {
   });
 });
 
+describe("applyTick status and day fallbacks", () => {
+  it("leaves a paused clock paused when a tick does not complete it", async () => {
+    const { db, campaignId } = createTestDb();
+    const c = await seed(db, campaignId);
+    await updateClock(db, c.id, { status: "paused" });
+
+    const out = await applyTick(db, c.id, { delta: 1, currentDay: 110 });
+    expect(out).toMatchObject({ filled: 1, status: "paused" });
+  });
+
+  it("falls back to currentDay when nextLastTickedDay is not supplied", async () => {
+    const { db, campaignId } = createTestDb();
+    const c = await seed(db, campaignId);
+
+    await applyTick(db, c.id, { delta: 1, currentDay: 137 });
+    const row = db.select().from(clocks).where(eq(clocks.id, c.id)).all()[0];
+    expect(row.lastTickedDay).toBe(137);
+  });
+
+  it("stamps the completion event with the caller's source kind", async () => {
+    const { db, campaignId } = createTestDb();
+    const c = await seed(db, campaignId, { segments: 4 });
+
+    await applyTick(db, c.id, { delta: 4, currentDay: 120, sourceKind: "cadence" });
+    const completed = db.select().from(timelineEvents).all().find((e) => e.kind === "clock_completed");
+    expect(completed?.sourceKind).toBe("cadence");
+  });
+});
+
 describe("updateClock", () => {
   it("pauses a clock", async () => {
     const { db, campaignId } = createTestDb();

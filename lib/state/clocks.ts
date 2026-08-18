@@ -138,6 +138,22 @@ export async function applyTick(db: StateDb, id: string, input: ApplyTickInput) 
   }
 
   const completes = next >= existing.segments;
+
+  // Two distinct rules, kept unpacked because the second one is a silent-failure
+  // trap that needs somewhere to hang its reasoning:
+  //   1. Filling a clock marks it complete.
+  //   2. A negative tick that pulls a filled clock back below full must restore
+  //      it to "running". computeDueTicks skips on `status !== "running"` BEFORE
+  //      it checks remaining segments, so a clock left at "complete" with empty
+  //      segments would never be eligible for another automatic tick again, with
+  //      no path back except a manual updateClock.
+  let status: ClockStatus = existing.status as ClockStatus;
+  if (completes) {
+    status = "complete";
+  } else if (existing.status === "complete") {
+    status = "running";
+  }
+
   const lastTickedDay =
     input.nextLastTickedDay !== undefined && input.nextLastTickedDay !== null
       ? input.nextLastTickedDay
@@ -147,7 +163,7 @@ export async function applyTick(db: StateDb, id: string, input: ApplyTickInput) 
     .update(clocks)
     .set({
       filled: next,
-      status: completes ? "complete" : existing.status === "complete" ? "running" : existing.status,
+      status,
       lastTickedDay,
       updatedAt: new Date(),
     })
