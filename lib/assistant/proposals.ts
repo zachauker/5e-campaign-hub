@@ -179,7 +179,11 @@ export function buildThreadResolveProposal(
     targetRoute: `/api/threads/${input.threadId}`,
     method: "PATCH",
     citation,
-    payload: { status: "resolved", resolvedSessionId: input.resolvedSessionId ?? null },
+    payload: {
+      status: "resolved",
+      resolvedSessionId: input.resolvedSessionId ?? null,
+      sourceKind: "proposal",
+    },
   };
 }
 

@@ -130,7 +130,7 @@ describe("buildThreadResolveProposal", () => {
       NOTES,
     );
     expect(p).toMatchObject({ targetRoute: "/api/threads/t1", method: "PATCH" });
-    expect(p.payload).toMatchObject({ status: "resolved" });
+    expect(p.payload).toMatchObject({ status: "resolved", sourceKind: "proposal" });
     expect(p.summary).toContain("Find Ovid");
   });
 });

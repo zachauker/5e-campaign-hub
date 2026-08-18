@@ -33,6 +33,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       status: body.status,
       resolvedSessionId: body.resolvedSessionId,
       links: body.links,
+      // Whitelisted, never passed through: a client may only ever name itself
+      // "proposal" or "manual", matching the POST route above.
+      sourceKind: body.sourceKind === "proposal" ? "proposal" : "manual",
       currentDay,
     });
     return NextResponse.json(row);

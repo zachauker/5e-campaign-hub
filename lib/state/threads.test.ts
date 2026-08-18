@@ -96,6 +96,29 @@ describe("updateThread", () => {
     expect(kinds).toEqual(["thread_opened", "thread_resolved"]);
   });
 
+  it("defaults the resolve event to manual", async () => {
+    const { db, campaignId } = createTestDb();
+    const t = await createThread(db, { campaignId, title: "T", currentDay: 100 });
+    await updateThread(db, t.id, { status: "resolved", currentDay: 120 });
+
+    const resolved = db.select().from(timelineEvents).all().find((e) => e.kind === "thread_resolved");
+    expect(resolved?.sourceKind).toBe("manual");
+  });
+
+  it("attributes an AI-applied resolve to the proposal, not the DM", async () => {
+    // The whole-history shape is the assertion: a thread the model both opened
+    // and resolved must not leave a "manual" fingerprint anywhere, or the
+    // timeline answers "did I decide this?" wrongly.
+    const { db, campaignId } = createTestDb();
+    const t = await createThread(db, {
+      campaignId, title: "T", currentDay: 100, sourceKind: "proposal",
+    });
+    await updateThread(db, t.id, { status: "resolved", currentDay: 120, sourceKind: "proposal" });
+
+    const trail = db.select().from(timelineEvents).all().map((e) => `${e.kind}/${e.sourceKind}`);
+    expect(trail).toEqual(["thread_opened/proposal", "thread_resolved/proposal"]);
+  });
+
   it("a non-status edit touches the day without writing a resolve event", async () => {
     const { db, campaignId } = createTestDb();
     const t = await createThread(db, { campaignId, title: "T", currentDay: 100 });

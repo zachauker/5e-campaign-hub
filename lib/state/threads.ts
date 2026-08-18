@@ -57,6 +57,13 @@ export interface UpdateThreadInput {
   resolvedSessionId?: string | null;
   currentDay: number | null;
   links?: ThreadLinkInput[];
+  /**
+   * Attribution for the `thread_resolved` event this update may write. Defaults
+   * to "manual". An AI-applied resolve MUST pass "proposal" — the timeline is
+   * the record the DM consults to answer "did I decide this, or did the model?",
+   * and defaulting silently would answer it wrongly.
+   */
+  sourceKind?: SourceKind;
 }
 
 export interface ThreadWithLinks {
@@ -151,7 +158,7 @@ export async function updateThread(db: StateDb, id: string, input: UpdateThreadI
       day: input.currentDay,
       kind: "thread_resolved",
       title: row.title,
-      sourceKind: "manual",
+      sourceKind: input.sourceKind ?? "manual",
       threadId: id,
     });
   }
