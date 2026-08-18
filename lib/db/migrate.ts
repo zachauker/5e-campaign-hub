@@ -223,6 +223,75 @@ export function runMigrations() {
       ordinal INTEGER NOT NULL,
       token_count INTEGER NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS threads (
+      id TEXT PRIMARY KEY,
+      campaign_id TEXT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      stakes TEXT,
+      status TEXT NOT NULL DEFAULT 'open',
+      opened_session_id TEXT,
+      resolved_session_id TEXT,
+      opened_on_day INTEGER,
+      last_touched_day INTEGER,
+      notes TEXT,
+      archived INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS thread_links (
+      id TEXT PRIMARY KEY,
+      thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+      target_kind TEXT NOT NULL,
+      target_id TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'subject'
+    );
+
+    CREATE TABLE IF NOT EXISTS clocks (
+      id TEXT PRIMARY KEY,
+      campaign_id TEXT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      segments INTEGER NOT NULL DEFAULT 8,
+      filled INTEGER NOT NULL DEFAULT 0,
+      owner_kind TEXT,
+      owner_id TEXT,
+      cadence_days INTEGER,
+      last_ticked_day INTEGER,
+      status TEXT NOT NULL DEFAULT 'running',
+      payoff TEXT,
+      archived INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS timeline_events (
+      id TEXT PRIMARY KEY,
+      campaign_id TEXT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+      day INTEGER NOT NULL,
+      kind TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT,
+      source_kind TEXT NOT NULL DEFAULT 'manual',
+      thread_id TEXT,
+      clock_id TEXT,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS session_reviews (
+      id TEXT PRIMARY KEY,
+      session_note_id TEXT NOT NULL,
+      reviewed_at INTEGER NOT NULL,
+      content_hash TEXT NOT NULL,
+      proposal_count INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_threads_campaign ON threads(campaign_id, status);
+    CREATE INDEX IF NOT EXISTS idx_thread_links_thread ON thread_links(thread_id);
+    CREATE INDEX IF NOT EXISTS idx_thread_links_target ON thread_links(target_kind, target_id);
+    CREATE INDEX IF NOT EXISTS idx_clocks_campaign ON clocks(campaign_id, status);
+    CREATE INDEX IF NOT EXISTS idx_timeline_campaign_day ON timeline_events(campaign_id, day);
+    CREATE INDEX IF NOT EXISTS idx_session_reviews_note ON session_reviews(session_note_id, reviewed_at);
   `);
 
   // Additive migrations (idempotent ALTER TABLE)
@@ -246,6 +315,8 @@ export function runMigrations() {
   addColumnIfMissing("map_markers", "label_size", "TEXT");
   addColumnIfMissing("map_markers", "color", "TEXT");
   addColumnIfMissing("reference_collections", "notes", "TEXT");
+  addColumnIfMissing("campaigns", "in_world_day", "INTEGER");
+  addColumnIfMissing("campaigns", "calendar_epoch_label", "TEXT");
   addColumnIfMissing("locations", "type", "TEXT NOT NULL DEFAULT 'other'");
   for (const table of ["characters", "items", "factions", "locations"]) {
     addColumnIfMissing(table, "notion_page_id", "TEXT");

@@ -63,6 +63,8 @@ export const characterLibrary = sqliteTable("character_library", {
 export const campaigns = sqliteTable("campaigns", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
+  inWorldDay: integer("in_world_day"),
+  calendarEpochLabel: text("calendar_epoch_label"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });
 
@@ -244,6 +246,76 @@ export const referenceChunks = sqliteTable("reference_chunks", {
   tokenCount: integer("token_count").notNull(),
 });
 
+export const threads = sqliteTable("threads", {
+  id: text("id").primaryKey(),
+  campaignId: text("campaign_id").notNull().references(() => campaigns.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  stakes: text("stakes"),
+  // open | dormant | resolved | abandoned. Set manually; nothing auto-dormants on staleness.
+  status: text("status").notNull().default("open"),
+  openedSessionId: text("opened_session_id"),
+  resolvedSessionId: text("resolved_session_id"),
+  openedOnDay: integer("opened_on_day"),
+  lastTouchedDay: integer("last_touched_day"),
+  notes: text("notes"),
+  archived: integer("archived", { mode: "boolean" }).notNull().default(false),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+});
+
+export const threadLinks = sqliteTable("thread_links", {
+  id: text("id").primaryKey(),
+  threadId: text("thread_id").notNull().references(() => threads.id, { onDelete: "cascade" }),
+  // character | location | item | faction | session
+  targetKind: text("target_kind").notNull(),
+  targetId: text("target_id").notNull(),
+  // subject | stakeholder | obstacle
+  role: text("role").notNull().default("subject"),
+});
+
+export const clocks = sqliteTable("clocks", {
+  id: text("id").primaryKey(),
+  campaignId: text("campaign_id").notNull().references(() => campaigns.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  segments: integer("segments").notNull().default(8),
+  filled: integer("filled").notNull().default(0),
+  // faction | location | thread | null
+  ownerKind: text("owner_kind"),
+  ownerId: text("owner_id"),
+  // in-world days per automatic tick; null = manual only
+  cadenceDays: integer("cadence_days"),
+  lastTickedDay: integer("last_ticked_day"),
+  // running | paused | complete
+  status: text("status").notNull().default("running"),
+  payoff: text("payoff"),
+  archived: integer("archived", { mode: "boolean" }).notNull().default(false),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+});
+
+export const timelineEvents = sqliteTable("timeline_events", {
+  id: text("id").primaryKey(),
+  campaignId: text("campaign_id").notNull().references(() => campaigns.id, { onDelete: "cascade" }),
+  day: integer("day").notNull(),
+  // thread_opened | thread_resolved | clock_ticked | clock_completed | date_advanced | session_played | note
+  kind: text("kind").notNull(),
+  title: text("title").notNull(),
+  body: text("body"),
+  // manual | proposal | cadence
+  sourceKind: text("source_kind").notNull().default("manual"),
+  threadId: text("thread_id"),
+  clockId: text("clock_id"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+});
+
+export const sessionReviews = sqliteTable("session_reviews", {
+  id: text("id").primaryKey(),
+  sessionNoteId: text("session_note_id").notNull(),
+  reviewedAt: integer("reviewed_at", { mode: "timestamp" }).notNull(),
+  contentHash: text("content_hash").notNull(),
+  proposalCount: integer("proposal_count").notNull().default(0),
+});
+
 export type Encounter = typeof encounters.$inferSelect;
 export type NewEncounter = typeof encounters.$inferInsert;
 export type Combatant = typeof combatants.$inferSelect;
@@ -274,3 +346,13 @@ export type ReferenceCollection = typeof referenceCollections.$inferSelect;
 export type NewReferenceCollection = typeof referenceCollections.$inferInsert;
 export type ReferenceChunk = typeof referenceChunks.$inferSelect;
 export type NewReferenceChunk = typeof referenceChunks.$inferInsert;
+export type Thread = typeof threads.$inferSelect;
+export type NewThread = typeof threads.$inferInsert;
+export type ThreadLink = typeof threadLinks.$inferSelect;
+export type NewThreadLink = typeof threadLinks.$inferInsert;
+export type Clock = typeof clocks.$inferSelect;
+export type NewClock = typeof clocks.$inferInsert;
+export type TimelineEvent = typeof timelineEvents.$inferSelect;
+export type NewTimelineEvent = typeof timelineEvents.$inferInsert;
+export type SessionReview = typeof sessionReviews.$inferSelect;
+export type NewSessionReview = typeof sessionReviews.$inferInsert;
