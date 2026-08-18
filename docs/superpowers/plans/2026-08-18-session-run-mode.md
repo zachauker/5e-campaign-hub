@@ -762,11 +762,11 @@ Existing campaigns have hundreds of rows that predate the index. Without a backf
 
 - [ ] **Step 1: Write the failing test**
 
-Append to `lib/run/search-index.test.ts`:
+Add `rebuildSearchIndex` to the existing `./search-index` import at the top of
+`lib/run/search-index.test.ts` — do not add a second import statement from the
+same module — then append:
 
 ```ts
-import { rebuildSearchIndex } from "./search-index";
-
 describe("rebuildSearchIndex", () => {
   it("indexes every entity, thread, and clock in the campaign", async () => {
     const { db, campaignId } = createTestDb();
@@ -899,7 +899,7 @@ export async function rebuildSearchIndex(db: StateDb, campaignId: string): Promi
 - [ ] **Step 4: Run the test**
 
 Run: `npx vitest run lib/run/search-index.test.ts`
-Expected: PASS, 12 tests.
+Expected: PASS, 18 tests (15 from Task 3 plus the 3 added here).
 
 - [ ] **Step 5: Commit**
 
