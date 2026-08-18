@@ -173,7 +173,7 @@ export function ThreadFormDialog({ campaignId, thread, open, onOpenChange, onSav
                 const editKind = isEditableKind(link.targetKind) ? link.targetKind : null;
                 const list = editKind ? (options[editKind] ?? []) : [];
                 return (
-                  <li key={i} className="flex items-center gap-2">
+                  <li key={i} className="flex flex-wrap items-center gap-2">
                     {editKind ? (
                       <>
                         <select
@@ -245,18 +245,19 @@ export function ThreadFormDialog({ campaignId, thread, open, onOpenChange, onSav
               })}
             </ul>
 
-            <div className="flex items-center gap-3">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setLinks((list) => [...list, { targetKind: "faction", targetId: "", role: "subject" }])}
-              >
-                Add a link
-              </Button>
-              <span className="text-xs text-muted-foreground">
-                {ROLES.map((r) => `${r}: ${ROLE_HINTS[r]}`).join(" · ")}
-              </span>
-            </div>
+            {/* Button and hint stacked, not side by side: the hint is long
+                enough that a flex row squeezes the button to two lines and
+                pushes the dialog into a horizontal scroll. */}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setLinks((list) => [...list, { targetKind: "faction", targetId: "", role: "subject" }])}
+            >
+              Add a link
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              {ROLES.map((r) => `${r}: ${ROLE_HINTS[r]}`).join(" · ")}
+            </p>
 
             {optionsError && (
               <p role="alert" className="text-sm text-destructive">
