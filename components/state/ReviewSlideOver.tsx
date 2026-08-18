@@ -110,6 +110,11 @@ export function ReviewSlideOver({
   const [summary, setSummary] = useState<{ proposalCount: number; rejectedCount: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
+  // Every proposal is a POST/PATCH that creates something. Without this, a
+  // double-click on Approve applies the same proposal twice — two identical
+  // threads, two ticks — because nothing removes it from the list until the
+  // first request comes back.
+  const [applying, setApplying] = useState(false);
   const [advanceSeed, setAdvanceSeed] = useState<number | null>(null);
   const [staleWarning, setStaleWarning] = useState(false);
   const reviewedHash = useRef<string | null>(null);
@@ -191,8 +196,14 @@ export function ReviewSlideOver({
   }
 
   async function approve(p: Proposal) {
-    if (await guardStale()) return;
-    await applyProposal(p);
+    if (applying) return;
+    setApplying(true);
+    try {
+      if (await guardStale()) return;
+      await applyProposal(p);
+    } finally {
+      setApplying(false);
+    }
   }
 
   function reject(p: Proposal) {
@@ -200,18 +211,24 @@ export function ReviewSlideOver({
   }
 
   async function approveAll() {
-    if (await guardStale()) return;
-    // Sequential, not parallel: each application is independent and one failure
-    // must not abort the rest.
-    let openedAdvance = false;
-    for (const p of [...proposals]) {
-      if (isDateAdvance(p)) {
-        // Only one advance dialog can be open at a time; any further date
-        // proposals stay in the list for a second pass.
-        if (openedAdvance) continue;
-        openedAdvance = true;
+    if (applying) return;
+    setApplying(true);
+    try {
+      if (await guardStale()) return;
+      // Sequential, not parallel: each application is independent and one failure
+      // must not abort the rest.
+      let openedAdvance = false;
+      for (const p of [...proposals]) {
+        if (isDateAdvance(p)) {
+          // Only one advance dialog can be open at a time; any further date
+          // proposals stay in the list for a second pass.
+          if (openedAdvance) continue;
+          openedAdvance = true;
+        }
+        await applyProposal(p);
       }
-      await applyProposal(p);
+    } finally {
+      setApplying(false);
     }
   }
 
@@ -276,10 +293,10 @@ export function ReviewSlideOver({
             )}
             <p className="mb-2 font-medium">{p.summary}</p>
             <div className="flex gap-2">
-              <Button size="sm" onClick={() => void approve(p)}>
-                {isDateAdvance(p) ? "Review ticks" : "Approve"}
+              <Button size="sm" disabled={applying} onClick={() => void approve(p)}>
+                {isDateAdvance(p) ? "Review ticks" : applying ? "Applying…" : "Approve"}
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => reject(p)}>
+              <Button size="sm" variant="ghost" disabled={applying} onClick={() => reject(p)}>
                 Reject
               </Button>
             </div>
@@ -319,8 +336,8 @@ export function ReviewSlideOver({
 
       {proposals.length > 1 && (
         <div className="border-t border-border p-3">
-          <Button className="w-full" onClick={() => void approveAll()}>
-            Approve all ({proposals.length})
+          <Button className="w-full" disabled={applying} onClick={() => void approveAll()}>
+            {applying ? "Applying…" : `Approve all (${proposals.length})`}
           </Button>
         </div>
       )}

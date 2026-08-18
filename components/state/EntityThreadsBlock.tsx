@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
 import { ClockDial } from "./ClockDial";
 import type { ThreadView, ClockView } from "./chronicle-types";
 
@@ -45,13 +46,22 @@ export function EntityThreadsBlock({
 }: EntityThreadsBlockProps) {
   const [threads, setThreads] = useState<ThreadView[]>([]);
   const [clocks, setClocks] = useState<ClockView[]>([]);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
     async function run() {
       const result = await fetchEntityThreadsAndClocks(campaignId, targetKind, targetId);
-      if (cancelled || !result.ok) return;
+      if (cancelled) return;
+      if (!result.ok) {
+        // Rendering nothing here would be indistinguishable from "this faction
+        // has no threads", so a DM would conclude the wrong thing about their
+        // own campaign from a transient fetch failure.
+        setError(true);
+        return;
+      }
+      setError(false);
       setThreads(result.threads);
       setClocks(result.clocks);
       onHasContentChange?.(result.threads.length > 0 || result.clocks.length > 0);
@@ -66,20 +76,38 @@ export function EntityThreadsBlock({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaignId, targetKind, targetId]);
 
+  if (error) {
+    return (
+      <p role="alert" className="text-sm text-destructive">
+        Could not load this {targetKind}&rsquo;s threads and clocks. Reload to try again.
+      </p>
+    );
+  }
+
   if (!threads.length && !clocks.length) return null;
 
   return (
     <section className="space-y-3">
       {threads.length > 0 && (
         <div>
+          {/* Not "Open threads": listThreadsForTarget excludes resolved and
+              abandoned but keeps dormant ones, so the count covered more than
+              the heading claimed. Dormant rows are marked individually below. */}
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Open threads ({threads.length})
+            Unresolved threads ({threads.length})
           </h3>
           <ul className="space-y-1.5">
             {threads.map((t) => (
               <li key={t.id} className="rounded-lg border border-border bg-card px-3 py-2 text-sm">
                 <div className="flex items-baseline justify-between gap-3">
-                  <span className="font-medium">{t.title}</span>
+                  <span className="font-medium">
+                    {t.title}
+                    {t.status !== "open" && (
+                      <Badge variant="outline" className="ml-2 text-[11px]">
+                        {t.status}
+                      </Badge>
+                    )}
+                  </span>
                   {t.daysUntouched !== null && (
                     <span className="flex-none text-xs tabular-nums text-muted-foreground">
                       {t.daysUntouched}d
