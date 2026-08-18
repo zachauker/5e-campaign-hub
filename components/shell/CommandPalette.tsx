@@ -39,9 +39,53 @@ export function CommandPalette() {
   useEffect(() => {
     if (!open) return;
     const url = activeCampaignId ? `/api/search?campaignId=${activeCampaignId}` : "/api/search";
-    fetch(url)
-      .then((r) => r.json())
-      .then(setAllResults);
+    // Threads are campaign-scoped data, unlike /api/search above (which tolerates
+    // a missing campaignId and returns everything). /api/threads requires
+    // campaignId, so without an active campaign we skip the fetch entirely
+    // rather than ever issuing an unscoped request — the cross-campaign leak
+    // this shell shipped once before came from exactly this file.
+    // Each half degrades on its own. Before this catch, a /api/threads failure
+    // rejected the Promise.all and left the palette with NO results at all —
+    // one new, optional source of results could blank entity search entirely.
+    const threadsPromise: Promise<{ id: string; title: string }[]> = activeCampaignId
+      ? fetch(`/api/threads?campaignId=${activeCampaignId}`)
+          .then((r) => (r.ok ? r.json() : { items: [] }))
+          .then((data: { items?: { id: string; title: string }[] }) => data.items ?? [])
+          .catch(() => [])
+      : Promise.resolve([]);
+
+    const entitiesPromise: Promise<SearchResult[]> = fetch(url)
+      .then((r) => (r.ok ? (r.json() as Promise<SearchResult[]>) : []))
+      .catch(() => []);
+
+    let cancelled = false;
+
+    Promise.all([entitiesPromise, threadsPromise]).then(
+      ([entities, threadItems]) => {
+        if (cancelled) return;
+        const threadResults: SearchResult[] = threadItems.map((t) => ({
+          id: t.id,
+          name: t.title,
+          type: "thread",
+          href: `/chronicle?campaignId=${activeCampaignId}`,
+        }));
+        const commands: SearchResult[] = activeCampaignId
+          ? [
+              {
+                id: "advance-in-world-date",
+                name: "Advance in-world date",
+                type: "action",
+                href: `/chronicle?campaignId=${activeCampaignId}&tab=timeline`,
+              },
+            ]
+          : [];
+        setAllResults([...entities, ...threadResults, ...commands]);
+      },
+    );
+
+    return () => {
+      cancelled = true;
+    };
   }, [open, activeCampaignId]);
 
   useEffect(() => {

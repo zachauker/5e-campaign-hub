@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Swords, Users, MapPin, Package, Shield, Command, Settings, Map, Globe, ScrollText } from "lucide-react";
+import { Swords, Users, MapPin, Package, Shield, Command, Settings, Map, Globe, ScrollText, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCampaignStore } from "@/lib/store/campaign-store";
 import { useUIStore } from "@/lib/store/ui-store";
@@ -20,6 +20,7 @@ const SECTIONS = [
   { href: "/items", label: "Items", icon: Package },
   { href: "/factions", label: "Factions", icon: Shield },
   { href: "/sessions", label: "Sessions", icon: ScrollText },
+  { href: "/chronicle", label: "Chronicle", icon: BookOpen },
   { href: "/world", label: "World", icon: Globe },
   { href: "/maps", label: "Maps", icon: Map },
 ];

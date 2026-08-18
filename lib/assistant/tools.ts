@@ -5,6 +5,9 @@ import { searchEntities, listEntities, getEntity, getRelationships, listMonsters
 import { buildEncounterProposal, buildEntityProposal, buildMarkerProposal, buildNotionSyncProposal } from "./proposals";
 import { searchReference } from "@/lib/reference/retrieve";
 import { embed, EMBED_DIMS } from "@/lib/reference/embed";
+import { listThreads } from "@/lib/state/threads";
+import { listClocks } from "@/lib/state/clocks";
+import { getCampaignDay } from "@/lib/state/advance";
 
 const kindEnum = z.enum(["character", "location", "item", "faction"]);
 const j = (v: unknown) => JSON.stringify(v);
@@ -52,6 +55,18 @@ export function buildTools(db: AppDb, campaignId: string) {
       description: "Search indexed rulebooks and setting sourcebooks (SRD rules, loaded campaign-setting books, the DM's homebrew notes) for rules, mechanics, or published-setting lore. Call this for ANY rules/mechanics question or published-setting question, and cite the returned sources in your answer. Prefer this over answering rules from memory. Returns passages with a `sourceRef` citation each.",
       inputSchema: z.object({ query: z.string(), collection: z.string().optional() }),
       run: async ({ query, collection }) => j(await searchReference(db, { query, embed, collection, dims: EMBED_DIMS })),
+    }),
+    betaZodTool({
+      name: "list_open_threads",
+      description: "List the campaign's open plot threads with their stakes and how long each has gone untouched. Use for 'what's still unresolved' questions.",
+      inputSchema: z.object({}),
+      run: async () => j(await listThreads(db, campaignId, { currentDay: await getCampaignDay(db, campaignId) })),
+    }),
+    betaZodTool({
+      name: "list_clocks",
+      description: "List the campaign's progress clocks with filled/segments, owner, and status. Use for 'how close is X' questions.",
+      inputSchema: z.object({}),
+      run: async () => j(await listClocks(db, campaignId)),
     }),
     betaZodTool({
       name: "propose_encounter",
