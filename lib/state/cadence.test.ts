@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeDueTicks, type ClockLike } from "./cadence";
+import { computeDueTicks, declinedLastTickedDay, type ClockLike } from "./cadence";
 
 const clock = (over: Partial<ClockLike> = {}): ClockLike => ({
   id: "c1",
@@ -82,8 +82,7 @@ describe("computeDueTicks", () => {
 });
 
 describe("declinedLastTickedDay", () => {
-  it("skips a declined tick forward so it is not re-proposed", async () => {
-    const { declinedLastTickedDay } = await import("./cadence");
+  it("skips a declined tick forward so it is not re-proposed", () => {
     expect(declinedLastTickedDay(120)).toBe(120);
   });
 });

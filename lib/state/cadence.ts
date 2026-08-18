@@ -58,6 +58,7 @@ export function computeDueTicks(clocks: ClockLike[], toDay: number): DueTick[] {
       elapsedDays,
       fromFilled: c.filled,
       toFilled: c.filled + ticks,
+      // Whole cadence periods only, never toDay — see DueTick.nextLastTickedDay.
       nextLastTickedDay: c.lastTickedDay + ticks * c.cadenceDays,
       completes: c.filled + ticks >= c.segments,
     });
