@@ -4,12 +4,13 @@ import { generateId } from "@/lib/utils";
 import { recordEvent, type SourceKind } from "./timeline";
 import { NotFoundError } from "./errors";
 import type { ClockStatus } from "./cadence";
+import { CLOCK_SEGMENT_CHOICES, CLOCK_STATUSES, type ClockOwnerKind } from "./clock-constants";
 import type { StateDb } from "./types";
 
-export const CLOCK_STATUSES: ClockStatus[] = ["running", "paused", "complete"];
-export const CLOCK_SEGMENT_CHOICES = [4, 6, 8, 12] as const;
-
-export type ClockOwnerKind = "faction" | "location" | "thread";
+// Re-exported so existing server-side importers are unaffected by the split;
+// see clock-constants.ts for why the client imports it directly instead.
+export { CLOCK_STATUSES, CLOCK_SEGMENT_CHOICES } from "./clock-constants";
+export type { ClockOwnerKind } from "./clock-constants";
 
 export interface CreateClockInput {
   campaignId: string;
