@@ -1,5 +1,18 @@
 import { describe, it, expect } from "vitest";
-import { buildEncounterProposal, buildEntityProposal, buildMarkerProposal, buildNotionSyncProposal, assertHubAuthored, HUB_AUTHORED } from "./proposals";
+import {
+  buildEncounterProposal,
+  buildEntityProposal,
+  buildMarkerProposal,
+  buildNotionSyncProposal,
+  assertHubAuthored,
+  HUB_AUTHORED,
+  assertCitation,
+  normalizeForCitation,
+  buildThreadOpenProposal,
+  buildThreadResolveProposal,
+  buildClockTickProposal,
+  buildDateAdvanceProposal,
+} from "./proposals";
 
 describe("assertHubAuthored", () => {
   it("rejects Notion-synced fields", () => {
@@ -57,5 +70,96 @@ describe("buildMarkerProposal + buildNotionSyncProposal", () => {
   it("sync -> POST /api/notion/sync", () => {
     const p = buildNotionSyncProposal("camp1");
     expect(p).toMatchObject({ targetRoute: "/api/notion/sync", method: "POST", payload: { campaignId: "camp1" } });
+  });
+});
+
+const NOTES = `The party cornered Ovid in the Pentamarket. He admitted the contract came
+through a broker in Zadash, but died before naming them. Nine days pass on the road east.`;
+
+describe("normalizeForCitation", () => {
+  it("lowercases, strips punctuation, and collapses whitespace", () => {
+    expect(normalizeForCitation("  He ADMITTED the contract,\n came through!  ")).toBe(
+      "he admitted the contract came through",
+    );
+  });
+});
+
+describe("assertCitation", () => {
+  it("accepts a verbatim quote", () => {
+    expect(() => assertCitation("the contract came through a broker in Zadash", NOTES)).not.toThrow();
+  });
+  it("accepts a quote differing only in case, punctuation, and line breaks", () => {
+    expect(() => assertCitation("He admitted the contract\ncame through a BROKER!", NOTES)).not.toThrow();
+  });
+  it("rejects a paraphrase that is not in the notes", () => {
+    expect(() => assertCitation("Ovid revealed the name of his employer", NOTES)).toThrow(/not found/i);
+  });
+  it("rejects an empty or too-short citation", () => {
+    expect(() => assertCitation("", NOTES)).toThrow(/at least/i);
+    expect(() => assertCitation("Ovid died", NOTES)).toThrow(/at least/i);
+  });
+});
+
+describe("buildThreadOpenProposal", () => {
+  it("targets the threads route and carries the citation", () => {
+    const p = buildThreadOpenProposal("camp1", {
+      title: "Who is the Zadash broker?",
+      stakes: "The contract holder is still hunting the party.",
+      citation: "the contract came through a broker in Zadash",
+      links: [{ targetKind: "location", targetId: "loc-zadash", role: "subject" }],
+    }, NOTES);
+
+    expect(p).toMatchObject({ targetRoute: "/api/threads", method: "POST" });
+    expect(p.payload).toMatchObject({ campaignId: "camp1", sourceKind: "proposal" });
+    expect(p.payload.links).toHaveLength(1);
+    expect(p.citation).toContain("broker in Zadash");
+    expect(p.summary).toContain("Who is the Zadash broker?");
+  });
+
+  it("throws when the citation is not in the notes", () => {
+    expect(() =>
+      buildThreadOpenProposal("camp1", { title: "T", citation: "totally invented sentence here", links: [] }, NOTES),
+    ).toThrow(/not found/i);
+  });
+});
+
+describe("buildThreadResolveProposal", () => {
+  it("PATCHes the thread to resolved", () => {
+    const p = buildThreadResolveProposal(
+      { threadId: "t1", threadTitle: "Find Ovid", citation: "The party cornered Ovid in the Pentamarket" },
+      NOTES,
+    );
+    expect(p).toMatchObject({ targetRoute: "/api/threads/t1", method: "PATCH" });
+    expect(p.payload).toMatchObject({ status: "resolved" });
+    expect(p.summary).toContain("Find Ovid");
+  });
+});
+
+describe("buildClockTickProposal", () => {
+  it("sends a delta, never an absolute filled value", () => {
+    const p = buildClockTickProposal(
+      { clockId: "c1", clockName: "Assembly investigation", delta: 1, reason: "Ovid's death draws attention", citation: "He admitted the contract came through a broker" },
+      NOTES,
+    );
+    expect(p).toMatchObject({ targetRoute: "/api/clocks/c1/tick", method: "POST" });
+    expect(p.payload).toMatchObject({ delta: 1, sourceKind: "proposal" });
+    expect(p.payload).not.toHaveProperty("filled");
+    expect(p.summary).toContain("+1");
+  });
+
+  it("rejects a zero or non-integer delta", () => {
+    const base = { clockId: "c1", clockName: "C", citation: "the contract came through a broker in Zadash" };
+    expect(() => buildClockTickProposal({ ...base, delta: 0 }, NOTES)).toThrow(/delta/);
+    expect(() => buildClockTickProposal({ ...base, delta: 1.5 }, NOTES)).toThrow(/delta/);
+  });
+});
+
+describe("buildDateAdvanceProposal", () => {
+  it("proposes a preview, not a blind apply", () => {
+    const p = buildDateAdvanceProposal("camp1", { toDay: 276_009, days: 9, citation: "Nine days pass on the road east" }, NOTES);
+    expect(p).toMatchObject({ targetRoute: "/api/campaigns/camp1/advance-date", method: "POST" });
+    expect(p.payload).toEqual({ toDay: 276_009 });
+    expect(p.payload).not.toHaveProperty("apply");
+    expect(p.summary).toContain("9");
   });
 });
