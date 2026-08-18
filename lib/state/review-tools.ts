@@ -56,7 +56,7 @@ export function buildReviewTools(ctx: ReviewToolsContext) {
 
     betaZodTool({
       name: "propose_thread_open",
-      description: "Propose opening a new plot thread that this session raised. Does NOT create it. `citation` MUST be copied verbatim from the session notes — paraphrase is rejected.",
+      description: "Propose opening a new plot thread that this session raised. Does NOT create it. `citation` MUST be copied verbatim from the session notes — paraphrase is rejected. If the citation cannot be matched this returns `{rejected: true, error}` — fix the quote from the notes and call again; nothing is written either way. Call list_open_threads first — if the session advances an existing thread rather than raising a new one, do not open a duplicate.",
       inputSchema: z.object({
         title: z.string(),
         stakes: z.string().optional(),
@@ -73,13 +73,17 @@ export function buildReviewTools(ctx: ReviewToolsContext) {
     }),
     betaZodTool({
       name: "propose_thread_resolve",
-      description: "Propose marking an existing thread resolved because this session answered it. Get the id from list_open_threads. `citation` MUST be verbatim from the session notes.",
+      description: "Propose marking an existing thread resolved because this session answered it. Get the id from list_open_threads. `citation` MUST be verbatim from the session notes. If the citation cannot be matched this returns `{rejected: true, error}` — fix the quote from the notes and call again; nothing is written either way.",
       inputSchema: z.object({ threadId: z.string(), citation: z.string() }),
       run: async ({ threadId, citation }) => {
         try {
           const open = await listThreads(db, campaignId, { currentDay });
           const thread = open.find((t) => t.id === threadId);
-          if (!thread) throw new Error(`unknown thread id: ${threadId}`);
+          if (!thread) {
+            throw new Error(
+              `unknown thread id: ${threadId} — it is not in the open list. It may already be resolved or archived. Call list_open_threads and use an id from that result.`,
+            );
+          }
           return j({
             proposal: buildThreadResolveProposal(
               { threadId, threadTitle: thread.title, resolvedSessionId: sessionNoteId, citation },
@@ -93,7 +97,7 @@ export function buildReviewTools(ctx: ReviewToolsContext) {
     }),
     betaZodTool({
       name: "propose_clock_tick",
-      description: "Propose moving a clock by a delta (never an absolute value) because of what happened this session. Get the id from list_clocks. `citation` MUST be verbatim from the session notes.",
+      description: "Propose moving a clock by a delta (never an absolute value) because of what happened this session. `delta` must be a non-zero integer — 0 is always rejected. Get the id from list_clocks. `citation` MUST be verbatim from the session notes. If the citation cannot be matched this returns `{rejected: true, error}` — fix the quote from the notes and call again; nothing is written either way.",
       inputSchema: z.object({
         clockId: z.string(),
         delta: z.number().int(),
@@ -104,7 +108,11 @@ export function buildReviewTools(ctx: ReviewToolsContext) {
         try {
           const all = await listClocks(db, campaignId);
           const clock = all.find((c) => c.id === clockId);
-          if (!clock) throw new Error(`unknown clock id: ${clockId}`);
+          if (!clock) {
+            throw new Error(
+              `unknown clock id: ${clockId} — it is not in the clock list. It may already be archived. Call list_clocks and use an id from that result.`,
+            );
+          }
           return j({
             proposal: buildClockTickProposal(
               { clockId, clockName: clock.name, delta, reason, citation },
@@ -118,11 +126,15 @@ export function buildReviewTools(ctx: ReviewToolsContext) {
     }),
     betaZodTool({
       name: "propose_date_advance",
-      description: "Propose advancing in-world time by a number of days that passed during this session. `citation` MUST be verbatim from the session notes. Which clocks tick is the DM's call, not yours.",
+      description: "Propose advancing in-world time by a number of days that passed during this session. `citation` MUST be verbatim from the session notes. Which clocks tick is the DM's call, not yours. If the citation cannot be matched this returns `{rejected: true, error}` — fix the quote from the notes and call again; nothing is written either way.",
       inputSchema: z.object({ days: z.number().int(), citation: z.string() }),
       run: async ({ days, citation }) => {
         try {
-          if (currentDay === null) throw new Error("the campaign has no in-world date set yet");
+          if (currentDay === null) {
+            throw new Error(
+              "the campaign has no in-world date set yet. Only the DM can set a starting date — do not retry this call. Mention in your summary that a date needs to be set.",
+            );
+          }
           if (!Number.isInteger(days) || days <= 0) throw new Error(`days must be a positive integer, got ${days}`);
           return j({
             proposal: buildDateAdvanceProposal(campaignId, { toDay: currentDay + days, days, citation }, sourceText),

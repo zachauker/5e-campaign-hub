@@ -12,6 +12,21 @@ async function ctx() {
   const { db, campaignId } = createTestDb();
   await setDate(db, campaignId, 276_000, "P.D.");
   const tools = buildReviewTools({ db, campaignId, sourceText: NOTES, sessionNoteId: "s1", currentDay: 276_000 });
+  // NOTE: this calls `tool.run` directly, skipping the zod `parse` step the
+  // SDK's tool runner performs in production (parse(input) then run(input)).
+  // Unknown-key stripping and schema coercion are therefore untested here —
+  // this harness only exercises `run`'s own logic, not input validation.
+  const call = async (name: string, input: unknown) => {
+    const tool = tools.find((t) => t.name === name)!;
+    const run = tool.run as (i: unknown) => Promise<string>;
+    return JSON.parse(await run(input));
+  };
+  return { db, campaignId, tools, call };
+}
+
+async function ctxNoDate() {
+  const { db, campaignId } = createTestDb();
+  const tools = buildReviewTools({ db, campaignId, sourceText: NOTES, sessionNoteId: "s1", currentDay: null });
   const call = async (name: string, input: unknown) => {
     const tool = tools.find((t) => t.name === name)!;
     const run = tool.run as (i: unknown) => Promise<string>;
@@ -96,6 +111,55 @@ describe("buildReviewTools", () => {
     });
     expect(out.rejected).toBe(true);
     expect(out.error).toMatch(/unknown thread/i);
+  });
+
+  // Mutation-testing gap: the tools above only ever exercised assertCitation
+  // with a VALID citation. A reviewer found that swapping the model-controlled
+  // `citation` in for the server-fetched `sourceText` argument (so the gate
+  // validates the model's own quote against itself) passed the whole suite for
+  // propose_thread_resolve, propose_clock_tick, and propose_date_advance — only
+  // propose_thread_open had a bad-citation case to catch it. These four tests
+  // close that gap: each uses a valid, EXISTING id so the id lookup succeeds
+  // and the call actually reaches assertCitation with an ungrounded quote.
+
+  it("propose_thread_resolve rejects an ungrounded citation for a real thread", async () => {
+    const { db, campaignId, call } = await ctx();
+    const t = await createThread(db, { campaignId, title: "Find Ovid", currentDay: 275_990 });
+    const out = await call("propose_thread_resolve", {
+      threadId: t.id, citation: "this sentence was never written in the notes",
+    });
+    expect(out.rejected).toBe(true);
+    expect(out.error).toMatch(/not found/i);
+    expect(out.proposal).toBeUndefined();
+  });
+
+  it("propose_clock_tick rejects an ungrounded citation for a real clock", async () => {
+    const { db, campaignId, call } = await ctx();
+    const c = await createClock(db, { campaignId, name: "Assembly", currentDay: 276_000 });
+    const out = await call("propose_clock_tick", {
+      clockId: c.id, delta: 1, citation: "this sentence was never written in the notes",
+    });
+    expect(out.rejected).toBe(true);
+    expect(out.error).toMatch(/not found/i);
+    expect(out.proposal).toBeUndefined();
+  });
+
+  it("propose_date_advance rejects an ungrounded citation", async () => {
+    const { call } = await ctx();
+    const out = await call("propose_date_advance", {
+      days: 9, citation: "this sentence was never written in the notes",
+    });
+    expect(out.rejected).toBe(true);
+    expect(out.error).toMatch(/not found/i);
+    expect(out.proposal).toBeUndefined();
+  });
+
+  it("propose_date_advance rejects when the campaign has no in-world date set", async () => {
+    const { call } = await ctxNoDate();
+    const out = await call("propose_date_advance", { days: 9, citation: "Nine days pass on the road east" });
+    expect(out.rejected).toBe(true);
+    expect(out.error).toMatch(/no in-world date/i);
+    expect(out.proposal).toBeUndefined();
   });
 
   it("propose_date_advance converts elapsed days into an absolute toDay", async () => {
