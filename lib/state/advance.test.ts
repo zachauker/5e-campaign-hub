@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { eq } from "drizzle-orm";
 import { createTestDb } from "@/lib/notion/test-helpers";
-import { campaigns, clocks, timelineEvents } from "@/lib/db/schema";
+import { clocks, timelineEvents } from "@/lib/db/schema";
 import { createClock } from "./clocks";
 import { previewAdvance, applyAdvance, setDate, getCampaignDay } from "./advance";
 
