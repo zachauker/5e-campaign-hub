@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { clocks } from "@/lib/db/schema";
 import { generateId } from "@/lib/utils";
 import { recordEvent, type SourceKind } from "./timeline";
+import { NotFoundError } from "./errors";
 import type { ClockStatus } from "./cadence";
 import type { StateDb } from "./types";
 
@@ -79,7 +80,7 @@ export async function createClock(db: StateDb, input: CreateClockInput) {
 
 export async function updateClock(db: StateDb, id: string, input: UpdateClockInput) {
   const existing = await db.query.clocks.findFirst({ where: eq(clocks.id, id) });
-  if (!existing) throw new Error(`clock not found: ${id}`);
+  if (!existing) throw new NotFoundError(`clock not found: ${id}`);
 
   if (input.status && !CLOCK_STATUSES.includes(input.status)) {
     throw new Error(`invalid clock status: ${input.status}`);
@@ -124,7 +125,7 @@ export async function updateClock(db: StateDb, id: string, input: UpdateClockInp
  */
 export async function applyTick(db: StateDb, id: string, input: ApplyTickInput) {
   const existing = await db.query.clocks.findFirst({ where: eq(clocks.id, id) });
-  if (!existing) throw new Error(`clock not found: ${id}`);
+  if (!existing) throw new NotFoundError(`clock not found: ${id}`);
 
   if (!Number.isInteger(input.delta) || input.delta === 0) {
     throw new Error(`delta must be a non-zero integer, got ${input.delta}`);

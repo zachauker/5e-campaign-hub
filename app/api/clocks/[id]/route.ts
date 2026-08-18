@@ -3,9 +3,10 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { clocks } from "@/lib/db/schema";
 import { updateClock } from "@/lib/state/clocks";
+import { NotFoundError, toClientErrorMessage } from "@/lib/state/errors";
 import type { StateDb } from "@/lib/state/types";
 
-const sdb = db as unknown as StateDb;
+const sdb: StateDb = db;
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -23,8 +24,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       }),
     );
   } catch (err) {
-    const msg = (err as Error).message;
-    return NextResponse.json({ error: msg }, { status: /not found/i.test(msg) ? 404 : 400 });
+    const status = err instanceof NotFoundError ? 404 : 400;
+    return NextResponse.json({ error: toClientErrorMessage(err) }, { status });
   }
 }
 

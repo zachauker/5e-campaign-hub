@@ -2,6 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { threads, threadLinks } from "@/lib/db/schema";
 import { generateId } from "@/lib/utils";
 import { recordEvent, type SourceKind } from "./timeline";
+import { NotFoundError } from "./errors";
 import type { StateDb } from "./types";
 
 export type ThreadStatus = "open" | "dormant" | "resolved" | "abandoned";
@@ -9,6 +10,27 @@ export const THREAD_STATUSES: ThreadStatus[] = ["open", "dormant", "resolved", "
 
 export type ThreadTargetKind = "character" | "location" | "item" | "faction" | "session";
 export type ThreadLinkRole = "subject" | "stakeholder" | "obstacle";
+
+// Derived from the ThreadTargetKind/ThreadLinkRole unions via an exhaustiveness
+// check: the Record literal must have exactly one key per union member, so
+// adding a member to either type without updating the matching record below
+// is a compile error. Object.keys then gives us the runtime array that
+// writeLinks validates client-supplied link data against.
+const THREAD_TARGET_KIND_SET: Record<ThreadTargetKind, true> = {
+  character: true,
+  location: true,
+  item: true,
+  faction: true,
+  session: true,
+};
+export const THREAD_TARGET_KINDS = Object.keys(THREAD_TARGET_KIND_SET) as ThreadTargetKind[];
+
+const THREAD_LINK_ROLE_SET: Record<ThreadLinkRole, true> = {
+  subject: true,
+  stakeholder: true,
+  obstacle: true,
+};
+export const THREAD_LINK_ROLES = Object.keys(THREAD_LINK_ROLE_SET) as ThreadLinkRole[];
 
 export interface ThreadLinkInput {
   targetKind: ThreadTargetKind;
@@ -93,7 +115,7 @@ export async function createThread(db: StateDb, input: CreateThreadInput) {
 
 export async function updateThread(db: StateDb, id: string, input: UpdateThreadInput) {
   const existing = await db.query.threads.findFirst({ where: eq(threads.id, id) });
-  if (!existing) throw new Error(`thread not found: ${id}`);
+  if (!existing) throw new NotFoundError(`thread not found: ${id}`);
 
   if (input.status && !THREAD_STATUSES.includes(input.status)) {
     throw new Error(`invalid thread status: ${input.status}`);
@@ -209,12 +231,25 @@ export async function listThreadsForTarget(
 
 async function writeLinks(db: StateDb, threadId: string, links: ThreadLinkInput[]): Promise<void> {
   for (const link of links) {
+    if (!THREAD_TARGET_KINDS.includes(link.targetKind)) {
+      throw new Error(
+        `invalid thread link targetKind: ${link.targetKind} (expected one of ${THREAD_TARGET_KINDS.join(", ")})`,
+      );
+    }
+
+    const role = link.role ?? "subject";
+    if (!THREAD_LINK_ROLES.includes(role)) {
+      throw new Error(
+        `invalid thread link role: ${role} (expected one of ${THREAD_LINK_ROLES.join(", ")})`,
+      );
+    }
+
     await db.insert(threadLinks).values({
       id: generateId(),
       threadId,
       targetKind: link.targetKind,
       targetId: link.targetId,
-      role: link.role ?? "subject",
+      role,
     });
   }
 }

@@ -42,6 +42,37 @@ describe("createThread", () => {
     await expect(createThread(db, { campaignId, title: "   ", currentDay: 5 })).rejects.toThrow(/title/);
   });
 
+  it("rejects a link with an unknown targetKind", async () => {
+    const { db, campaignId } = createTestDb();
+    await expect(
+      createThread(db, {
+        campaignId, title: "T", currentDay: 5,
+        links: [{ targetKind: "not-a-real-kind" as never, targetId: "xyz", role: "subject" }],
+      }),
+    ).rejects.toThrow(/targetKind/);
+  });
+
+  it("rejects a link with an unknown role", async () => {
+    const { db, campaignId } = createTestDb();
+    await expect(
+      createThread(db, {
+        campaignId, title: "T", currentDay: 5,
+        links: [{ targetKind: "faction", targetId: "xyz", role: "not-a-real-role" as never }],
+      }),
+    ).rejects.toThrow(/role/);
+  });
+
+  it("defaults an omitted link role to subject", async () => {
+    const { db, campaignId } = createTestDb();
+    const t = await createThread(db, {
+      campaignId, title: "T", currentDay: 5,
+      links: [{ targetKind: "faction", targetId: "f1" }],
+    });
+    const links = db.select().from(threadLinks).where(eq(threadLinks.threadId, t.id)).all();
+    expect(links).toHaveLength(1);
+    expect(links[0].role).toBe("subject");
+  });
+
   it("tolerates a null current day before the campaign date is set", async () => {
     const { db, campaignId } = createTestDb();
     const t = await createThread(db, { campaignId, title: "T", currentDay: null });

@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { previewAdvance, applyAdvance } from "@/lib/state/advance";
+import { toClientErrorMessage } from "@/lib/state/errors";
 import type { StateDb } from "@/lib/state/types";
 
-const sdb = db as unknown as StateDb;
+const sdb: StateDb = db;
 
 /**
  * Without `apply`, this previews and mutates nothing. With
@@ -22,6 +23,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const clockIds: string[] = Array.isArray(body.apply.clockIds) ? body.apply.clockIds : [];
     return NextResponse.json(await applyAdvance(sdb, id, body.toDay, clockIds));
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 400 });
+    return NextResponse.json({ error: toClientErrorMessage(err) }, { status: 400 });
   }
 }

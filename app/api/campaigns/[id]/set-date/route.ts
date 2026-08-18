@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { setDate } from "@/lib/state/advance";
+import { toClientErrorMessage } from "@/lib/state/errors";
 import type { StateDb } from "@/lib/state/types";
 
-const sdb = db as unknown as StateDb;
+const sdb: StateDb = db;
 
 /** Correction path: sets the date with NO cadence processing. */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -18,6 +19,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     await setDate(sdb, id, body.day, typeof body.epochLabel === "string" ? body.epochLabel : "");
     return NextResponse.json({ ok: true, day: body.day });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 400 });
+    return NextResponse.json({ error: toClientErrorMessage(err) }, { status: 400 });
   }
 }

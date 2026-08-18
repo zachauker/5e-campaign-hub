@@ -8,7 +8,7 @@ import { getCampaignDay, getCampaignEpochLabel } from "@/lib/state/advance";
 import { formatInWorldDay } from "@/lib/calendar/exandria";
 import type { StateDb } from "@/lib/state/types";
 
-const sdb = db as unknown as StateDb;
+const sdb: StateDb = db;
 
 /** Everything /chronicle needs in one round trip. */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
