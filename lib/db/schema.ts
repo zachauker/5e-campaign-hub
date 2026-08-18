@@ -63,6 +63,7 @@ export const characterLibrary = sqliteTable("character_library", {
 export const campaigns = sqliteTable("campaigns", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
+  // Absolute integer day number (not a timestamp) rendered by lib/calendar/exandria.ts.
   inWorldDay: integer("in_world_day"),
   calendarEpochLabel: text("calendar_epoch_label"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
@@ -253,6 +254,8 @@ export const threads = sqliteTable("threads", {
   stakes: text("stakes"),
   // open | dormant | resolved | abandoned. Set manually; nothing auto-dormants on staleness.
   status: text("status").notNull().default("open"),
+  // Deliberately no .references(): deleting the session note that opened/resolved
+  // this thread must not cascade away the thread's history. Ids may dangle.
   openedSessionId: text("opened_session_id"),
   resolvedSessionId: text("resolved_session_id"),
   openedOnDay: integer("opened_on_day"),
@@ -268,6 +271,8 @@ export const threadLinks = sqliteTable("thread_links", {
   threadId: text("thread_id").notNull().references(() => threads.id, { onDelete: "cascade" }),
   // character | location | item | faction | session
   targetKind: text("target_kind").notNull(),
+  // Polymorphic (its table depends on targetKind), so it cannot carry a single
+  // FK target. No .references() by design. Ids may dangle.
   targetId: text("target_id").notNull(),
   // subject | stakeholder | obstacle
   role: text("role").notNull().default("subject"),
@@ -303,6 +308,8 @@ export const timelineEvents = sqliteTable("timeline_events", {
   body: text("body"),
   // manual | proposal | cadence
   sourceKind: text("source_kind").notNull().default("manual"),
+  // Deliberately no .references(): deleting a thread or clock must not cascade
+  // away timeline history. Ids may dangle.
   threadId: text("thread_id"),
   clockId: text("clock_id"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),

@@ -230,6 +230,8 @@ export function runMigrations() {
       title TEXT NOT NULL,
       stakes TEXT,
       status TEXT NOT NULL DEFAULT 'open',
+      -- No REFERENCES: deleting the session note that opened/resolved this thread
+      -- must not cascade away the thread's history. Ids may dangle.
       opened_session_id TEXT,
       resolved_session_id TEXT,
       opened_on_day INTEGER,
@@ -244,6 +246,8 @@ export function runMigrations() {
       id TEXT PRIMARY KEY,
       thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
       target_kind TEXT NOT NULL,
+      -- Polymorphic (its table depends on target_kind), so it cannot carry a
+      -- single REFERENCES target. No FK by design. Ids may dangle.
       target_id TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'subject'
     );
@@ -273,6 +277,8 @@ export function runMigrations() {
       title TEXT NOT NULL,
       body TEXT,
       source_kind TEXT NOT NULL DEFAULT 'manual',
+      -- No REFERENCES: deleting a thread or clock must not cascade away
+      -- timeline history. Ids may dangle.
       thread_id TEXT,
       clock_id TEXT,
       created_at INTEGER NOT NULL
@@ -315,6 +321,8 @@ export function runMigrations() {
   addColumnIfMissing("map_markers", "label_size", "TEXT");
   addColumnIfMissing("map_markers", "color", "TEXT");
   addColumnIfMissing("reference_collections", "notes", "TEXT");
+  // in_world_day is an absolute integer day number (not a timestamp) rendered
+  // by lib/calendar/exandria.ts.
   addColumnIfMissing("campaigns", "in_world_day", "INTEGER");
   addColumnIfMissing("campaigns", "calendar_epoch_label", "TEXT");
   addColumnIfMissing("locations", "type", "TEXT NOT NULL DEFAULT 'other'");
