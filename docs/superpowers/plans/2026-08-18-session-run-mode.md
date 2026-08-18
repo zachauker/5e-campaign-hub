@@ -1029,7 +1029,40 @@ In `components/shell/CommandPalette.tsx`, replace the `useEffect` that fetches r
   }, [open, query, activeCampaignId]);
 ```
 
-Then find where `allResults` is filtered client-side (a `useMemo` filtering on `query`) and change it to pass `allResults` through unchanged — the server already filtered. If the memo also caps the list length, keep the cap.
+- [ ] **Step 2b: Keep the command entry the palette already had**
+
+The existing component injects a client-side command result alongside entity
+results — `Advance in-world date`, typed `"action"`, pointing at the chronicle
+timeline tab — and caps the merged list at 8. That command is **not** a row in
+the search index and never will be, so the server cannot return it. Dropping it
+would quietly delete a #18 feature from the palette.
+
+Replace the existing `results` memo with one that merges the two sources:
+
+```tsx
+  const results = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    // Entities, threads and clocks arrive already filtered from /api/search.
+    // Commands are client-side only — they are not rows in the search index —
+    // so they still need matching here.
+    const commands: SearchResult[] =
+      activeCampaignId && q
+        ? [
+            {
+              id: "advance-in-world-date",
+              name: "Advance in-world date",
+              type: "action",
+              href: `/chronicle?campaignId=${activeCampaignId}&tab=timeline`,
+            },
+          ].filter((c) => c.name.toLowerCase().includes(q))
+        : [];
+    return [...allResults, ...commands].slice(0, 8);
+  }, [query, allResults, activeCampaignId]);
+```
+
+Do not filter `allResults` here — the server already did, and re-filtering on a
+substring would discard the fallback matches (a DM typing `aljinn` gets `Al'Jinn`
+from the server, which `"al'jinn".includes("aljinn")` would then throw away).
 
 - [ ] **Step 3: Verify types and lint**
 
