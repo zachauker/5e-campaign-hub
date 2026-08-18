@@ -152,6 +152,30 @@ describe("buildClockTickProposal", () => {
     expect(() => buildClockTickProposal({ ...base, delta: 0 }, NOTES)).toThrow(/delta/);
     expect(() => buildClockTickProposal({ ...base, delta: 1.5 }, NOTES)).toThrow(/delta/);
   });
+
+  it("formats a negative delta in the summary and payload", () => {
+    const p = buildClockTickProposal(
+      { clockId: "c1", clockName: "C", delta: -2, citation: "the contract came through a broker in Zadash" },
+      NOTES,
+    );
+    expect(p.summary).toContain("-2");
+    expect(p.payload).toMatchObject({ delta: -2 });
+  });
+
+  it("rejects an ungrounded citation (assertCitation must actually be called)", () => {
+    expect(() =>
+      buildClockTickProposal({ clockId: "c1", clockName: "C", delta: 1, citation: "totally invented sentence here" }, NOTES),
+    ).toThrow(/not found/i);
+  });
+
+  it("rejects a path-traversal clockId before it can reach targetRoute", () => {
+    expect(() =>
+      buildClockTickProposal(
+        { clockId: "../campaigns/camp1/set-date", clockName: "C", delta: 1, citation: "the contract came through a broker in Zadash" },
+        NOTES,
+      ),
+    ).toThrow(/invalid/i);
+  });
 });
 
 describe("buildDateAdvanceProposal", () => {
@@ -161,5 +185,60 @@ describe("buildDateAdvanceProposal", () => {
     expect(p.payload).toEqual({ toDay: 276_009 });
     expect(p.payload).not.toHaveProperty("apply");
     expect(p.summary).toContain("9");
+  });
+
+  it("rejects an ungrounded citation (assertCitation must actually be called)", () => {
+    expect(() =>
+      buildDateAdvanceProposal("camp1", { toDay: 1, days: 1, citation: "totally invented sentence here" }, NOTES),
+    ).toThrow(/not found/i);
+  });
+
+  it("rejects a path-traversal campaignId before it can reach targetRoute", () => {
+    expect(() =>
+      buildDateAdvanceProposal("../campaigns/camp1/set-date", { toDay: 1, days: 1, citation: "Nine days pass on the road east" }, NOTES),
+    ).toThrow(/invalid/i);
+  });
+});
+
+describe("citation hardening", () => {
+  it("counts only tokens with at least two letters toward the 4-word minimum", () => {
+    // "Ovid's dead-drop" is two real words once punctuation-splitting is discounted.
+    expect(() => assertCitation("Ovid's dead-drop", "Ovid's dead-drop was near the market.")).toThrow(/at least/i);
+    // A bare timestamp shouldn't satisfy the gate on its own either.
+    expect(() => assertCitation("2026-08-18T09:20:08", "The timestamp was 2026-08-18T09:20:08 exactly.")).toThrow(/at least/i);
+  });
+
+  it("accepts exactly the 4-word minimum and rejects one word short", () => {
+    expect(() => assertCitation("the contract came through", NOTES)).not.toThrow();
+    expect(() => assertCitation("the contract came", NOTES)).toThrow(/at least/i);
+  });
+
+  it("rejects a non-string citation and a non-string sourceText without a raw TypeError", () => {
+    // @ts-expect-error deliberately wrong type, simulating an unvalidated tool call
+    expect(() => assertCitation(123, NOTES)).toThrow(/at least/i);
+    // @ts-expect-error deliberately wrong type
+    expect(() => assertCitation("the contract came through", undefined)).toThrow(/must be a string/i);
+  });
+
+  it("stores the matched slice of the source text, not the model's citation string", () => {
+    const modelCitation = "HE ADMITTED the contract\ncame through a BROKER!";
+    const p = buildThreadOpenProposal("camp1", { title: "T", citation: modelCitation, links: [] }, NOTES);
+    expect(p.citation).toBe("He admitted the contract came\nthrough a broker");
+    expect(p.citation).not.toBe(modelCitation);
+  });
+
+  it("rejects a path-traversal threadId before it can reach targetRoute", () => {
+    expect(() =>
+      buildThreadResolveProposal(
+        { threadId: "../campaigns/camp1/set-date", threadTitle: "T", citation: "The party cornered Ovid in the Pentamarket" },
+        NOTES,
+      ),
+    ).toThrow(/invalid/i);
+  });
+
+  it("rejects an ungrounded citation on buildThreadResolveProposal (assertCitation must actually be called)", () => {
+    expect(() =>
+      buildThreadResolveProposal({ threadId: "t1", threadTitle: "T", citation: "totally invented sentence here" }, NOTES),
+    ).toThrow(/not found/i);
   });
 });

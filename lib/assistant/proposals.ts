@@ -54,10 +54,51 @@ export function buildNotionSyncProposal(campaignId: string): Proposal {
 }
 
 const MIN_CITATION_WORDS = 4;
+const MAX_ERROR_QUOTE_LEN = 60;
+
+/** IDs interpolated into a route are always crypto.randomUUID() values in practice. */
+function assertIdSegment(value: string, field: string): void {
+  if (typeof value !== "string" || !/^[A-Za-z0-9_-]+$/.test(value)) {
+    throw new Error(`invalid ${field}: ${JSON.stringify(value)}`);
+  }
+}
+
+function truncateForError(s: string): string {
+  return s.length > MAX_ERROR_QUOTE_LEN ? `${s.slice(0, MAX_ERROR_QUOTE_LEN)}…` : s;
+}
+
+/**
+ * Lowercases and collapses everything that isn't a-z/0-9 into single spaces
+ * (trimmed), while recording, for every character kept in the output, which
+ * source-string index it came from. This lets assertCitation map a match in
+ * normalized space back to a real slice of the original source text.
+ */
+function normalizeWithMap(s: string): { normalized: string; map: number[] } {
+  const chars: string[] = [];
+  const map: number[] = [];
+  let lastWasSeparator = true; // swallow leading separators, matching .trim()
+  for (let i = 0; i < s.length; i++) {
+    const lower = s[i].toLowerCase();
+    if (/[a-z0-9]/.test(lower)) {
+      chars.push(lower);
+      map.push(i);
+      lastWasSeparator = false;
+    } else if (!lastWasSeparator) {
+      chars.push(" ");
+      map.push(i);
+      lastWasSeparator = true;
+    }
+  }
+  while (chars.length > 0 && chars[chars.length - 1] === " ") {
+    chars.pop();
+    map.pop();
+  }
+  return { normalized: chars.join(""), map };
+}
 
 /** Case-, punctuation-, and whitespace-insensitive form used for citation matching. */
 export function normalizeForCitation(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+  return normalizeWithMap(s).normalized;
 }
 
 /**
@@ -65,16 +106,38 @@ export function normalizeForCitation(s: string): string {
  * the failure mode we want is "fewer proposals offered", not "plausible wrong
  * state silently applied". Matching is tolerant of case, punctuation, and line
  * wrapping so that a correct quote copied out of Notion still passes.
+ *
+ * Only tokens containing at least two letters count toward the word minimum —
+ * bare ids, timestamps, and numbers can't satisfy the gate on their own.
+ *
+ * Returns the matched slice of `sourceText` itself (not the input citation),
+ * so what gets stored and shown to the DM is provably real source text —
+ * a model can't glue unrelated bullets together or flip a `?` to a `.` by
+ * choosing how it phrases the citation string.
  */
-export function assertCitation(citation: string, sourceText: string): void {
-  const normalized = normalizeForCitation(citation ?? "");
-  const words = normalized.split(" ").filter(Boolean);
+export function assertCitation(citation: string, sourceText: string): string {
+  if (typeof sourceText !== "string") {
+    throw new Error("assertCitation: sourceText must be a string");
+  }
+  const rawCitation = typeof citation === "string" ? citation : "";
+  const normalizedCitation = normalizeForCitation(rawCitation);
+  const words = normalizedCitation.split(" ").filter((w) => /[a-z]{2}/.test(w));
   if (words.length < MIN_CITATION_WORDS) {
-    throw new Error(`citation must quote at least ${MIN_CITATION_WORDS} words from the source`);
+    throw new Error(
+      `citation must quote at least ${MIN_CITATION_WORDS} words from the source (got: "${truncateForError(rawCitation)}"). ` +
+        `Quote a longer verbatim phrase — ids, timestamps, and bare numbers don't count.`,
+    );
   }
-  if (!normalizeForCitation(sourceText).includes(normalized)) {
-    throw new Error("citation not found verbatim in the source text");
+  const { normalized: normalizedSource, map } = normalizeWithMap(sourceText);
+  const start = normalizedSource.indexOf(normalizedCitation);
+  if (start === -1) {
+    throw new Error(
+      `citation not found verbatim in the source text (got: "${truncateForError(rawCitation)}"). ` +
+        `Quote an exact phrase from the source instead of paraphrasing — matching already ignores case, punctuation, and line breaks.`,
+    );
   }
+  const end = start + normalizedCitation.length - 1;
+  return sourceText.slice(map[start], map[end] + 1);
 }
 
 export interface ThreadLinkProposalInput {
@@ -88,12 +151,12 @@ export function buildThreadOpenProposal(
   input: { title: string; stakes?: string; notes?: string; links?: ThreadLinkProposalInput[]; citation: string },
   sourceText: string,
 ): Proposal {
-  assertCitation(input.citation, sourceText);
+  const citation = assertCitation(input.citation, sourceText);
   return {
     summary: `Open thread "${input.title}".`,
     targetRoute: "/api/threads",
     method: "POST",
-    citation: input.citation,
+    citation,
     payload: {
       campaignId,
       title: input.title,
@@ -109,12 +172,13 @@ export function buildThreadResolveProposal(
   input: { threadId: string; threadTitle: string; resolvedSessionId?: string; citation: string },
   sourceText: string,
 ): Proposal {
-  assertCitation(input.citation, sourceText);
+  assertIdSegment(input.threadId, "threadId");
+  const citation = assertCitation(input.citation, sourceText);
   return {
     summary: `Resolve thread "${input.threadTitle}".`,
     targetRoute: `/api/threads/${input.threadId}`,
     method: "PATCH",
-    citation: input.citation,
+    citation,
     payload: { status: "resolved", resolvedSessionId: input.resolvedSessionId ?? null },
   };
 }
@@ -123,7 +187,8 @@ export function buildClockTickProposal(
   input: { clockId: string; clockName: string; delta: number; reason?: string; citation: string },
   sourceText: string,
 ): Proposal {
-  assertCitation(input.citation, sourceText);
+  assertIdSegment(input.clockId, "clockId");
+  const citation = assertCitation(input.citation, sourceText);
   if (!Number.isInteger(input.delta) || input.delta === 0) {
     throw new Error(`delta must be a non-zero integer, got ${input.delta}`);
   }
@@ -132,7 +197,7 @@ export function buildClockTickProposal(
     summary: `Tick "${input.clockName}" ${sign}.`,
     targetRoute: `/api/clocks/${input.clockId}/tick`,
     method: "POST",
-    citation: input.citation,
+    citation,
     payload: { delta: input.delta, reason: input.reason ?? null, sourceKind: "proposal" },
   };
 }
@@ -148,12 +213,13 @@ export function buildDateAdvanceProposal(
   input: { toDay: number; days: number; citation: string },
   sourceText: string,
 ): Proposal {
-  assertCitation(input.citation, sourceText);
+  assertIdSegment(campaignId, "campaignId");
+  const citation = assertCitation(input.citation, sourceText);
   return {
     summary: `Advance in-world time by ${input.days} day(s).`,
     targetRoute: `/api/campaigns/${campaignId}/advance-date`,
     method: "POST",
-    citation: input.citation,
+    citation,
     payload: { toDay: input.toDay },
   };
 }
