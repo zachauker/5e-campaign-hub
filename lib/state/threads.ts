@@ -108,6 +108,10 @@ export async function updateThread(db: StateDb, id: string, input: UpdateThreadI
       status: input.status ?? existing.status,
       resolvedSessionId:
         input.resolvedSessionId === undefined ? existing.resolvedSessionId : input.resolvedSessionId,
+      // A null currentDay here means the in-world date is UNKNOWN, not that the
+      // stamp should be cleared — so preserve it. Contrast createThread, where a
+      // null day IS the value being recorded. Erasing a known stamp would strand
+      // the thread at the bottom of the most-stale-first board permanently.
       lastTouchedDay: input.currentDay ?? existing.lastTouchedDay,
       updatedAt: new Date(),
     })

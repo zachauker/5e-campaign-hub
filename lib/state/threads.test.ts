@@ -96,6 +96,47 @@ describe("updateThread", () => {
   });
 });
 
+describe("updateThread links", () => {
+  it("replaces links wholesale rather than appending", async () => {
+    const { db, campaignId } = createTestDb();
+    const t = await createThread(db, {
+      campaignId, title: "T", currentDay: 10,
+      links: [{ targetKind: "faction", targetId: "f1", role: "stakeholder" }],
+    });
+
+    await updateThread(db, t.id, {
+      currentDay: 11,
+      links: [{ targetKind: "location", targetId: "l1", role: "subject" }],
+    });
+
+    const links = db.select().from(threadLinks).where(eq(threadLinks.threadId, t.id)).all();
+    expect(links).toHaveLength(1);
+    expect(links[0]).toMatchObject({ targetKind: "location", targetId: "l1", role: "subject" });
+  });
+
+  it("clears all links when passed an empty array", async () => {
+    const { db, campaignId } = createTestDb();
+    const t = await createThread(db, {
+      campaignId, title: "T", currentDay: 10,
+      links: [{ targetKind: "faction", targetId: "f1" }],
+    });
+
+    await updateThread(db, t.id, { currentDay: 11, links: [] });
+    expect(db.select().from(threadLinks).where(eq(threadLinks.threadId, t.id)).all()).toHaveLength(0);
+  });
+
+  it("leaves links untouched when links is omitted", async () => {
+    const { db, campaignId } = createTestDb();
+    const t = await createThread(db, {
+      campaignId, title: "T", currentDay: 10,
+      links: [{ targetKind: "faction", targetId: "f1" }],
+    });
+
+    await updateThread(db, t.id, { currentDay: 11, title: "T2" });
+    expect(db.select().from(threadLinks).where(eq(threadLinks.threadId, t.id)).all()).toHaveLength(1);
+  });
+});
+
 describe("listThreads", () => {
   it("orders open threads by staleness, most stale first", async () => {
     const { db, campaignId } = createTestDb();
