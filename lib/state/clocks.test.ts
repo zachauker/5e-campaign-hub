@@ -110,6 +110,15 @@ describe("applyTick", () => {
     expect(row.lastTickedDay).toBe(114);
     expect(db.select().from(timelineEvents).all()[0].sourceKind).toBe("cadence");
   });
+
+  it("resets status to running when a negative delta drops a complete clock below full", async () => {
+    const { db, campaignId } = createTestDb();
+    const c = await seed(db, campaignId, { segments: 4 });
+    await applyTick(db, c.id, { delta: 4, currentDay: 120 });
+
+    const out = await applyTick(db, c.id, { delta: -1, currentDay: 121 });
+    expect(out).toMatchObject({ filled: 3, status: "running" });
+  });
 });
 
 describe("updateClock", () => {
@@ -135,7 +144,7 @@ describe("updateClock", () => {
 });
 
 describe("listClocks", () => {
-  it("returns running clocks first and skips archived ones", async () => {
+  it("returns running clocks before paused clocks", async () => {
     const { db, campaignId } = createTestDb();
     const a = await seed(db, campaignId, { name: "alpha" });
     const b = await seed(db, campaignId, { name: "beta" });
@@ -144,5 +153,29 @@ describe("listClocks", () => {
     const rows = await listClocks(db, campaignId);
     expect(rows.map((r) => r.name)).toEqual(["beta", "alpha"]);
     expect(rows.every((r) => r.id === a.id || r.id === b.id)).toBe(true);
+  });
+
+  it("excludes archived clocks", async () => {
+    const { db, campaignId } = createTestDb();
+    const kept = await seed(db, campaignId, { name: "kept" });
+    const archived = await seed(db, campaignId, { name: "archived" });
+    db.update(clocks).set({ archived: true }).where(eq(clocks.id, archived.id)).run();
+
+    const rows = await listClocks(db, campaignId);
+    expect(rows.map((r) => r.id)).toEqual([kept.id]);
+  });
+
+  it("sorts running, then paused, then complete", async () => {
+    const { db, campaignId } = createTestDb();
+    const running = await seed(db, campaignId, { name: "running-clock", segments: 4 });
+    const paused = await seed(db, campaignId, { name: "paused-clock" });
+    const complete = await seed(db, campaignId, { name: "complete-clock", segments: 4 });
+
+    await updateClock(db, paused.id, { status: "paused" });
+    await applyTick(db, complete.id, { delta: 4, currentDay: 120 });
+
+    const rows = await listClocks(db, campaignId);
+    expect(rows.map((r) => r.id)).toEqual([running.id, paused.id, complete.id]);
+    expect(rows.map((r) => r.status)).toEqual(["running", "paused", "complete"]);
   });
 });
