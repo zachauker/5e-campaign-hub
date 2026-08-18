@@ -476,6 +476,30 @@ describe("searchIndex", () => {
     await indexEntity(db, { campaignId: "other-campaign", kind: "character", targetId: "theirs", name: "Al'Jinn", body: null });
     expect(await searchIndex(db, { campaignId, q: "aljinn" })).toEqual([]);
   });
+
+  it("makes a briefed entity findable by name even if it was never indexed", async () => {
+    const { db, campaignId } = createTestDb();
+    seedCharacter(db, campaignId, "c1", "Garrick Veldros", null);
+    // No indexEntity call — the briefing repo may run before anything indexed it.
+    await indexBriefing(db, {
+      campaignId, kind: "character", targetId: "c1",
+      aliases: [], identity: null, wants: null, partyKnows: null,
+    });
+    expect((await searchIndex(db, { campaignId, q: "garrick" })).map((h) => h.targetId)).toEqual(["c1"]);
+  });
+
+  it("keeps briefing-derived aliases through a later rename", async () => {
+    const { db, campaignId } = createTestDb();
+    await indexEntity(db, { campaignId, kind: "character", targetId: "c1", name: "Garrick Veldros", body: null });
+    await indexBriefing(db, {
+      campaignId, kind: "character", targetId: "c1",
+      aliases: ["the mask guy"], identity: null, wants: null, partyKnows: null,
+    });
+    await indexEntity(db, { campaignId, kind: "character", targetId: "c1", name: "Garrick Veldros II", body: null });
+
+    expect((await searchIndex(db, { campaignId, q: "mask guy" })).map((h) => h.targetId)).toEqual(["c1"]);
+    expect((await searchIndex(db, { campaignId, q: "veldros" })).map((h) => h.targetId)).toEqual(["c1"]);
+  });
 });
 
 describe("removeFromIndex", () => {
@@ -503,8 +527,6 @@ import type { StateDb } from "@/lib/state/types";
 import { toFtsQuery } from "./fts";
 
 export type SearchKind = "character" | "location" | "item" | "faction" | "thread" | "clock";
-
-export const ENTITY_KINDS: SearchKind[] = ["character", "location", "item", "faction"];
 
 export interface SearchHit {
   kind: SearchKind;
@@ -581,8 +603,43 @@ export async function indexEntity(db: StateDb, row: IndexRow): Promise<void> {
 }
 
 /**
- * Enrich an existing row with briefing content. Creates the row if the entity
- * was never indexed, so a briefing write can never leave a target unfindable.
+ * Entity tables a briefing can belong to. Threads and clocks never carry
+ * briefings, so they are absent by design.
+ */
+const ENTITY_TABLE_FOR_KIND: Partial<Record<SearchKind, string>> = {
+  character: "characters",
+  location: "locations",
+  item: "items",
+  faction: "factions",
+};
+
+/**
+ * Read an entity's own name. Used when a briefing arrives for something that was
+ * never indexed, so the row can still be written with a real name. Returns ""
+ * for a dangling id — thread_links and briefings both tolerate those by design.
+ */
+function lookupEntityName(
+  db: StateDb,
+  campaignId: string,
+  kind: SearchKind,
+  targetId: string,
+): string {
+  const table = ENTITY_TABLE_FOR_KIND[kind];
+  if (!table) return "";
+  const row = db.all<{ name: string }>(sql`
+    SELECT name FROM ${sql.raw(table)}
+    WHERE id = ${targetId} AND campaign_id = ${campaignId}
+  `)[0];
+  return row?.name ?? "";
+}
+
+/**
+ * Enrich the row with briefing content.
+ *
+ * When the entity was never indexed, its name is read from its own table rather
+ * than left blank — the briefing repo calls this without a name in hand, and on
+ * a database whose index has not been backfilled that would otherwise write a
+ * row matching nothing at all.
  *
  * `secret` is never written: a DM-only field that can be retrieved by typing its
  * contents into a search box is not DM-only.
@@ -590,15 +647,10 @@ export async function indexEntity(db: StateDb, row: IndexRow): Promise<void> {
 export async function indexBriefing(db: StateDb, row: BriefingRow): Promise<void> {
   const existing = readRow(db, row.campaignId, row.kind, row.targetId);
   const body = [row.identity, row.wants, row.partyKnows].filter(Boolean).join(" ");
-  writeRow(
-    db,
-    row.campaignId,
-    row.kind,
-    row.targetId,
-    existing?.name ?? "",
-    row.aliases.join(" "),
-    body,
-  );
+  // `||` rather than `??`: an existing row with a blank name (written by an
+  // older build) should self-heal on the next briefing write.
+  const name = existing?.name || lookupEntityName(db, row.campaignId, row.kind, row.targetId);
+  writeRow(db, row.campaignId, row.kind, row.targetId, name, row.aliases.join(" "), body);
 }
 
 export async function removeFromIndex(
@@ -620,7 +672,10 @@ export async function searchIndex(
   const match = toFtsQuery(opts.q);
   if (!match) return [];
   const limit = opts.limit ?? 20;
-  const needle = opts.q.trim().toLowerCase();
+  // SQLite LIKE treats % and _ as wildcards. Escaped so a query containing them
+  // ranks on the literal characters — these tiers exist precisely to make the
+  // ordering deterministic, and a stray underscore silently undoes that.
+  const needle = opts.q.trim().toLowerCase().replace(/[%_\\]/g, "\\$&");
   const kinds = opts.kinds?.length ? opts.kinds : null;
 
   const rows = db.all<{ kind: SearchKind; targetId: string; name: string }>(sql`
@@ -632,8 +687,8 @@ export async function searchIndex(
     ORDER BY
       CASE
         WHEN lower(name) = ${needle} THEN 0
-        WHEN lower(name) LIKE ${needle + "%"} THEN 1
-        WHEN lower(aliases) LIKE ${"%" + needle + "%"} THEN 2
+        WHEN lower(name) LIKE ${needle + "%"} ESCAPE '\\' THEN 1
+        WHEN lower(aliases) LIKE ${"%" + needle + "%"} ESCAPE '\\' THEN 2
         ELSE 3
       END,
       bm25(search_index),
@@ -686,7 +741,7 @@ function flattenedFallback(
 - [ ] **Step 4: Run the test**
 
 Run: `npx vitest run lib/run/search-index.test.ts`
-Expected: PASS, 13 tests.
+Expected: PASS, 15 tests.
 
 - [ ] **Step 5: Commit**
 

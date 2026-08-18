@@ -123,6 +123,30 @@ describe("searchIndex", () => {
     await indexEntity(db, { campaignId: "other-campaign", kind: "character", targetId: "theirs", name: "Al'Jinn", body: null });
     expect(await searchIndex(db, { campaignId, q: "aljinn" })).toEqual([]);
   });
+
+  it("makes a briefed entity findable by name even if it was never indexed", async () => {
+    const { db, campaignId } = createTestDb();
+    seedCharacter(db, campaignId, "c1", "Garrick Veldros", null);
+    // No indexEntity call — the briefing repo may run before anything indexed it.
+    await indexBriefing(db, {
+      campaignId, kind: "character", targetId: "c1",
+      aliases: [], identity: null, wants: null, partyKnows: null,
+    });
+    expect((await searchIndex(db, { campaignId, q: "garrick" })).map((h) => h.targetId)).toEqual(["c1"]);
+  });
+
+  it("keeps briefing-derived aliases through a later rename", async () => {
+    const { db, campaignId } = createTestDb();
+    await indexEntity(db, { campaignId, kind: "character", targetId: "c1", name: "Garrick Veldros", body: null });
+    await indexBriefing(db, {
+      campaignId, kind: "character", targetId: "c1",
+      aliases: ["the mask guy"], identity: null, wants: null, partyKnows: null,
+    });
+    await indexEntity(db, { campaignId, kind: "character", targetId: "c1", name: "Garrick Veldros II", body: null });
+
+    expect((await searchIndex(db, { campaignId, q: "mask guy" })).map((h) => h.targetId)).toEqual(["c1"]);
+    expect((await searchIndex(db, { campaignId, q: "veldros" })).map((h) => h.targetId)).toEqual(["c1"]);
+  });
 });
 
 describe("removeFromIndex", () => {
