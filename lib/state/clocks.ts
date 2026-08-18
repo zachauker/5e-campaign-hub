@@ -196,6 +196,24 @@ export async function applyTick(db: StateDb, id: string, input: ApplyTickInput) 
   return row;
 }
 
+/**
+ * Move a clock's cadence anchor forward WITHOUT ticking it — the "declined"
+ * path, used when the DM unchecks a due tick in the advance preview. A declined
+ * tick is skipped, not deferred: the anchor jumps to the new current day so the
+ * same tick is not re-proposed on every subsequent advance.
+ *
+ * Lives here rather than in advance.ts so that every write to the clocks table
+ * goes through this module.
+ */
+export async function skipDueTick(db: StateDb, id: string, toDay: number) {
+  const [row] = await db
+    .update(clocks)
+    .set({ lastTickedDay: toDay, updatedAt: new Date() })
+    .where(eq(clocks.id, id))
+    .returning();
+  return row;
+}
+
 export async function listClocks(db: StateDb, campaignId: string) {
   const rows = await db.query.clocks.findMany({ where: eq(clocks.campaignId, campaignId) });
   const order: Record<string, number> = { running: 0, paused: 1, complete: 2 };

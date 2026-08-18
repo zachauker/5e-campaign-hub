@@ -90,6 +90,16 @@ describe("applyAdvance", () => {
     expect((await previewAdvance(db, campaignId, 126)).dueTicks).toEqual([]);
   });
 
+  it("renders the epoch label into the date_advanced event text", async () => {
+    const { db, campaignId } = createTestDb();
+    await setDate(db, campaignId, 276_000, "P.D.");
+    await applyAdvance(db, campaignId, 276_001, []);
+
+    const evt = db.select().from(timelineEvents).all().find((e) => e.kind === "date_advanced");
+    expect(evt?.title).toBe("Time advances to 6th of Brussendar, 841 P.D.");
+    expect(evt?.body).toContain("1 day(s) elapsed");
+  });
+
   it("writes a date_advanced event plus one clock_ticked event per applied tick", async () => {
     const { db, campaignId } = createTestDb();
     await withDate(campaignId, db);

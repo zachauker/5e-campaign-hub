@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
-import { campaigns, clocks } from "@/lib/db/schema";
+import { campaigns } from "@/lib/db/schema";
 import { computeDueTicks, declinedLastTickedDay, type ClockLike, type DueTick } from "./cadence";
-import { applyTick, listClocks } from "./clocks";
+import { applyTick, listClocks, skipDueTick } from "./clocks";
 import { recordEvent } from "./timeline";
 import { formatInWorldDay } from "@/lib/calendar/exandria";
 import type { StateDb } from "./types";
@@ -72,7 +72,10 @@ function toClockLike(row: Awaited<ReturnType<typeof listClocks>>[number]): Clock
   };
 }
 
-/** What would happen at `toDay`. Read-only. */
+/**
+ * What would happen at `toDay`. Never mutates — the UI shows this to the DM as a
+ * checklist, and only the ticks they keep checked are sent back to applyAdvance.
+ */
 export async function previewAdvance(
   db: StateDb,
   campaignId: string,
@@ -101,6 +104,14 @@ export async function applyAdvance(
   let applied = 0;
   let declined = 0;
 
+  // Deliberately NOT wrapped in a transaction. computeDueTicks pre-caps every
+  // delta, so applyTick's range guard cannot fire from this path — only a
+  // DB-level fault could tear this, and a single-user local SQLite app has no
+  // concurrent reader to observe a torn state. Wrapping it properly would mean
+  // making applyTick/recordEvent synchronous, because better-sqlite3's
+  // transaction() commits at the first await (see lib/reference/ingest.ts for
+  // the sync pattern). That refactor is disproportionate to the risk — so if
+  // you are here to "add the missing transaction", this is why there isn't one.
   for (const tick of due) {
     if (accepted.has(tick.clockId)) {
       await applyTick(db, tick.clockId, {
@@ -112,10 +123,7 @@ export async function applyAdvance(
       });
       applied++;
     } else {
-      await db
-        .update(clocks)
-        .set({ lastTickedDay: declinedLastTickedDay(toDay), updatedAt: new Date() })
-        .where(eq(clocks.id, tick.clockId));
+      await skipDueTick(db, tick.clockId, declinedLastTickedDay(toDay));
       declined++;
     }
   }
