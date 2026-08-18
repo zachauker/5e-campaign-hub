@@ -12,7 +12,9 @@ export interface CalendarDate {
 /**
  * An in-world calendar. Days are stored everywhere as a non-negative integer
  * absolute day number so that all date math is integer math; this interface is
- * the only place that knows how to render one.
+ * the only place that knows the calendar's structure (month names and
+ * lengths, day↔parts conversion). `formatInWorldDay` below renders a day for
+ * display.
  */
 export interface Calendar {
   readonly daysInYear: number;

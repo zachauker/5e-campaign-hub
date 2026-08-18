@@ -46,6 +46,12 @@ describe("fromParts", () => {
   it("rejects a negative year", () => {
     expect(() => EXANDRIA.fromParts({ year: -1, monthIndex: 0, dayOfMonth: 1 })).toThrow(/year/);
   });
+  it("rejects a dayOfMonth below 1", () => {
+    expect(() => EXANDRIA.fromParts({ year: 843, monthIndex: 0, dayOfMonth: 0 })).toThrow(/dayOfMonth/);
+  });
+  it("rejects a negative monthIndex", () => {
+    expect(() => EXANDRIA.fromParts({ year: 843, monthIndex: -1, dayOfMonth: 1 })).toThrow(/monthIndex/);
+  });
 });
 
 describe("formatInWorldDay", () => {
