@@ -361,6 +361,70 @@ export function runMigrations() {
     .prepare("UPDATE encounters SET campaign_id = ? WHERE campaign_id IS NULL")
     .run(defaultCampaignId);
 
+  // Sub-project 19: session run mode.
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS entity_briefings (
+      id TEXT PRIMARY KEY,
+      campaign_id TEXT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+      target_kind TEXT NOT NULL,
+      target_id TEXT NOT NULL,
+      identity TEXT,
+      wants TEXT,
+      party_knows TEXT,
+      secret TEXT,
+      voice TEXT,
+      aliases TEXT NOT NULL DEFAULT '[]',
+      source_hash TEXT NOT NULL,
+      manual_fields TEXT NOT NULL DEFAULT '[]',
+      partial INTEGER NOT NULL DEFAULT 0,
+      built_at INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS entity_briefings_target
+      ON entity_briefings (campaign_id, target_kind, target_id);
+
+    CREATE TABLE IF NOT EXISTS run_sessions (
+      id TEXT PRIMARY KEY,
+      campaign_id TEXT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+      label TEXT,
+      started_at INTEGER NOT NULL,
+      ended_at INTEGER,
+      session_note_id TEXT,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS session_marks (
+      id TEXT PRIMARY KEY,
+      campaign_id TEXT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+      run_session_id TEXT NOT NULL REFERENCES run_sessions(id) ON DELETE CASCADE,
+      at_ms INTEGER NOT NULL,
+      wall_clock INTEGER NOT NULL,
+      tag TEXT,
+      note TEXT,
+      context_kind TEXT,
+      context_id TEXT,
+      resolved INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS session_marks_run
+      ON session_marks (run_session_id, at_ms);
+  `);
+
+  // FTS5 index backing /api/search. Standalone (not external-content): rows are
+  // written by lib/run/search-index.ts on entity and briefing writes, so the
+  // index survives even when an entity has no briefing yet.
+  sqlite.exec(`CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
+    campaign_id UNINDEXED,
+    kind UNINDEXED,
+    target_id UNINDEXED,
+    name,
+    aliases,
+    body
+  );`);
+
   // Vector table for reference search — requires sqlite-vec (loaded above).
   try {
     sqlite.exec(`CREATE VIRTUAL TABLE IF NOT EXISTS vec_reference_chunks USING vec0(
