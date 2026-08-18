@@ -4444,8 +4444,13 @@ export function ReviewSlideOver({
 
         {proposals.map((p, i) => (
           <div key={`p${i}`} className="rounded-lg border border-border p-3 text-sm">
+            {/* whitespace-pre-wrap below is load-bearing, not styling. assertCitation
+                stores the SOURCE's own slice, so a citation glued across two sentences
+                or bullets carries the literal newline that proves the glue. HTML would
+                collapse it and show the DM a seamless sentence the notes never contain
+                — nullifying the only mitigation for that hazard. Do not remove it. */}
             {p.citation && (
-              <blockquote className="mb-2 border-l-2 border-border pl-2 text-xs italic text-muted-foreground">
+              <blockquote className="mb-2 whitespace-pre-wrap border-l-2 border-border pl-2 text-xs italic text-muted-foreground">
                 “{p.citation}”
               </blockquote>
             )}
