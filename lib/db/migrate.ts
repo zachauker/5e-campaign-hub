@@ -382,7 +382,7 @@ export function runMigrations() {
       updated_at INTEGER NOT NULL
     );
 
-    CREATE UNIQUE INDEX IF NOT EXISTS entity_briefings_target
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_entity_briefings_target
       ON entity_briefings (campaign_id, target_kind, target_id);
 
     CREATE TABLE IF NOT EXISTS run_sessions (
@@ -394,6 +394,9 @@ export function runMigrations() {
       session_note_id TEXT,
       created_at INTEGER NOT NULL
     );
+
+    CREATE INDEX IF NOT EXISTS idx_run_sessions_campaign
+      ON run_sessions (campaign_id, started_at);
 
     CREATE TABLE IF NOT EXISTS session_marks (
       id TEXT PRIMARY KEY,
@@ -409,7 +412,7 @@ export function runMigrations() {
       created_at INTEGER NOT NULL
     );
 
-    CREATE INDEX IF NOT EXISTS session_marks_run
+    CREATE INDEX IF NOT EXISTS idx_session_marks_run
       ON session_marks (run_session_id, at_ms);
   `);
 
