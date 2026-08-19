@@ -40,6 +40,11 @@ export function MarkStrip({ tagWindowOpen, onEndRun }: MarkStripProps) {
   }, []);
 
   const elapsed = startedAt ? now - startedAt : 0;
+  // Only marks that have actually failed a write raise the alarm. Every fresh
+  // mark sits in the queue for its tag window by design, so counting the whole
+  // queue would flash a warning on every single flag the DM makes — training
+  // them to ignore the one indicator that means their marks are not landing.
+  const struggling = queue.filter((q) => q.attempts > 0).length;
   const recent = sent.slice(-3).reverse();
 
   return (
@@ -70,10 +75,10 @@ export function MarkStrip({ tagWindowOpen, onEndRun }: MarkStripProps) {
         {recent.map((m) => `${formatOffset(m.atMs)}${m.tag ? ` ${m.tag}` : ""}`).join("  ·  ")}
       </span>
 
-      {(queue.length > 0 || lastError) && (
-        <span className="flex items-center gap-1.5 text-amber-400">
+      {(struggling > 0 || lastError) && (
+        <span className="flex items-center gap-1.5 text-amber-400" role="status">
           <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
-          {queue.length > 0 ? `${queue.length} unsaved` : lastError}
+          {struggling > 0 ? `${struggling} unsaved` : lastError}
         </span>
       )}
 
