@@ -5270,6 +5270,8 @@ git commit -m "feat(run): follow related entities with the arrow keys"
 - Modify: `components/shell/TopBar.tsx`
 - Modify: `app/settings/page.tsx`
 
+> A later whole-branch review found that this task, as originally written, only linked the search-index rebuild (Step 2 below) and left `app/api/briefings/batch/route.ts` from Task 21 with no caller anywhere in the app — the batch build worked and was tested, but a DM had no way to run it. Step 2b closes that gap.
+
 - [ ] **Step 1: Add a Run link to the top bar**
 
 Read `components/shell/TopBar.tsx` and add a link to `/run` alongside the existing navigation, matching whatever pattern the file already uses for its links. Label it `Run`, and give it the `Play` icon from `lucide-react`.
@@ -5305,6 +5307,15 @@ Read `app/settings/page.tsx` and add a section following its existing card patte
 
 Add the `indexing` and `indexResult` `useState` hooks alongside the page's existing state, render `indexResult` beneath the button, and give the section a heading of `Search index` with the explanatory line: *"Rebuilds the at-table lookup index from your entities, threads, and clocks. Run this once after upgrading."*
 
+- [ ] **Step 2b: Add batch-briefing controls to Settings**
+
+Add a `Briefing builds` card, following the same conventions as the `Search index` card above, with two buttons:
+
+- **Build briefings for next session** → `POST /api/briefings/batch` with `{ campaignId: activeCampaignId, scope: "session" }`
+- **Build all briefings** → the same with `scope: "all"`
+
+The route caps each call at 25 and returns `{ built, failures, remaining }`. Because a full campaign can exceed 25 entities, the handler re-POSTs in a loop while `remaining > 0`, accumulating `built` and `failures.length` across rounds. The loop is bounded two ways so it can never run forever: a round-count ceiling, and a check that stops as soon as a round fails to shrink `remaining` (a permanently-failing entity would otherwise be retried every round without end). Track progress with two `useState` hooks — `buildingBriefings: "session" | "all" | null` and `briefingBuildResult: string | null` — mirroring the `indexing`/`indexResult` pair above. Disable both buttons whenever `buildingBriefings !== null || !activeCampaignId`. The result message must report `failures` explicitly (a build that silently drops some entities and calls itself done is worse than one that says so) and, when the loop exits with `remaining > 0`, say so and invite the DM to run it again. The card's copy states plainly that this spends one Anthropic API call per entity.
+
 - [ ] **Step 3: Verify types and lint**
 
 Run: `npx tsc --noEmit && npm run lint`
@@ -5312,13 +5323,13 @@ Expected: no errors.
 
 - [ ] **Step 4: Verify in the browser**
 
-Open Settings, click **Rebuild search index**. Expected: the button reports a record count. Then open `/run` from the top bar and confirm search returns results.
+Open Settings, click **Rebuild search index**. Expected: the button reports a record count. Then open `/run` from the top bar and confirm search returns results. Click **Build briefings for next session** and **Build all briefings** and confirm each reports a built count (and any failures) rather than failing silently.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add components/shell/TopBar.tsx app/settings/page.tsx
-git commit -m "feat(run): run mode entry point and search index rebuild control"
+git commit -m "feat(run): run mode entry point, search index rebuild, and briefing batch controls"
 ```
 
 ---
