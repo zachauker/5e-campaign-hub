@@ -49,6 +49,11 @@ export default function RunPage() {
   const [startAttemptGeneration, setStartAttemptGeneration] = useState(0);
   const contextRef = useRef<{ kind: string; id: string } | null>(null);
   const tagTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Set when the DM ends the run. endRunLocal() clears runSessionId, which the
+  // start effect below watches — without this, ending a run immediately starts
+  // a fresh one before the navigation away completes, leaving a phantom open
+  // run behind every single time.
+  const endedRef = useRef(false);
 
   // Recover anything a crash left behind before the DM adds tonight's first mark.
   useEffect(() => { restoreQueue(); }, [restoreQueue]);
@@ -60,7 +65,7 @@ export default function RunPage() {
   // silent, unrecoverable failure by pressing Space all evening and getting
   // nothing.
   useEffect(() => {
-    if (!activeCampaignId || runSessionId) return;
+    if (!activeCampaignId || runSessionId || endedRef.current) return;
     let cancelled = false;
 
     async function startRun() {
@@ -163,6 +168,7 @@ export default function RunPage() {
         body: JSON.stringify({ end: true }),
       }).catch(() => {});
     }
+    endedRef.current = true;
     endRunLocal();
     router.push("/");
   }, [runSessionId, flush, endRunLocal, router]);
