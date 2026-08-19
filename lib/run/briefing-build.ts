@@ -31,7 +31,16 @@ export async function buildBriefing(db: StateDb, opts: BuildOptions): Promise<Br
       // A page that exists but returned nothing is not the same as a failure,
       // but the briefing is equally uninformed by it either way.
       if (inputs.notionBody === null) partial = true;
-    } catch {
+    } catch (err) {
+      // Logged, not just swallowed. A revoked or misconfigured Notion token
+      // fails identically on every entity, so without this the DM sees the same
+      // "built without the page body" badge on every card and cannot tell a
+      // systemic misconfiguration from one page having a bad day. Matches the
+      // log-and-continue convention in lib/notion/scheduler.ts.
+      console.warn(
+        `[briefing-build] Notion fetch failed for ${opts.targetKind} ${opts.targetId}:`,
+        (err as Error).message,
+      );
       inputs.notionBody = null;
       partial = true;
     }

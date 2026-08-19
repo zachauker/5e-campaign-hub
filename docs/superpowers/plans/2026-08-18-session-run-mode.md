@@ -143,7 +143,8 @@ export const entityBriefings = sqliteTable("entity_briefings", {
   sourceHash: text("source_hash").notNull(),
   // JSON array of field names the DM edited by hand; a rebuild leaves these alone.
   manualFields: text("manual_fields").notNull().default("[]"),
-  // True when built without the Notion page body (Notion was unreachable).
+  // True when built without the Notion page body — either the fetch failed or
+  // the page had no readable content. Not specifically "Notion was unreachable".
   partial: integer("partial", { mode: "boolean" }).notNull().default(false),
   builtAt: integer("built_at", { mode: "timestamp" }).notNull(),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
@@ -2164,7 +2165,16 @@ export async function buildBriefing(db: StateDb, opts: BuildOptions): Promise<Br
       // A page that exists but returned nothing is not the same as a failure,
       // but the briefing is equally uninformed by it either way.
       if (inputs.notionBody === null) partial = true;
-    } catch {
+    } catch (err) {
+      // Logged, not just swallowed. A revoked or misconfigured Notion token
+      // fails identically on every entity, so without this the DM sees the same
+      // "built without the page body" badge on every card and cannot tell a
+      // systemic misconfiguration from one page having a bad day. Matches the
+      // log-and-continue convention in lib/notion/scheduler.ts.
+      console.warn(
+        `[briefing-build] Notion fetch failed for ${opts.targetKind} ${opts.targetId}:`,
+        (err as Error).message,
+      );
       inputs.notionBody = null;
       partial = true;
     }
@@ -2380,6 +2390,7 @@ Create `lib/run/runs.test.ts`:
 
 ```ts
 import { describe, it, expect } from "vitest";
+import { sql } from "drizzle-orm";
 import { createTestDb } from "@/lib/notion/test-helpers";
 import { NotFoundError } from "@/lib/state/errors";
 import { startRun, endRun, getActiveRun, listRuns, linkSessionNote } from "./runs";
@@ -2404,6 +2415,10 @@ describe("startRun", () => {
 
   it("does not close another campaign's open run", async () => {
     const { db, campaignId } = createTestDb();
+    // A real row, not a made-up id: run_sessions.campaign_id is a genuine
+    // foreign key and the test database runs with foreign_keys = ON, so an
+    // invented campaign id fails on insert rather than exercising the filter.
+    db.run(sql`INSERT INTO campaigns (id, name, created_at) VALUES ('other-campaign', 'Other', 1)`);
     const other = await startRun(db, { campaignId });
     await startRun(db, { campaignId: "other-campaign" });
     const runs = await listRuns(db, campaignId);

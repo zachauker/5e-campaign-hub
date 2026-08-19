@@ -342,7 +342,8 @@ export const entityBriefings = sqliteTable("entity_briefings", {
   sourceHash: text("source_hash").notNull(),
   // JSON array of field names the DM edited by hand; a rebuild leaves these alone.
   manualFields: text("manual_fields").notNull().default("[]"),
-  // True when built without the Notion page body (Notion was unreachable).
+  // True when built without the Notion page body — either the fetch failed or
+  // the page had no readable content. Not specifically "Notion was unreachable".
   partial: integer("partial", { mode: "boolean" }).notNull().default(false),
   builtAt: integer("built_at", { mode: "timestamp" }).notNull(),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
