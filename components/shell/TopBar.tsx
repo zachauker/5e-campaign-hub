@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Swords, Users, MapPin, Package, Shield, Command, Settings, Map, Globe, ScrollText, BookOpen } from "lucide-react";
+import { Swords, Users, MapPin, Package, Shield, Command, Settings, Map, Globe, ScrollText, BookOpen, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCampaignStore } from "@/lib/store/campaign-store";
 import { useUIStore } from "@/lib/store/ui-store";
@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import type { Campaign } from "@/lib/db/schema";
 
 const SECTIONS = [
+  { href: "/run", label: "Run", icon: Play },
   { href: "/encounters", label: "Encounters", icon: Swords },
   { href: "/characters", label: "Characters", icon: Users },
   { href: "/locations", label: "Locations", icon: MapPin },

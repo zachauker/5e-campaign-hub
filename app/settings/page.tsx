@@ -31,6 +31,8 @@ export default function SettingsPage() {
   const [urlTestOk, setUrlTestOk] = useState(false);
   const [notionToken, setNotionToken] = useState("");
   const [notionConfigured, setNotionConfigured] = useState(false);
+  const [indexing, setIndexing] = useState(false);
+  const [indexResult, setIndexResult] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/settings")
@@ -271,6 +273,43 @@ export default function SettingsPage() {
               Save
             </Button>
           </div>
+        </section>
+
+        {/* Search index */}
+        <section className="rounded-xl border border-border bg-card p-6 space-y-4">
+          <div>
+            <h2 className="font-display text-xl">Search index</h2>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Rebuilds the at-table lookup index from your entities, threads, and clocks. Run this once after upgrading.
+            </p>
+          </div>
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={async () => {
+              if (!activeCampaignId) return;
+              setIndexing(true);
+              try {
+                const res = await fetch("/api/search", {
+                  method: "POST",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify({ campaignId: activeCampaignId }),
+                });
+                const data: { indexed?: number; error?: string } = await res.json();
+                setIndexResult(res.ok ? `Indexed ${data.indexed} records.` : (data.error ?? "Rebuild failed."));
+              } finally {
+                setIndexing(false);
+              }
+            }}
+            disabled={indexing || !activeCampaignId}
+          >
+            {indexing ? "Rebuilding…" : "Rebuild search index"}
+          </Button>
+
+          {indexResult && (
+            <p className="text-sm text-muted-foreground">{indexResult}</p>
+          )}
         </section>
 
         {/* Notion Sync */}
