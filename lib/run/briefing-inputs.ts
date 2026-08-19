@@ -86,12 +86,23 @@ export async function gatherInputs(
           WHERE target_kind = ${targetKind} AND target_id = ${targetId}
         )
       )
+    -- Thread-linked events sort ahead of mere name matches, because the two
+    -- signals are not equally strong. An entity called "The Watch" is named in
+    -- passing all over the campaign; sorting purely by recency lets that chatter
+    -- fill all twelve slots and crowd out the events on threads the entity is
+    -- actually tangled in — which is the material a briefing is for.
+    --
     -- id is a tiebreak, not a preference: SQLite leaves the order of rows that
     -- tie on every ORDER BY column undefined. Same-day, same-timestamp events
     -- are ordinary here, and without a total order the sequence could shift
     -- when the query plan changes — churning hashInputs and reporting every
     -- briefing in the campaign stale at once, for no visible reason.
-    ORDER BY day DESC, created_at DESC, id DESC
+    ORDER BY
+      CASE WHEN thread_id IN (
+        SELECT thread_id FROM thread_links
+        WHERE target_kind = ${targetKind} AND target_id = ${targetId}
+      ) THEN 0 ELSE 1 END,
+      day DESC, created_at DESC, id DESC
     LIMIT ${TIMELINE_LIMIT}
   `);
 

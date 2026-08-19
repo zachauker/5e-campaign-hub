@@ -45,8 +45,29 @@ describe("gatherInputs", () => {
   });
 });
 
+  it("keeps thread-linked events when incidental name matches would crowd them out", async () => {
+    const { db, campaignId } = createTestDb();
+    db.run(sql`INSERT INTO factions (id, campaign_id, name, archived, created_at, updated_at)
+      VALUES ('f1', ${campaignId}, 'The Watch', 0, 1, 1)`);
+    db.run(sql`INSERT INTO threads (id, campaign_id, title, status, archived, created_at, updated_at)
+      VALUES ('t1', ${campaignId}, 'Who bribed the gate captain?', 'open', 0, 1, 1)`);
+    db.run(sql`INSERT INTO thread_links (id, thread_id, target_kind, target_id, role)
+      VALUES ('tl1', 't1', 'faction', 'f1', 'subject')`);
+    // The one event that is genuinely about this faction, and the oldest.
+    db.run(sql`INSERT INTO timeline_events (id, campaign_id, day, kind, title, body, source_kind, thread_id, created_at)
+      VALUES ('relevant', ${campaignId}, 1, 'thread_opened', 'The captain took coin', NULL, 'manual', 't1', 1)`);
+    // Chatter that merely says the name, all of it more recent.
+    for (let i = 0; i < 20; i++) {
+      db.run(sql`INSERT INTO timeline_events (id, campaign_id, day, kind, title, body, source_kind, created_at)
+        VALUES (${"noise" + i}, ${campaignId}, ${100 + i}, 'note', 'A quiet week', 'The Watch patrolled as usual.', 'manual', 1)`);
+    }
+
+    const inputs = await gatherInputs(db, campaignId, "faction", "f1");
+    expect(inputs.timeline.map((e) => e.title)).toContain("The captain took coin");
+  });
+
 describe("hashInputs", () => {
-  it("is stable across key order", async () => {
+  it("is stable across repeated calls", async () => {
     const { db, campaignId } = createTestDb();
     seed(db, campaignId);
     const a = await gatherInputs(db, campaignId, "character", "c1");
@@ -63,7 +84,7 @@ describe("hashInputs", () => {
     expect(after).not.toBe(before);
   });
 
-  it("ignores the Notion body so a fetch failure does not churn the hash", async () => {
+  it("is sensitive to the Notion body, which is why callers null it out", async () => {
     const { db, campaignId } = createTestDb();
     seed(db, campaignId);
     const inputs = await gatherInputs(db, campaignId, "character", "c1");

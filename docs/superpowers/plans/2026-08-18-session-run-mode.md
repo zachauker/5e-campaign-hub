@@ -1505,7 +1505,7 @@ describe("gatherInputs", () => {
 });
 
 describe("hashInputs", () => {
-  it("is stable across key order", async () => {
+  it("is stable across repeated calls", async () => {
     const { db, campaignId } = createTestDb();
     seed(db, campaignId);
     const a = await gatherInputs(db, campaignId, "character", "c1");
@@ -1522,7 +1522,7 @@ describe("hashInputs", () => {
     expect(after).not.toBe(before);
   });
 
-  it("ignores the Notion body so a fetch failure does not churn the hash", async () => {
+  it("is sensitive to the Notion body, which is why callers null it out", async () => {
     const { db, campaignId } = createTestDb();
     seed(db, campaignId);
     const inputs = await gatherInputs(db, campaignId, "character", "c1");
@@ -1631,12 +1631,23 @@ export async function gatherInputs(
           WHERE target_kind = ${targetKind} AND target_id = ${targetId}
         )
       )
+    -- Thread-linked events sort ahead of mere name matches, because the two
+    -- signals are not equally strong. An entity called "The Watch" is named in
+    -- passing all over the campaign; sorting purely by recency lets that chatter
+    -- fill all twelve slots and crowd out the events on threads the entity is
+    -- actually tangled in — which is the material a briefing is for.
+    --
     -- id is a tiebreak, not a preference: SQLite leaves the order of rows that
     -- tie on every ORDER BY column undefined. Same-day, same-timestamp events
     -- are ordinary here, and without a total order the sequence could shift
     -- when the query plan changes — churning hashInputs and reporting every
     -- briefing in the campaign stale at once, for no visible reason.
-    ORDER BY day DESC, created_at DESC, id DESC
+    ORDER BY
+      CASE WHEN thread_id IN (
+        SELECT thread_id FROM thread_links
+        WHERE target_kind = ${targetKind} AND target_id = ${targetId}
+      ) THEN 0 ELSE 1 END,
+      day DESC, created_at DESC, id DESC
     LIMIT ${TIMELINE_LIMIT}
   `);
 
@@ -1676,7 +1687,7 @@ export function hashInputs(inputs: BriefingInputs): string {
 - [ ] **Step 4: Run the test**
 
 Run: `npx vitest run lib/run/briefing-inputs.test.ts`
-Expected: PASS, 6 tests.
+Expected: PASS, 7 tests.
 
 - [ ] **Step 5: Commit**
 
