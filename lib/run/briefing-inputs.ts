@@ -86,7 +86,12 @@ export async function gatherInputs(
           WHERE target_kind = ${targetKind} AND target_id = ${targetId}
         )
       )
-    ORDER BY day DESC, created_at DESC
+    -- id is a tiebreak, not a preference: SQLite leaves the order of rows that
+    -- tie on every ORDER BY column undefined. Same-day, same-timestamp events
+    -- are ordinary here, and without a total order the sequence could shift
+    -- when the query plan changes — churning hashInputs and reporting every
+    -- briefing in the campaign stale at once, for no visible reason.
+    ORDER BY day DESC, created_at DESC, id DESC
     LIMIT ${TIMELINE_LIMIT}
   `);
 
