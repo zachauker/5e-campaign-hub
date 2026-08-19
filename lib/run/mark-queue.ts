@@ -4,8 +4,23 @@ import type { MarkTag } from "./marks";
 const BASE_DELAY_MS = 2_000;
 const MAX_DELAY_MS = 60_000;
 
+/**
+ * How long a fresh mark stays taggable before it becomes eligible to send.
+ * Exported so the store (which enforces it) and the /run UI (whose digit-key
+ * window must match it) share one constant instead of two numbers that can
+ * drift apart.
+ */
+export const TAG_WINDOW_MS = 4_000;
+
 export interface QueuedMark {
-  /** Client-generated so a retry can never write the same mark twice. */
+  /**
+   * Client-generated. Locally it dedupes the in-memory queue (see `enqueue`).
+   * It is also sent to the server, where `createMark` looks up an existing
+   * row by `localId` before inserting: that server-side check, not the id by
+   * itself, is what makes a retried POST idempotent. A retry can still race
+   * a lost response and insert a genuine duplicate if `localId` is ever
+   * omitted or the server doesn't check it.
+   */
   localId: string;
   campaignId: string;
   runSessionId: string;

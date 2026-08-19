@@ -16,6 +16,8 @@ export interface CreateMarkInput {
   note?: string | null;
   contextKind?: string | null;
   contextId?: string | null;
+  /** Client-generated id of the queued mark. See the idempotency check below. */
+  localId?: string | null;
 }
 
 async function read(db: StateDb, id: string): Promise<SessionMark> {
@@ -38,6 +40,21 @@ export async function createMark(db: StateDb, input: CreateMarkInput): Promise<S
   const run = await db.query.runSessions.findFirst({ where: eq(runSessions.id, input.runSessionId) });
   if (!run) throw new NotFoundError("No run found with that id");
 
+  // A retry can legitimately duplicate a mark: the POST succeeds and inserts
+  // a row, the response is lost in transit, and the client — having no way to
+  // tell "failed" from "succeeded but I never heard back" — retries with the
+  // same localId. No client-side guard can prevent that. This check is what
+  // actually makes the retry idempotent: return the row that already exists
+  // instead of inserting a second one. idx_session_marks_local backs this
+  // with a unique constraint so a race between two such retries can't slip
+  // both inserts through.
+  if (input.localId) {
+    const existing = await db.query.sessionMarks.findFirst({
+      where: eq(sessionMarks.localId, input.localId),
+    });
+    if (existing) return existing;
+  }
+
   const now = new Date();
   const id = generateId();
   await db.insert(sessionMarks).values({
@@ -52,6 +69,7 @@ export async function createMark(db: StateDb, input: CreateMarkInput): Promise<S
     contextId: input.contextId ?? null,
     resolved: false,
     createdAt: now,
+    localId: input.localId ?? null,
   });
   return read(db, id);
 }

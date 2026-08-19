@@ -101,3 +101,28 @@ describe("MARK_TAGS", () => {
     expect(MARK_TAGS).toEqual(["npc", "promise", "loot", "lore", "todo"]);
   });
 });
+
+describe("createMark idempotency", () => {
+  it("returns the existing mark for a repeated localId instead of inserting a second row", async () => {
+    const { db, campaignId } = createTestDb();
+    const run = await startRun(db, { campaignId });
+    const first = await createMark(db, {
+      campaignId, runSessionId: run.id, atMs: 1_000, localId: "local-1",
+    });
+    // Simulates a retry after the first response was lost: same localId, same
+    // logical mark, arrives a second time.
+    const second = await createMark(db, {
+      campaignId, runSessionId: run.id, atMs: 1_000, localId: "local-1",
+    });
+    expect(second.id).toBe(first.id);
+    expect(await listMarks(db, run.id)).toHaveLength(1);
+  });
+
+  it("does not dedupe marks with no localId", async () => {
+    const { db, campaignId } = createTestDb();
+    const run = await startRun(db, { campaignId });
+    await createMark(db, { campaignId, runSessionId: run.id, atMs: 1_000 });
+    await createMark(db, { campaignId, runSessionId: run.id, atMs: 1_000 });
+    expect(await listMarks(db, run.id)).toHaveLength(2);
+  });
+});

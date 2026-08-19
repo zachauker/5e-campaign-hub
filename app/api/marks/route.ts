@@ -42,6 +42,7 @@ export async function POST(req: Request) {
       note: body.note ?? null,
       contextKind: body.contextKind ?? null,
       contextId: body.contextId ?? null,
+      localId: typeof body.localId === "string" && body.localId ? body.localId : undefined,
     });
     return NextResponse.json(mark, { status: 201 });
   } catch (err) {

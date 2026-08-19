@@ -3012,6 +3012,7 @@ export async function POST(req: Request) {
       note: body.note ?? null,
       contextKind: body.contextKind ?? null,
       contextId: body.contextId ?? null,
+      localId: typeof body.localId === "string" && body.localId ? body.localId : undefined,
     });
     return NextResponse.json(mark, { status: 201 });
   } catch (err) {
@@ -3170,8 +3171,23 @@ import type { MarkTag } from "./marks";
 const BASE_DELAY_MS = 2_000;
 const MAX_DELAY_MS = 60_000;
 
+/**
+ * How long a fresh mark stays taggable before it becomes eligible to send.
+ * Exported so the store (which enforces it) and the /run UI (whose digit-key
+ * window must match it) share one constant instead of two numbers that can
+ * drift apart.
+ */
+export const TAG_WINDOW_MS = 4_000;
+
 export interface QueuedMark {
-  /** Client-generated so a retry can never write the same mark twice. */
+  /**
+   * Client-generated. Locally it dedupes the in-memory queue (see `enqueue`).
+   * It is also sent to the server, where `createMark` looks up an existing
+   * row by `localId` before inserting: that server-side check, not the id by
+   * itself, is what makes a retried POST idempotent. A retry can still race
+   * a lost response and insert a genuine duplicate if `localId` is ever
+   * omitted or the server doesn't check it.
+   */
   localId: string;
   campaignId: string;
   runSessionId: string;
@@ -3254,10 +3270,17 @@ Create `lib/store/run-store.ts`:
 import { create } from "zustand";
 import type { MarkTag } from "@/lib/run/marks";
 import {
-  enqueue, markSent, markFailed, dueItems, serialise, deserialise, type QueuedMark,
+  enqueue, markSent, markFailed, dueItems, serialise, deserialise, TAG_WINDOW_MS, type QueuedMark,
 } from "@/lib/run/mark-queue";
 
 const STORAGE_KEY = "run-mark-queue";
+
+// Module-level, not component state: the store is a singleton, and this
+// guards against two overlapping flush() calls (e.g. the interval timer
+// firing again before a slow fetch resolves) reading the same queue snapshot
+// and double-POSTing, or a late set() built from a stale snapshot resurrecting
+// a mark that already sent.
+let flushing = false;
 
 export interface PinnedCard {
   kind: string;
@@ -3272,6 +3295,13 @@ interface RunState {
   queue: QueuedMark[];
   /** Marks accepted by the server this run, newest last. Drives the bottom strip. */
   sent: { localId: string; atMs: number; tag: MarkTag | null }[];
+  /**
+   * localId of the mark the tag window is currently open for, or null. This
+   * is the mark digit keys 1-5 (and MarkStrip's tag buttons) apply to — set
+   * by addMark, and the only thing that identifies "the mark just made" once
+   * other marks may have entered or left the queue since.
+   */
+  taggableLocalId: string | null;
   lastError: string | null;
 
   beginRun: (runSessionId: string, startedAt: number) => void;
@@ -3279,7 +3309,8 @@ interface RunState {
   pin: (card: PinnedCard) => void;
   unpin: (targetId: string) => void;
   addMark: (input: Omit<QueuedMark, "attempts" | "nextAttemptAt">) => void;
-  tagLastMark: (tag: MarkTag) => void;
+  tagMark: (localId: string, tag: MarkTag) => void;
+  clearTaggable: () => void;
   flush: () => Promise<void>;
   restoreQueue: () => void;
 }
@@ -3300,6 +3331,7 @@ export const useRunStore = create<RunState>((set, get) => ({
   pinned: [],
   queue: [],
   sent: [],
+  taggableLocalId: null,
   lastError: null,
 
   beginRun: (runSessionId, startedAt) => set({ runSessionId, startedAt, sent: [], lastError: null }),
@@ -3312,45 +3344,64 @@ export const useRunStore = create<RunState>((set, get) => ({
   unpin: (targetId) => set((s) => ({ pinned: s.pinned.filter((p) => p.targetId !== targetId) })),
 
   addMark: (input) => {
-    const item: QueuedMark = { ...input, attempts: 0, nextAttemptAt: 0 };
+    // Not due until the tag window closes. This guarantees the mark is still
+    // sitting in the queue for the whole window a DM has to tag it, so
+    // tagMark's lookup-by-localId always has something to find. Sending it
+    // immediately would let a fast flush() remove it from the queue mid-window,
+    // which is what let tagging-by-position land on the wrong mark before —
+    // resist "fixing" this back to an immediate send.
+    const item: QueuedMark = { ...input, attempts: 0, nextAttemptAt: Date.now() + TAG_WINDOW_MS };
     const queue = enqueue(get().queue, item);
     persist(queue);
-    set({ queue });
-    void get().flush();
+    set({ queue, taggableLocalId: item.localId });
+    // No immediate flush: the interval flush (see app/run/page.tsx) picks
+    // this up once it becomes due. Crash safety is unaffected — persist()
+    // above already wrote it to localStorage synchronously.
   },
 
-  // Applies to the most recent queued mark. The tag window is a UI concern; by
-  // the time a mark has been accepted it is no longer taggable from the strip.
-  tagLastMark: (tag) => {
-    const queue = get().queue;
-    if (queue.length === 0) return;
-    const next = queue.map((q, i) => (i === queue.length - 1 ? { ...q, tag } : q));
-    persist(next);
-    set({ queue: next });
+  // Tags by identity, not queue position: an earlier mark can still be
+  // sitting in the queue (backed off after a failed send) when a new one is
+  // made, so "the last item in the queue" is not reliably "the mark just
+  // made". localId is the only stable handle on that.
+  tagMark: (localId, tag) => {
+    const queue = get().queue.map((q) => (q.localId === localId ? { ...q, tag } : q));
+    persist(queue);
+    set((s) => ({
+      queue,
+      taggableLocalId: s.taggableLocalId === localId ? null : s.taggableLocalId,
+    }));
   },
+
+  clearTaggable: () => set({ taggableLocalId: null }),
 
   flush: async () => {
-    const now = Date.now();
-    for (const item of dueItems(get().queue, now)) {
-      try {
-        const res = await fetch("/api/marks", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(item),
-        });
-        if (!res.ok) throw new Error(`Mark write failed (${res.status})`);
-        const queue = markSent(get().queue, item.localId);
-        persist(queue);
-        set((s) => ({
-          queue,
-          sent: [...s.sent, { localId: item.localId, atMs: item.atMs, tag: item.tag }],
-          lastError: null,
-        }));
-      } catch (err) {
-        const queue = markFailed(get().queue, item.localId, Date.now());
-        persist(queue);
-        set({ queue, lastError: err instanceof Error ? err.message : "Mark write failed" });
+    if (flushing) return;
+    flushing = true;
+    try {
+      const now = Date.now();
+      for (const item of dueItems(get().queue, now)) {
+        try {
+          const res = await fetch("/api/marks", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(item),
+          });
+          if (!res.ok) throw new Error(`Mark write failed (${res.status})`);
+          const queue = markSent(get().queue, item.localId);
+          persist(queue);
+          set((s) => ({
+            queue,
+            sent: [...s.sent, { localId: item.localId, atMs: item.atMs, tag: item.tag }],
+            lastError: null,
+          }));
+        } catch (err) {
+          const queue = markFailed(get().queue, item.localId, Date.now());
+          persist(queue);
+          set({ queue, lastError: err instanceof Error ? err.message : "Mark write failed" });
+        }
       }
+    } finally {
+      flushing = false;
     }
   },
 
@@ -3361,6 +3412,8 @@ export const useRunStore = create<RunState>((set, get) => ({
   },
 }));
 ```
+
+`flushing` is a module-level `let`, not store state: two overlapping `flush()` calls (e.g. the interval timer firing again before a slow fetch resolves) would otherwise each read the same queue snapshot and double-POST, or a late `set()` built from a stale snapshot could resurrect a mark that already sent. A module-level guard is correct because the store is a singleton.
 
 - [ ] **Step 6: Verify types**
 
@@ -3801,7 +3854,12 @@ export function MarkStrip({ tagWindowOpen, onEndRun }: MarkStripProps) {
   const sent = useRunStore((s) => s.sent);
   const queue = useRunStore((s) => s.queue);
   const lastError = useRunStore((s) => s.lastError);
-  const tagLastMark = useRunStore((s) => s.tagLastMark);
+  const tagMark = useRunStore((s) => s.tagMark);
+  // The strip's tag buttons are a click-instead-of-keystroke fallback for the
+  // same window the digit keys use, so they need to know which mark that
+  // window belongs to — never a queue position, which is exactly what let a
+  // tag land on the wrong mark before (see run-store.ts).
+  const taggableLocalId = useRunStore((s) => s.taggableLocalId);
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -3821,13 +3879,13 @@ export function MarkStrip({ tagWindowOpen, onEndRun }: MarkStripProps) {
         {sent.length + queue.length} marks
       </span>
 
-      {tagWindowOpen && (
+      {tagWindowOpen && taggableLocalId && (
         <span className="flex items-center gap-1.5">
           {MARK_TAGS.map((tag, i) => (
             <button
               key={tag}
               type="button"
-              onClick={() => tagLastMark(tag)}
+              onClick={() => tagMark(taggableLocalId, tag)}
               className="rounded border border-border px-1.5 py-0.5 text-[10px] uppercase tracking-wide hover:bg-accent"
             >
               {i + 1} {tag}
@@ -4016,17 +4074,16 @@ import { AnswerPanel } from "@/components/run/AnswerPanel";
 import { SceneBoard } from "@/components/run/SceneBoard";
 import { MarkStrip } from "@/components/run/MarkStrip";
 import { MARK_TAGS } from "@/lib/run/marks";
+import { TAG_WINDOW_MS } from "@/lib/run/mark-queue";
 import { generateId } from "@/lib/utils";
-
-/** How long the digit keys stay bound to the last mark. */
-const TAG_WINDOW_MS = 4000;
 
 export default function RunPage() {
   const router = useRouter();
   const { activeCampaignId } = useCampaignStore();
   const { encounter } = useEncounterStore();
   const {
-    runSessionId, startedAt, beginRun, endRunLocal, addMark, tagLastMark, flush, restoreQueue,
+    runSessionId, startedAt, beginRun, endRunLocal, addMark, tagMark, taggableLocalId,
+    clearTaggable, flush, restoreQueue,
   } = useRunStore();
 
   const [tagWindowOpen, setTagWindowOpen] = useState(false);
@@ -4063,8 +4120,12 @@ export default function RunPage() {
 
   const dropMark = useCallback(() => {
     if (!activeCampaignId || !runSessionId || startedAt == null) return;
+    // Captured once and passed to addMark, which stashes it as the store's
+    // taggableLocalId — the single handle both the digit keys below and
+    // MarkStrip's tag buttons use to find this exact mark, never a position.
+    const localId = generateId();
     addMark({
-      localId: generateId(),
+      localId,
       campaignId: activeCampaignId,
       runSessionId,
       atMs: Date.now() - startedAt,
@@ -4075,8 +4136,11 @@ export default function RunPage() {
     });
     setTagWindowOpen(true);
     if (tagTimerRef.current) clearTimeout(tagTimerRef.current);
-    tagTimerRef.current = setTimeout(() => setTagWindowOpen(false), TAG_WINDOW_MS);
-  }, [activeCampaignId, runSessionId, startedAt, addMark]);
+    tagTimerRef.current = setTimeout(() => {
+      setTagWindowOpen(false);
+      clearTaggable();
+    }, TAG_WINDOW_MS);
+  }, [activeCampaignId, runSessionId, startedAt, addMark, clearTaggable]);
 
   // Space marks; digits 1-5 tag it. Digits rather than letters because letters
   // collide with starting a search right after marking, which is exactly what
@@ -4092,15 +4156,15 @@ export default function RunPage() {
         dropMark();
         return;
       }
-      if (tagWindowOpen && /^[1-5]$/.test(e.key)) {
+      if (tagWindowOpen && taggableLocalId && /^[1-5]$/.test(e.key)) {
         e.preventDefault();
-        tagLastMark(MARK_TAGS[Number(e.key) - 1]);
+        tagMark(taggableLocalId, MARK_TAGS[Number(e.key) - 1]);
         setTagWindowOpen(false);
       }
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [dropMark, tagWindowOpen, tagLastMark]);
+  }, [dropMark, tagWindowOpen, taggableLocalId, tagMark]);
 
   const endRun = useCallback(async () => {
     if (runSessionId) {

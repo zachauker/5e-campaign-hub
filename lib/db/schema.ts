@@ -379,6 +379,10 @@ export const sessionMarks = sqliteTable("session_marks", {
   contextId: text("context_id"),
   resolved: integer("resolved", { mode: "boolean" }).notNull().default(false),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  // Client-generated. Lets createMark() dedupe a retried write that succeeded
+  // server-side but whose response was lost — see lib/run/marks.ts. Nullable:
+  // rows written before this column existed have none.
+  localId: text("local_id"),
 });
 
 export type Encounter = typeof encounters.$inferSelect;

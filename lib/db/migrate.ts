@@ -409,11 +409,24 @@ export function runMigrations() {
       context_kind TEXT,
       context_id TEXT,
       resolved INTEGER NOT NULL DEFAULT 0,
-      created_at INTEGER NOT NULL
+      created_at INTEGER NOT NULL,
+      local_id TEXT
     );
 
     CREATE INDEX IF NOT EXISTS idx_session_marks_run
       ON session_marks (run_session_id, at_ms);
+  `);
+
+  // Additive: session_marks existed before local_id (see above), so a
+  // database created before this migration needs the column added rather
+  // than relying on the CREATE TABLE. The unique index makes a retried mark
+  // write idempotent (lib/run/marks.ts createMark dedupes on local_id) —
+  // partial so the many pre-existing rows with no local_id don't collide
+  // with each other under NULL.
+  addColumnIfMissing("session_marks", "local_id", "TEXT");
+  sqlite.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_session_marks_local
+      ON session_marks (local_id) WHERE local_id IS NOT NULL;
   `);
 
   // FTS5 index backing /api/search. Standalone (not external-content): rows are
