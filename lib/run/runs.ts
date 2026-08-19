@@ -49,6 +49,11 @@ export async function startRun(
   return read(db, id);
 }
 
+/** Read one run, or throw NotFoundError. Exported so routes can check ownership. */
+export async function getRun(db: StateDb, id: string): Promise<RunSession> {
+  return read(db, id);
+}
+
 export async function getActiveRun(db: StateDb, campaignId: string): Promise<RunSession | null> {
   const row = await db.query.runSessions.findFirst({
     where: and(eq(runSessions.campaignId, campaignId), isNull(runSessions.endedAt)),

@@ -25,8 +25,13 @@ export async function POST(req: Request) {
   if (typeof body.runSessionId !== "string" || !body.runSessionId) {
     return NextResponse.json({ error: '"runSessionId" is required and must be a string' }, { status: 400 });
   }
-  if (typeof body.atMs !== "number") {
+  if (typeof body.atMs !== "number" || !Number.isFinite(body.atMs)) {
     return NextResponse.json({ error: '"atMs" is required and must be a number' }, { status: 400 });
+  }
+  // Checked before rounding: Math.round() maps anything in (-1, 0) to -0, which
+  // then passes createMark's non-negative guard and stores as 0.
+  if (body.atMs < 0) {
+    return NextResponse.json({ error: '"atMs" must not be negative' }, { status: 400 });
   }
   try {
     const mark = await createMark(sdb, {

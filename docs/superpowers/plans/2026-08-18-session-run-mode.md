@@ -2541,6 +2541,11 @@ export async function startRun(
   return read(db, id);
 }
 
+/** Read one run, or throw NotFoundError. Exported so routes can check ownership. */
+export async function getRun(db: StateDb, id: string): Promise<RunSession> {
+  return read(db, id);
+}
+
 export async function getActiveRun(db: StateDb, campaignId: string): Promise<RunSession | null> {
   const row = await db.query.runSessions.findFirst({
     where: and(eq(runSessions.campaignId, campaignId), isNull(runSessions.endedAt)),
@@ -2731,7 +2736,11 @@ async function read(db: StateDb, id: string): Promise<SessionMark> {
 }
 
 export async function createMark(db: StateDb, input: CreateMarkInput): Promise<SessionMark> {
-  if (!Number.isInteger(input.atMs) || input.atMs < 0) {
+  // Object.is catches -0, which the other two checks both wave through:
+  // Number.isInteger(-0) is true and -0 < 0 is false. Math.round() turns any
+  // value in (-1, 0) into -0, so without this a mark timestamped a fraction of
+  // a second before the run started is silently accepted as 0.
+  if (!Number.isInteger(input.atMs) || input.atMs < 0 || Object.is(input.atMs, -0)) {
     throw new Error('"atMs" must be a non-negative integer');
   }
   if (input.tag != null && !(MARK_TAGS as readonly string[]).includes(input.tag)) {
@@ -2779,7 +2788,7 @@ export async function setMarkResolved(
 - [ ] **Step 4: Run the test**
 
 Run: `npx vitest run lib/run/marks.test.ts`
-Expected: PASS, 9 tests.
+Expected: PASS, 10 tests.
 
 - [ ] **Step 5: Commit**
 
@@ -2848,19 +2857,30 @@ Create `app/api/runs/[id]/route.ts`:
 ```ts
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { endRun, linkSessionNote } from "@/lib/run/runs";
+import { endRun, linkSessionNote, getRun } from "@/lib/run/runs";
 import { listMarks } from "@/lib/run/marks";
 import { toClientErrorMessage, NotFoundError } from "@/lib/state/errors";
 import type { StateDb } from "@/lib/state/types";
 
 const sdb: StateDb = db;
 
-export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  const campaignId = new URL(req.url).searchParams.get("campaignId");
+  // Required for the same reason /api/search and /api/briefings require it.
+  // Without it this endpoint would hand over any run's marks to anyone holding
+  // the id, which is a different posture from the rest of the sub-project —
+  // and this shell has shipped a cross-campaign leak once already.
+  if (!campaignId) {
+    return NextResponse.json({ error: '"campaignId" is required' }, { status: 400 });
+  }
   try {
+    const run = await getRun(sdb, id);
+    if (run.campaignId !== campaignId) throw new NotFoundError("No run found with that id");
     return NextResponse.json({ marks: await listMarks(sdb, id) });
   } catch (err) {
-    return NextResponse.json({ error: toClientErrorMessage(err) }, { status: 400 });
+    const status = err instanceof NotFoundError ? 404 : 400;
+    return NextResponse.json({ error: toClientErrorMessage(err) }, { status });
   }
 }
 
@@ -2913,8 +2933,13 @@ export async function POST(req: Request) {
   if (typeof body.runSessionId !== "string" || !body.runSessionId) {
     return NextResponse.json({ error: '"runSessionId" is required and must be a string' }, { status: 400 });
   }
-  if (typeof body.atMs !== "number") {
+  if (typeof body.atMs !== "number" || !Number.isFinite(body.atMs)) {
     return NextResponse.json({ error: '"atMs" is required and must be a number' }, { status: 400 });
+  }
+  // Checked before rounding: Math.round() maps anything in (-1, 0) to -0, which
+  // then passes createMark's non-negative guard and stores as 0.
+  if (body.atMs < 0) {
+    return NextResponse.json({ error: '"atMs" must not be negative' }, { status: 400 });
   }
   try {
     const mark = await createMark(sdb, {

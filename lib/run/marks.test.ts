@@ -54,6 +54,18 @@ describe("createMark", () => {
   });
 });
 
+  it("rejects an atMs that rounds to negative zero", async () => {
+    const { db, campaignId } = createTestDb();
+    const run = await startRun(db, { campaignId });
+    // Math.round() maps anything in (-1, 0) to -0, and both Number.isInteger(-0)
+    // and !(-0 < 0) are true — so without an explicit check a mark timestamped a
+    // fraction of a second before the run started is stored as 0.
+    await expect(
+      createMark(db, { campaignId, runSessionId: run.id, atMs: -0 }),
+    ).rejects.toThrow(/atMs/);
+  });
+
+
 describe("listMarks", () => {
   it("returns marks in table order", async () => {
     const { db, campaignId } = createTestDb();

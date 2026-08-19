@@ -25,7 +25,11 @@ async function read(db: StateDb, id: string): Promise<SessionMark> {
 }
 
 export async function createMark(db: StateDb, input: CreateMarkInput): Promise<SessionMark> {
-  if (!Number.isInteger(input.atMs) || input.atMs < 0) {
+  // Object.is catches -0, which the other two checks both wave through:
+  // Number.isInteger(-0) is true and -0 < 0 is false. Math.round() turns any
+  // value in (-1, 0) into -0, so without this a mark timestamped a fraction of
+  // a second before the run started is silently accepted as 0.
+  if (!Number.isInteger(input.atMs) || input.atMs < 0 || Object.is(input.atMs, -0)) {
     throw new Error('"atMs" must be a non-negative integer');
   }
   if (input.tag != null && !(MARK_TAGS as readonly string[]).includes(input.tag)) {
