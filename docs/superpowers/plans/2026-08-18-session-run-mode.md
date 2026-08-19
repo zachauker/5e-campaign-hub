@@ -4887,12 +4887,54 @@ export async function POST(req: Request) {
 
 - [ ] **Step 6: Add a lazy build to the entity detail pages**
 
-For each of `app/characters/[id]/page.tsx`, `app/locations/[id]/page.tsx`, `app/items/[id]/page.tsx`, and `app/factions/[id]/page.tsx`, add a briefing section that fetches the briefing on mount and builds it when absent. This is the lazy trigger, and it lives **only** on prep surfaces — `/run` never fires it.
+For each of `app/characters/[id]/page.tsx`, `app/locations/[id]/page.tsx`, `app/items/[id]/page.tsx`, and `app/factions/[id]/page.tsx` (the latter three share `components/glossary/SimpleEntityDetail.tsx`), add a briefing section that fetches the briefing on mount and builds it when absent. This is the lazy trigger, and it lives **only** on prep surfaces — `/run` never fires it.
+
+The app router reuses the same page component instance across `/characters/A` → `/characters/B` navigations (no `template.tsx`), so `buildBriefing`'s own closure over `id` cannot be trusted once its `await` resolves — the DM may have already navigated elsewhere. Guard the same way `AnswerPanel.build` does (`components/run/AnswerPanel.tsx`, commit `e192c76`): a ref holding whichever id is actually on screen, checked before the result is applied. Also guard against a second build firing for the same still-unbuilt entity while the first is in flight (re-opening it before the first resolves) — `entity_briefings` has a unique index on the target, so the loser throws, the route 400s, and a paid model call is wasted with nothing shown; a ref-backed set of in-flight target ids, cleared on both success and failure, closes that window. Surface a failed build inline (`BriefingCard`'s `building` prop already exists; a small message below the card is enough) rather than swallowing the 400 silently.
 
 ```tsx
   const [briefing, setBriefing] = useState<BriefingCardData | null>(null);
   const [briefingStale, setBriefingStale] = useState(false);
   const [buildingBriefing, setBuildingBriefing] = useState(false);
+  const [briefingError, setBriefingError] = useState<string | null>(null);
+
+  // Whichever entity is actually on screen, readable from inside an in-flight
+  // buildBriefing continuation.
+  const currentIdRef = useRef<string | null>(null);
+  useEffect(() => { currentIdRef.current = id; }, [id]);
+
+  // Entities whose briefing build is currently in flight. A ref: must not
+  // cause a re-render, must be cleared on both success and failure.
+  const buildingIdsRef = useRef<Set<string>>(new Set());
+
+  const buildBriefing = useCallback(async () => {
+    if (!activeCampaignId || !id) return;
+    const targetId = id;
+    if (buildingIdsRef.current.has(targetId)) return;
+    buildingIdsRef.current.add(targetId);
+    setBuildingBriefing(true);
+    setBriefingError(null);
+    try {
+      const res = await fetch("/api/briefings", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ campaignId: activeCampaignId, targetKind: "character", targetId: id }),
+      });
+      if (res.ok) {
+        const data: { briefing: BriefingCardData } = await res.json();
+        if (currentIdRef.current === targetId) {
+          setBriefing(data.briefing);
+          setBriefingStale(false);
+        }
+      } else if (currentIdRef.current === targetId) {
+        setBriefingError("Briefing build failed. Try again.");
+      }
+    } catch {
+      if (currentIdRef.current === targetId) setBriefingError("Briefing build failed. Try again.");
+    } finally {
+      buildingIdsRef.current.delete(targetId);
+      setBuildingBriefing(false);
+    }
+  }, [activeCampaignId, id]);
 
   useEffect(() => {
     if (!activeCampaignId || !id) return;
@@ -4903,16 +4945,17 @@ For each of `app/characters/[id]/page.tsx`, `app/locations/[id]/page.tsx`, `app/
         if (cancelled) return;
         setBriefing(data.briefing);
         setBriefingStale(data.stale);
+        setBriefingError(null);
         // Lazily build on first view, but only here — a prep surface can afford
         // the round-trip and the model call. /run cannot.
         if (!data.briefing) void buildBriefing();
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [activeCampaignId, id]);
+  }, [activeCampaignId, id, buildBriefing]);
 ```
 
-Replace `targetKind=character` with the page's own kind. Render the result with `BriefingCard` from `@/components/run/BriefingCard`, passing `onBuild={buildBriefing}` and the same `fallback` shape the answer panel uses.
+Replace `targetKind=character` with the page's own kind. Render the result with `BriefingCard` from `@/components/run/BriefingCard`, passing `onBuild={buildBriefing}` and the same `fallback` shape the answer panel uses, plus a small inline message below the card when `briefingError` is set.
 
 - [ ] **Step 7: Verify types and lint**
 

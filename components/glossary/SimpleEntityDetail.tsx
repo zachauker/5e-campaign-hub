@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -62,6 +62,26 @@ export function SimpleEntityDetail({ resourcePath, label, icon: Icon }: SimpleEn
   const [briefingStale, setBriefingStale] = useState(false);
   const [briefingThreads, setBriefingThreads] = useState<string[]>([]);
   const [buildingBriefing, setBuildingBriefing] = useState(false);
+  const [briefingError, setBriefingError] = useState<string | null>(null);
+
+  // Tracks whichever entity is actually on screen, readable from inside an
+  // in-flight buildBriefing continuation. Mirrors AnswerPanel's selectedRef
+  // (components/run/AnswerPanel.tsx, commit e192c76) — the app router reuses
+  // this component across /{locations,items,factions}/[id] navigations (no
+  // template.tsx), so a build's own closure over `id` is exactly the value
+  // that must not decide where the result lands.
+  const currentIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    currentIdRef.current = id;
+  }, [id]);
+
+  // Keys the entities whose briefing build is currently in flight. Without
+  // this, re-opening the same still-unbuilt entity before the first build
+  // resolves fires a second concurrent build — the loser trips
+  // entity_briefings' unique index, the route 400s, and a paid model call is
+  // wasted for nothing shown. A ref because this must not cause a re-render
+  // and must be cleared on both success and failure.
+  const buildingIdsRef = useRef<Set<string>>(new Set());
 
   const pinned = useRunStore((s) => s.pinned);
   const pin = useRunStore((s) => s.pin);
@@ -124,7 +144,11 @@ export function SimpleEntityDetail({ resourcePath, label, icon: Icon }: SimpleEn
 
   const buildBriefing = useCallback(async () => {
     if (!activeCampaignId || !id) return;
+    const targetId = id;
+    if (buildingIdsRef.current.has(targetId)) return;
+    buildingIdsRef.current.add(targetId);
     setBuildingBriefing(true);
+    setBriefingError(null);
     try {
       const res = await fetch("/api/briefings", {
         method: "POST",
@@ -133,10 +157,21 @@ export function SimpleEntityDetail({ resourcePath, label, icon: Icon }: SimpleEn
       });
       if (res.ok) {
         const data: { briefing: BriefingCardData } = await res.json();
-        setBriefing(data.briefing);
-        setBriefingStale(false);
+        // A build takes a model call, so the DM can easily navigate away
+        // before it lands. Without this check the result is written into
+        // whatever card is on screen now — one entity's briefing rendered
+        // under another's name, read aloud at the table as if it were theirs.
+        if (currentIdRef.current === targetId) {
+          setBriefing(data.briefing);
+          setBriefingStale(false);
+        }
+      } else if (currentIdRef.current === targetId) {
+        setBriefingError("Briefing build failed. Try again.");
       }
+    } catch {
+      if (currentIdRef.current === targetId) setBriefingError("Briefing build failed. Try again.");
     } finally {
+      buildingIdsRef.current.delete(targetId);
       setBuildingBriefing(false);
     }
   }, [activeCampaignId, targetKind, id]);
@@ -153,6 +188,7 @@ export function SimpleEntityDetail({ resourcePath, label, icon: Icon }: SimpleEn
         if (cancelled) return;
         setBriefing(data.briefing);
         setBriefingStale(data.stale);
+        setBriefingError(null);
         if (!data.briefing) void buildBriefing();
       })
       .catch(() => {});
@@ -263,6 +299,9 @@ export function SimpleEntityDetail({ resourcePath, label, icon: Icon }: SimpleEn
             onBuild={buildBriefing}
             building={buildingBriefing}
           />
+          {briefingError && (
+            <p className="text-xs text-destructive">{briefingError}</p>
+          )}
 
           {entity.description && (
             <p className="text-[15px] leading-relaxed text-foreground/85 max-w-[68ch]">
