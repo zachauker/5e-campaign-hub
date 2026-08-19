@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { locations } from "@/lib/db/schema";
 import { generateId } from "@/lib/utils";
 import { eq, asc, and } from "drizzle-orm";
+import { syncEntityToIndex } from "@/lib/run/index-sync";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -54,5 +55,14 @@ export async function POST(req: Request) {
       updatedAt: now,
     })
     .returning();
+
+  try {
+    await syncEntityToIndex(db, location.campaignId, "location", location.id);
+  } catch (err) {
+    // A failed index write must never fail the entity write that caused it —
+    // the index is a derived convenience and Settings can rebuild it.
+    console.warn("[search-index] sync failed:", (err as Error).message);
+  }
+
   return NextResponse.json(location, { status: 201 });
 }

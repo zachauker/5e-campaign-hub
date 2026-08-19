@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Swords, Users, MapPin, Package, Shield, Command, Settings, Map, Globe, ScrollText, BookOpen } from "lucide-react";
+import { Swords, Users, MapPin, Package, Shield, Command, Settings, Map, Globe, ScrollText, BookOpen, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCampaignStore } from "@/lib/store/campaign-store";
 import { useUIStore } from "@/lib/store/ui-store";
@@ -23,6 +23,10 @@ const SECTIONS = [
   { href: "/chronicle", label: "Chronicle", icon: BookOpen },
   { href: "/world", label: "World", icon: Globe },
   { href: "/maps", label: "Maps", icon: Map },
+  // Last, not first. Entering /run creates a persisted run session, so a
+  // mis-click while prepping is not just a wrong page — it opens a session.
+  // Keeping it away from where a hand reaches for Encounters costs nothing.
+  { href: "/run", label: "Run", icon: Play },
 ];
 
 export function TopBar() {

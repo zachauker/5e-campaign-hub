@@ -36,57 +36,35 @@ export function CommandPalette() {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [setOpen]);
 
+  // /api/search now requires a campaignId and filters server-side, so results
+  // are re-fetched per keystroke rather than fetched once and filtered here.
+  // Threads and clocks come from the same index — the separate /api/threads
+  // fetch this component used to make is gone.
+  //
+  // When there's no campaign or no query, we skip the fetch and let `results`
+  // below short-circuit to empty rather than clearing `allResults` here —
+  // react-hooks/set-state-in-effect rejects a synchronous setState in this
+  // branch (no async work precedes it), and deriving the empty case in the
+  // memo avoids the workaround entirely.
   useEffect(() => {
-    if (!open) return;
-    const url = activeCampaignId ? `/api/search?campaignId=${activeCampaignId}` : "/api/search";
-    // Threads are campaign-scoped data, unlike /api/search above (which tolerates
-    // a missing campaignId and returns everything). /api/threads requires
-    // campaignId, so without an active campaign we skip the fetch entirely
-    // rather than ever issuing an unscoped request — the cross-campaign leak
-    // this shell shipped once before came from exactly this file.
-    // Each half degrades on its own. Before this catch, a /api/threads failure
-    // rejected the Promise.all and left the palette with NO results at all —
-    // one new, optional source of results could blank entity search entirely.
-    const threadsPromise: Promise<{ id: string; title: string }[]> = activeCampaignId
-      ? fetch(`/api/threads?campaignId=${activeCampaignId}`)
-          .then((r) => (r.ok ? r.json() : { items: [] }))
-          .then((data: { items?: { id: string; title: string }[] }) => data.items ?? [])
-          .catch(() => [])
-      : Promise.resolve([]);
-
-    const entitiesPromise: Promise<SearchResult[]> = fetch(url)
-      .then((r) => (r.ok ? (r.json() as Promise<SearchResult[]>) : []))
-      .catch(() => []);
-
+    if (!open || !activeCampaignId || !query.trim()) return;
     let cancelled = false;
-
-    Promise.all([entitiesPromise, threadsPromise]).then(
-      ([entities, threadItems]) => {
-        if (cancelled) return;
-        const threadResults: SearchResult[] = threadItems.map((t) => ({
-          id: t.id,
-          name: t.title,
-          type: "thread",
-          href: `/chronicle?campaignId=${activeCampaignId}`,
-        }));
-        const commands: SearchResult[] = activeCampaignId
-          ? [
-              {
-                id: "advance-in-world-date",
-                name: "Advance in-world date",
-                type: "action",
-                href: `/chronicle?campaignId=${activeCampaignId}&tab=timeline`,
-              },
-            ]
-          : [];
-        setAllResults([...entities, ...threadResults, ...commands]);
-      },
-    );
+    const timer = setTimeout(() => {
+      fetch(`/api/search?campaignId=${activeCampaignId}&q=${encodeURIComponent(query)}`)
+        .then((r) => (r.ok ? r.json() : { items: [] }))
+        .then((data: { items?: SearchResult[] }) => {
+          if (!cancelled) setAllResults(data.items ?? []);
+        })
+        .catch(() => {
+          if (!cancelled) setAllResults([]);
+        });
+    }, 80);
 
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
-  }, [open, activeCampaignId]);
+  }, [open, query, activeCampaignId]);
 
   useEffect(() => {
     if (!open) return;
@@ -106,8 +84,23 @@ export function CommandPalette() {
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return (q ? allResults.filter((r) => r.name.toLowerCase().includes(q)) : allResults).slice(0, 8);
-  }, [query, allResults]);
+    // No campaign or no query means no fetch ran (see the effect above), so
+    // `allResults` may still hold a stale response from a previous query —
+    // short-circuit here rather than showing it.
+    if (!activeCampaignId || !q) return [];
+    // Entities, threads and clocks arrive already filtered from /api/search.
+    // Commands are client-side only — they are not rows in the search index —
+    // so they still need matching here.
+    const commands: SearchResult[] = [
+      {
+        id: "advance-in-world-date",
+        name: "Advance in-world date",
+        type: "action",
+        href: `/chronicle?campaignId=${activeCampaignId}&tab=timeline`,
+      },
+    ].filter((c) => c.name.toLowerCase().includes(q));
+    return [...allResults, ...commands].slice(0, 8);
+  }, [query, allResults, activeCampaignId]);
 
   function handleOpenChange(next: boolean) {
     if (next) setQuery("");

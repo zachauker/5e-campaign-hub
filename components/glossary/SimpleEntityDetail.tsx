@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,9 @@ import { NotionPropsTable } from "@/components/glossary/NotionPropsTable";
 import { RelatedCard } from "@/components/glossary/RelatedCard";
 import { SimpleEntityFormDialog } from "@/components/entities/SimpleEntityFormDialog";
 import { EntityThreadsBlock } from "@/components/state/EntityThreadsBlock";
+import { BriefingCard, type BriefingCardData } from "@/components/run/BriefingCard";
 import { useCampaignStore } from "@/lib/store/campaign-store";
+import { useRunStore } from "@/lib/store/run-store";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { NotionBlockData } from "@/lib/notion/client";
 
@@ -55,6 +57,37 @@ export function SimpleEntityDetail({ resourcePath, label, icon: Icon }: SimpleEn
   const [notionBlocks, setNotionBlocks] = useState<NotionBlockData[] | null>(null);
   const [notionError, setNotionError] = useState<string | null>(null);
   const [notionLoading, setNotionLoading] = useState(false);
+
+  const [briefing, setBriefing] = useState<BriefingCardData | null>(null);
+  const [briefingStale, setBriefingStale] = useState(false);
+  const [briefingThreads, setBriefingThreads] = useState<string[]>([]);
+  const [buildingBriefing, setBuildingBriefing] = useState(false);
+  const [briefingError, setBriefingError] = useState<string | null>(null);
+
+  // Tracks whichever entity is actually on screen, readable from inside an
+  // in-flight buildBriefing continuation. Mirrors AnswerPanel's selectedRef
+  // (components/run/AnswerPanel.tsx, commit e192c76) — the app router reuses
+  // this component across /{locations,items,factions}/[id] navigations (no
+  // template.tsx), so a build's own closure over `id` is exactly the value
+  // that must not decide where the result lands.
+  const currentIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    currentIdRef.current = id;
+  }, [id]);
+
+  // Keys the entities whose briefing build is currently in flight. Without
+  // this, re-opening the same still-unbuilt entity before the first build
+  // resolves fires a second concurrent build — the loser trips
+  // entity_briefings' unique index, the route 400s, and a paid model call is
+  // wasted for nothing shown. A ref because this must not cause a re-render
+  // and must be cleared on both success and failure.
+  const buildingIdsRef = useRef<Set<string>>(new Set());
+
+  const pinned = useRunStore((s) => s.pinned);
+  const pin = useRunStore((s) => s.pin);
+  const unpin = useRunStore((s) => s.unpin);
+
+  const targetKind = resourcePath.replace(/s$/, "") as "location" | "item" | "faction";
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -108,6 +141,69 @@ export function SimpleEntityDetail({ resourcePath, label, icon: Icon }: SimpleEn
       cancelled = true;
     };
   }, [entity?.notionUrl]);
+
+  const buildBriefing = useCallback(async () => {
+    if (!activeCampaignId || !id) return;
+    const targetId = id;
+    if (buildingIdsRef.current.has(targetId)) return;
+    buildingIdsRef.current.add(targetId);
+    setBuildingBriefing(true);
+    setBriefingError(null);
+    try {
+      const res = await fetch("/api/briefings", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ campaignId: activeCampaignId, targetKind, targetId: id }),
+      });
+      if (res.ok) {
+        const data: { briefing: BriefingCardData } = await res.json();
+        // A build takes a model call, so the DM can easily navigate away
+        // before it lands. Without this check the result is written into
+        // whatever card is on screen now — one entity's briefing rendered
+        // under another's name, read aloud at the table as if it were theirs.
+        if (currentIdRef.current === targetId) {
+          setBriefing(data.briefing);
+          setBriefingStale(false);
+        }
+      } else if (currentIdRef.current === targetId) {
+        setBriefingError("Briefing build failed. Try again.");
+      }
+    } catch {
+      if (currentIdRef.current === targetId) setBriefingError("Briefing build failed. Try again.");
+    } finally {
+      buildingIdsRef.current.delete(targetId);
+      setBuildingBriefing(false);
+    }
+  }, [activeCampaignId, targetKind, id]);
+
+  // Fetches the briefing on first view and builds it lazily when absent. This
+  // is a prep surface — /run never renders this component, so the round-trip
+  // and the model call it can trigger are affordable here and nowhere else.
+  useEffect(() => {
+    if (!activeCampaignId || !id) return;
+    let cancelled = false;
+    fetch(`/api/briefings?campaignId=${activeCampaignId}&targetKind=${targetKind}&targetId=${id}`)
+      .then((r) => (r.ok ? r.json() : { briefing: null, stale: false }))
+      .then((data: { briefing: BriefingCardData | null; stale: boolean }) => {
+        if (cancelled) return;
+        setBriefing(data.briefing);
+        setBriefingStale(data.stale);
+        setBriefingError(null);
+        if (!data.briefing) void buildBriefing();
+      })
+      .catch(() => {});
+
+    fetch(`/api/threads?campaignId=${activeCampaignId}&targetKind=${targetKind}&targetId=${id}`)
+      .then((r) => (r.ok ? r.json() : { items: [] }))
+      .then((data: { items?: { title: string }[] }) => {
+        if (!cancelled) setBriefingThreads((data.items ?? []).map((t) => t.title));
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeCampaignId, id, targetKind, buildBriefing]);
 
   async function remove() {
     const ok = await confirm({
@@ -189,6 +285,24 @@ export function SimpleEntityDetail({ resourcePath, label, icon: Icon }: SimpleEn
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6 pt-5">
+          <BriefingCard
+            name={entity.name}
+            briefing={briefing}
+            fallback={{ description: entity.description, threads: briefingThreads }}
+            stale={briefingStale}
+            pinned={pinned.some((p) => p.targetId === entity.id)}
+            onTogglePin={() =>
+              pinned.some((p) => p.targetId === entity.id)
+                ? unpin(entity.id)
+                : pin({ kind: targetKind, targetId: entity.id, name: entity.name })
+            }
+            onBuild={buildBriefing}
+            building={buildingBriefing}
+          />
+          {briefingError && (
+            <p className="text-xs text-destructive">{briefingError}</p>
+          )}
+
           {entity.description && (
             <p className="text-[15px] leading-relaxed text-foreground/85 max-w-[68ch]">
               {entity.description}

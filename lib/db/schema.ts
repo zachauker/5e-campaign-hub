@@ -323,6 +323,68 @@ export const sessionReviews = sqliteTable("session_reviews", {
   proposalCount: integer("proposal_count").notNull().default(0),
 });
 
+export const entityBriefings = sqliteTable("entity_briefings", {
+  id: text("id").primaryKey(),
+  campaignId: text("campaign_id").notNull().references(() => campaigns.id, { onDelete: "cascade" }),
+  // character | location | item | faction
+  targetKind: text("target_kind").notNull(),
+  // Polymorphic (its table depends on targetKind), so it cannot carry a single
+  // FK target. No .references() by design. Ids may dangle.
+  targetId: text("target_id").notNull(),
+  identity: text("identity"),
+  wants: text("wants"),
+  partyKnows: text("party_knows"),
+  // DM-only. Never indexed for search and never rendered on the default card.
+  secret: text("secret"),
+  voice: text("voice"),
+  // JSON array of strings.
+  aliases: text("aliases").notNull().default("[]"),
+  sourceHash: text("source_hash").notNull(),
+  // JSON array of field names the DM edited by hand; a rebuild leaves these alone.
+  manualFields: text("manual_fields").notNull().default("[]"),
+  // True when built without the Notion page body — either the fetch failed or
+  // the page had no readable content. Not specifically "Notion was unreachable".
+  partial: integer("partial", { mode: "boolean" }).notNull().default(false),
+  builtAt: integer("built_at", { mode: "timestamp" }).notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+});
+
+export const runSessions = sqliteTable("run_sessions", {
+  id: text("id").primaryKey(),
+  campaignId: text("campaign_id").notNull().references(() => campaigns.id, { onDelete: "cascade" }),
+  label: text("label"),
+  startedAt: integer("started_at", { mode: "timestamp" }).notNull(),
+  endedAt: integer("ended_at", { mode: "timestamp" }),
+  // Deliberately no .references(): linked once the transcript lands, and
+  // deleting that note must not cascade away the run. Same rationale as
+  // threads.openedSessionId. Ids may dangle.
+  sessionNoteId: text("session_note_id"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+});
+
+export const sessionMarks = sqliteTable("session_marks", {
+  id: text("id").primaryKey(),
+  campaignId: text("campaign_id").notNull().references(() => campaigns.id, { onDelete: "cascade" }),
+  runSessionId: text("run_session_id").notNull().references(() => runSessions.id, { onDelete: "cascade" }),
+  // Milliseconds since the run started.
+  atMs: integer("at_ms").notNull(),
+  wallClock: integer("wall_clock", { mode: "timestamp" }).notNull(),
+  // npc | promise | loot | lore | todo | null
+  tag: text("tag"),
+  note: text("note"),
+  // What was on screen: an entity kind, "encounter", or null. Polymorphic, so
+  // no .references() — same rationale as thread_links.
+  contextKind: text("context_kind"),
+  contextId: text("context_id"),
+  resolved: integer("resolved", { mode: "boolean" }).notNull().default(false),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  // Client-generated. Lets createMark() dedupe a retried write that succeeded
+  // server-side but whose response was lost — see lib/run/marks.ts. Nullable:
+  // rows written before this column existed have none.
+  localId: text("local_id"),
+});
+
 export type Encounter = typeof encounters.$inferSelect;
 export type NewEncounter = typeof encounters.$inferInsert;
 export type Combatant = typeof combatants.$inferSelect;
@@ -363,3 +425,9 @@ export type TimelineEvent = typeof timelineEvents.$inferSelect;
 export type NewTimelineEvent = typeof timelineEvents.$inferInsert;
 export type SessionReview = typeof sessionReviews.$inferSelect;
 export type NewSessionReview = typeof sessionReviews.$inferInsert;
+export type EntityBriefing = typeof entityBriefings.$inferSelect;
+export type NewEntityBriefing = typeof entityBriefings.$inferInsert;
+export type RunSession = typeof runSessions.$inferSelect;
+export type NewRunSession = typeof runSessions.$inferInsert;
+export type SessionMark = typeof sessionMarks.$inferSelect;
+export type NewSessionMark = typeof sessionMarks.$inferInsert;

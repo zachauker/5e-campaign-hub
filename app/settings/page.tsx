@@ -31,6 +31,10 @@ export default function SettingsPage() {
   const [urlTestOk, setUrlTestOk] = useState(false);
   const [notionToken, setNotionToken] = useState("");
   const [notionConfigured, setNotionConfigured] = useState(false);
+  const [indexing, setIndexing] = useState(false);
+  const [indexResult, setIndexResult] = useState<string | null>(null);
+  const [buildingBriefings, setBuildingBriefings] = useState<"session" | "all" | null>(null);
+  const [briefingBuildResult, setBriefingBuildResult] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/settings")
@@ -125,6 +129,64 @@ export default function SettingsPage() {
       }
     } finally {
       setTestingUrl(false);
+    }
+  }
+
+  async function buildBriefings(scope: "session" | "all") {
+    if (!activeCampaignId || buildingBriefings) return;
+    setBuildingBriefings(scope);
+    setBriefingBuildResult(null);
+
+    let totalBuilt = 0;
+    let totalFailed = 0;
+    let remaining = Infinity;
+    let previousRemaining = Infinity;
+    let rounds = 0;
+    // The route caps each call at 25. A campaign-wide build re-POSTs until
+    // `remaining` hits 0, but two things keep this from running away: a round
+    // count ceiling generous enough for any campaign this app realistically
+    // holds, and a check that stops as soon as `remaining` fails to shrink —
+    // otherwise an entity that fails every time it's retried would spin the
+    // loop forever without ever finishing.
+    const MAX_ROUNDS = 50;
+    try {
+      while (remaining > 0 && rounds < MAX_ROUNDS) {
+        rounds++;
+        const res = await fetch("/api/briefings/batch", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ campaignId: activeCampaignId, scope }),
+        });
+        const data: {
+          built?: number;
+          failures?: { targetId: string; error: string }[];
+          remaining?: number;
+          error?: string;
+        } = await res.json();
+
+        if (!res.ok) {
+          setBriefingBuildResult(data.error ?? "Build failed.");
+          return;
+        }
+
+        totalBuilt += data.built ?? 0;
+        totalFailed += data.failures?.length ?? 0;
+        remaining = data.remaining ?? 0;
+
+        if (rounds > 1 && remaining >= previousRemaining) break;
+        previousRemaining = remaining;
+      }
+
+      const parts = [`Built ${totalBuilt} briefing${totalBuilt === 1 ? "" : "s"}.`];
+      if (totalFailed > 0) {
+        parts.push(`${totalFailed} failed — this spends an Anthropic API call per entity, so check your key and try again.`);
+      }
+      if (remaining > 0) parts.push(`${remaining} left — run it again to keep going.`);
+      setBriefingBuildResult(parts.join(" "));
+    } catch {
+      setBriefingBuildResult("Build failed — check your connection and try again.");
+    } finally {
+      setBuildingBriefings(null);
     }
   }
 
@@ -271,6 +333,80 @@ export default function SettingsPage() {
               Save
             </Button>
           </div>
+        </section>
+
+        {/* Search index */}
+        <section className="rounded-xl border border-border bg-card p-6 space-y-4">
+          <div>
+            <h2 className="font-display text-xl">Search index</h2>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Builds the index that <span className="text-foreground">Run</span> mode searches, from your
+              entities, threads, and clocks. Run this once after upgrading — until you do, searching at
+              the table finds almost nothing, which looks a lot like the feature being broken.
+            </p>
+          </div>
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={async () => {
+              if (!activeCampaignId) return;
+              setIndexing(true);
+              try {
+                const res = await fetch("/api/search", {
+                  method: "POST",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify({ campaignId: activeCampaignId }),
+                });
+                const data: { indexed?: number; error?: string } = await res.json();
+                setIndexResult(res.ok ? `Indexed ${data.indexed} records.` : (data.error ?? "Rebuild failed."));
+              } finally {
+                setIndexing(false);
+              }
+            }}
+            disabled={indexing || !activeCampaignId}
+          >
+            {indexing ? "Rebuilding…" : "Rebuild search index"}
+          </Button>
+
+          {indexResult && (
+            <p className="text-sm text-muted-foreground">{indexResult}</p>
+          )}
+        </section>
+
+        {/* Briefing builds */}
+        <section className="rounded-xl border border-border bg-card p-6 space-y-4">
+          <div>
+            <h2 className="font-display text-xl">Briefing builds</h2>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              <span className="text-foreground">Run</span> mode builds an entity&apos;s briefing the first time
+              you look it up there. These build ahead of time instead, so the card is ready the moment you
+              need it. Each entity spends one Anthropic API call — a campaign-wide build is not free.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => buildBriefings("session")}
+              disabled={buildingBriefings !== null || !activeCampaignId}
+            >
+              {buildingBriefings === "session" ? "Building…" : "Build briefings for next session"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => buildBriefings("all")}
+              disabled={buildingBriefings !== null || !activeCampaignId}
+            >
+              {buildingBriefings === "all" ? "Building…" : "Build all briefings"}
+            </Button>
+          </div>
+
+          {briefingBuildResult && (
+            <p className="text-sm text-muted-foreground">{briefingBuildResult}</p>
+          )}
         </section>
 
         {/* Notion Sync */}

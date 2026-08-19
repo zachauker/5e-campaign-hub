@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { factions, characterFactions, characters, mapMarkers, maps } from "@/lib/db/schema";
 import { eq, inArray, and } from "drizzle-orm";
+import { syncEntityToIndex } from "@/lib/run/index-sync";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -59,11 +60,30 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     })
     .where(eq(factions.id, id));
 
+  try {
+    await syncEntityToIndex(db, existing.campaignId, "faction", id);
+  } catch (err) {
+    // A failed index write must never fail the entity write that caused it —
+    // the index is a derived convenience and Settings can rebuild it.
+    console.warn("[search-index] sync failed:", (err as Error).message);
+  }
+
   return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  await db.delete(factions).where(eq(factions.id, id));
+  const [deleted] = await db.delete(factions).where(eq(factions.id, id)).returning();
+
+  if (deleted) {
+    try {
+      await syncEntityToIndex(db, deleted.campaignId, "faction", id);
+    } catch (err) {
+      // A failed index write must never fail the entity write that caused it —
+      // the index is a derived convenience and Settings can rebuild it.
+      console.warn("[search-index] sync failed:", (err as Error).message);
+    }
+  }
+
   return NextResponse.json({ ok: true });
 }

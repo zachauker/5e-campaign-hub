@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { maps, locations, mapMarkers, campaigns } from "@/lib/db/schema";
 import { generateId } from "@/lib/utils";
 import { and, eq } from "drizzle-orm";
+import { syncEntityToIndex } from "@/lib/run/index-sync";
 
 // Same directory the /api/world/[...path] asset route serves from — the seed file
 // is baked into the image at world-data/build/locations-seed.json.
@@ -95,6 +96,14 @@ export async function POST(req: Request) {
       });
       idByName.set(r.name.toLowerCase(), locId);
       locationsCreated++;
+
+      try {
+        await syncEntityToIndex(db, campaignId, "location", locId);
+      } catch (err) {
+        // A failed index write must never fail the entity write that caused it —
+        // the index is a derived convenience and Settings can rebuild it.
+        console.warn("[search-index] sync failed:", (err as Error).message);
+      }
     }
 
     if (markerEntityIds.has(locId)) {
