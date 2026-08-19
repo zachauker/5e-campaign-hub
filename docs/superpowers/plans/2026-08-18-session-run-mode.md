@@ -1610,10 +1610,27 @@ export async function gatherInputs(
     ORDER BY t.title
   `);
 
+  // Relevant two ways, and both are needed: an event may name the entity
+  // outright, or it may sit on a thread the entity is linked to and never
+  // mention them by name. Matching only on the name would drop the second kind,
+  // which is most of what makes a briefing worth reading — "what has been
+  // happening around this person" rather than "where does this string appear".
+  //
+  // The LIKE is deliberately unescaped. Here it only widens a relevance net, so
+  // a stray % or _ in a name costs a few extra events in the prompt. That is
+  // unlike the ranking tiers in search-index.ts, where an unescaped wildcard
+  // silently corrupted the ordering and had to be escaped.
   const timeline = db.all<{ day: number; kind: string; title: string; body: string | null }>(sql`
     SELECT day, kind, title, body FROM timeline_events
     WHERE campaign_id = ${campaignId}
-      AND (title LIKE ${"%" + entity.name + "%"} OR body LIKE ${"%" + entity.name + "%"})
+      AND (
+        title LIKE ${"%" + entity.name + "%"}
+        OR body LIKE ${"%" + entity.name + "%"}
+        OR thread_id IN (
+          SELECT thread_id FROM thread_links
+          WHERE target_kind = ${targetKind} AND target_id = ${targetId}
+        )
+      )
     ORDER BY day DESC, created_at DESC
     LIMIT ${TIMELINE_LIMIT}
   `);
