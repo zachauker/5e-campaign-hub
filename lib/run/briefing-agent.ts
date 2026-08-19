@@ -139,5 +139,5 @@ export async function generateBriefing(
     },
     messages: [{ role: "user", content: buildPrompt(inputs) }],
   });
-  return parseBriefingResponse(response as unknown as RawResponse);
+  return parseBriefingResponse(response as RawResponse);
 }

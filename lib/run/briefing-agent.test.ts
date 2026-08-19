@@ -1,4 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+
+const createMock = vi.fn();
+vi.mock("@anthropic-ai/sdk", () => ({
+  default: vi.fn().mockImplementation(() => ({ messages: { create: createMock } })),
+}));
+
 import { BRIEFING_SCHEMA, BRIEFING_SYSTEM, buildPrompt, parseBriefingResponse } from "./briefing-agent";
 import type { BriefingInputs } from "./briefing-inputs";
 
@@ -89,5 +95,49 @@ describe("BRIEFING_SYSTEM", () => {
   it("tells the model not to invent facts", () => {
     expect(BRIEFING_SYSTEM).toMatch(/null/);
     expect(BRIEFING_SYSTEM.length).toBeGreaterThan(100);
+  });
+});
+
+describe("generateBriefing request shape", () => {
+  const ok = {
+    stop_reason: "end_turn",
+    content: [{
+      type: "text",
+      text: JSON.stringify({
+        identity: "A broker.", wants: null, partyKnows: null,
+        secret: null, voice: null, aliases: [],
+      }),
+    }],
+  };
+
+  // generateBriefing is the one place that talks to the API, and nothing else
+  // covers it. The mistakes worth guarding against here are silent until a DM
+  // runs a build: temperature, top_p and budget_tokens all return 400 on this
+  // model generation, and dropping output_config disables structured output so
+  // the parser starts receiving prose it cannot read.
+  it("sends a request the model will actually accept", async () => {
+    createMock.mockReset();
+    createMock.mockResolvedValue(ok);
+    const { generateBriefing } = await import("./briefing-agent");
+
+    await generateBriefing(inputs, { apiKey: "test-key" });
+
+    const req = createMock.mock.calls[0][0];
+    expect(req.model).toBe("claude-opus-5");
+    expect(req).not.toHaveProperty("temperature");
+    expect(req).not.toHaveProperty("top_p");
+    expect(req.thinking?.budget_tokens).toBeUndefined();
+    expect(req.output_config.effort).toBe("medium");
+    expect(req.output_config.format.type).toBe("json_schema");
+    expect(req.output_config.format.schema.additionalProperties).toBe(false);
+    expect(req.system).toBe(BRIEFING_SYSTEM);
+  });
+
+  it("surfaces a refusal rather than returning an empty briefing", async () => {
+    createMock.mockReset();
+    createMock.mockResolvedValue({ stop_reason: "refusal", content: [] });
+    const { generateBriefing } = await import("./briefing-agent");
+
+    await expect(generateBriefing(inputs, { apiKey: "test-key" })).rejects.toThrow(/declined/i);
   });
 });
