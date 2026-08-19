@@ -2561,7 +2561,7 @@ export async function linkSessionNote(
 - [ ] **Step 4: Run the test**
 
 Run: `npx vitest run lib/run/runs.test.ts`
-Expected: PASS, 8 tests.
+Expected: PASS, 9 tests.
 
 - [ ] **Step 5: Commit**
 
