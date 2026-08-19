@@ -27,6 +27,11 @@ export function AnswerPanel({ campaignId, onContextChange }: AnswerPanelProps) {
     description: null, threads: [],
   });
   const [building, setBuilding] = useState(false);
+  const [related, setRelated] = useState<{ kind: string; targetId: string; name: string }[]>([]);
+  const [relatedCursor, setRelatedCursor] = useState(0);
+  // Cards the DM arrived at by following a relation. Left arrow walks back up it.
+  const [, setHistory] = useState<Hit[]>([]);
+  const [override, setOverride] = useState<Hit | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   // The live selection, readable from inside an in-flight async callback.
   // `build`'s closure captures whichever hit was selected when it was created,
@@ -70,7 +75,7 @@ export function AnswerPanel({ campaignId, onContextChange }: AnswerPanelProps) {
   // hold a stale response from a previous query — short-circuit here rather
   // than showing it.
   const effectiveHits = useMemo(() => (query.trim() ? hits : []), [query, hits]);
-  const selected = effectiveHits[cursor] ?? null;
+  const selected = override ?? effectiveHits[cursor] ?? null;
   const briefable = selected && BRIEFABLE.has(selected.type) ? selected : null;
 
   // Report what is on screen so a mark can capture it for free, regardless
@@ -121,6 +126,29 @@ export function AnswerPanel({ campaignId, onContextChange }: AnswerPanelProps) {
     [briefable, fallback],
   );
 
+  // Entities that share an open thread with whatever is selected — the → key
+  // follows one, ← walks back. Keyed on `briefable` (same gate as the briefing
+  // fetch above): skips the fetch when nothing relations even apply to is
+  // selected, and `effectiveRelated` below derives the empty case instead of
+  // clearing state here synchronously (react-hooks/set-state-in-effect).
+  useEffect(() => {
+    if (!briefable) return;
+    let cancelled = false;
+    fetch(`/api/relations?campaignId=${campaignId}&targetKind=${briefable.type}&targetId=${briefable.id}`)
+      .then((r) => (r.ok ? r.json() : { items: [] }))
+      .then((d: { items?: { kind: string; targetId: string; name: string }[] }) => {
+        if (cancelled) return;
+        setRelated(d.items ?? []);
+        setRelatedCursor(0);
+      })
+      .catch(() => { if (!cancelled) setRelated([]); });
+    return () => { cancelled = true; };
+  }, [briefable, campaignId]);
+
+  // No fetch ran when nothing briefable is selected, so `related` may still
+  // hold a stale response from a previous selection.
+  const effectiveRelated = useMemo(() => (briefable ? related : []), [briefable, related]);
+
   const build = useCallback(async () => {
     if (!selected) return;
     const target = { type: selected.type, id: selected.id };
@@ -162,6 +190,21 @@ export function AnswerPanel({ campaignId, onContextChange }: AnswerPanelProps) {
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || inList)) {
         if (e.key === "ArrowDown") { e.preventDefault(); setCursor((c) => Math.min(c + 1, effectiveHits.length - 1)); }
         if (e.key === "ArrowUp") { e.preventDefault(); setCursor((c) => Math.max(c - 1, 0)); }
+        if (e.key === "ArrowRight" && effectiveRelated.length > 0) {
+          e.preventDefault();
+          const next = effectiveRelated[relatedCursor % effectiveRelated.length];
+          if (selected) setHistory((h) => [...h, selected]);
+          setOverride({ id: next.targetId, name: next.name, type: next.kind, href: "" });
+          setRelatedCursor((c) => c + 1);
+        }
+        if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          setHistory((h) => {
+            if (h.length === 0) { setOverride(null); return h; }
+            setOverride(h[h.length - 1]);
+            return h.slice(0, -1);
+          });
+        }
         if (e.key === "Escape") { setQuery(""); inputRef.current?.blur(); }
         if (e.key === "Enter" && selected) {
           e.preventDefault();
@@ -178,7 +221,7 @@ export function AnswerPanel({ campaignId, onContextChange }: AnswerPanelProps) {
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [effectiveHits.length, selected, pinned, pin, unpin]);
+  }, [effectiveHits.length, selected, pinned, pin, unpin, effectiveRelated, relatedCursor]);
 
   return (
     <div className="flex h-full flex-col gap-3 overflow-hidden">
@@ -232,6 +275,12 @@ export function AnswerPanel({ campaignId, onContextChange }: AnswerPanelProps) {
             onBuild={build}
             building={building}
           />
+        )}
+        {effectiveRelated.length > 0 && (
+          <div className="text-xs text-muted-foreground">
+            <span className="uppercase tracking-widest text-[10px]">Tangled up with</span>{" "}
+            {effectiveRelated.map((r) => r.name).join(" · ")}
+          </div>
         )}
       </div>
     </div>
