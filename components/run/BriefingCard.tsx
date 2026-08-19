@@ -84,10 +84,13 @@ export function BriefingCard({
           <Field label="Voice" value={briefing.voice} />
           {briefing.secret && (
             <div className="space-y-0.5">
+              {/* aria-expanded because the Eye/EyeOff swap is aria-hidden — without
+                  it a screen reader gets no signal that the secret is revealed. */}
               <button
                 type="button"
                 onClick={() => setSecretShown((s) => !s)}
-                className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground"
+                aria-expanded={secretShown}
+                className="flex items-center gap-1.5 rounded-sm text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {secretShown
                   ? <EyeOff className="h-3 w-3" aria-hidden />
