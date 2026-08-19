@@ -4414,6 +4414,7 @@ Task 4 backfills the index; without this task it drifts the moment an entity is 
 - Test: `lib/run/index-sync.test.ts`
 - Modify: `lib/notion/reconcile.ts` (or whichever module writes entity rows — confirm in Step 1)
 - Modify: `lib/state/threads.ts`, `lib/state/clocks.ts`
+- Modify: `app/api/characters/route.ts`, `app/api/characters/[id]/route.ts`, `app/api/locations/route.ts`, `app/api/locations/[id]/route.ts`, `app/api/items/route.ts`, `app/api/items/[id]/route.ts`, `app/api/factions/route.ts`, `app/api/factions/[id]/route.ts`, `app/api/world/import-locations/route.ts` (the plain CRUD and world-seed routes a DM's manual edits actually go through — a later whole-branch review found `lib/notion/sync.ts` and `threads.ts`/`clocks.ts` were wired but these were not, so a hand-renamed or hand-deleted NPC went stale in search)
 
 - [ ] **Step 1: Find the entity write paths**
 
@@ -4615,6 +4616,13 @@ await syncEntityToIndex(db, campaignId, "character", row.id);
 ```
 
 In `lib/state/threads.ts`, add `await syncThreadToIndex(db, campaignId, thread.id);` at the end of `createThread` and `updateThread`. In `lib/state/clocks.ts`, add the clock equivalent at the end of its create and update functions.
+
+The plain CRUD routes are the ones a DM's own edits actually hit — `CharacterFormDialog.tsx` and friends call `POST`/`PATCH`/`DELETE` on `/api/characters`, `/api/locations`, `/api/items`, `/api/factions` directly, bypassing `lib/state/` entirely. Each of these needs the same call:
+
+- `POST` at `app/api/{characters,locations,items,factions}/route.ts`: after `.insert(...).returning()`, using the inserted row's own `campaignId` and `id`.
+- `PATCH` at `app/api/{characters,locations,items,factions}/[id]/route.ts`: after the update, using `existing.campaignId` (already fetched for the 404 check) and the route's `id`.
+- `DELETE` at the same `[id]/route.ts` files: these did not fetch the row first, and a deleted row can no longer be read back for its `campaignId`. Add `.returning()` to the delete itself (`const [deleted] = await db.delete(characters).where(eq(characters.id, id)).returning();`) so the campaignId comes back from the same statement, then sync only `if (deleted)`. `syncEntityToIndex` re-reads the row by id — finding none — and removes the stale search-index row rather than leaving it behind.
+- `POST` at `app/api/world/import-locations/route.ts`: after each newly-created location insert (not the ones that already existed), using the route's own `campaignId` and the new `locId`.
 
 Wrap each call in a `try { } catch { }` that logs and continues:
 

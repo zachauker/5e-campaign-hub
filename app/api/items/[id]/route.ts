@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { items, characterItems, characters } from "@/lib/db/schema";
 import { eq, inArray } from "drizzle-orm";
+import { syncEntityToIndex } from "@/lib/run/index-sync";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -43,11 +44,30 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     })
     .where(eq(items.id, id));
 
+  try {
+    await syncEntityToIndex(db, existing.campaignId, "item", id);
+  } catch (err) {
+    // A failed index write must never fail the entity write that caused it —
+    // the index is a derived convenience and Settings can rebuild it.
+    console.warn("[search-index] sync failed:", (err as Error).message);
+  }
+
   return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  await db.delete(items).where(eq(items.id, id));
+  const [deleted] = await db.delete(items).where(eq(items.id, id)).returning();
+
+  if (deleted) {
+    try {
+      await syncEntityToIndex(db, deleted.campaignId, "item", id);
+    } catch (err) {
+      // A failed index write must never fail the entity write that caused it —
+      // the index is a derived convenience and Settings can rebuild it.
+      console.warn("[search-index] sync failed:", (err as Error).message);
+    }
+  }
+
   return NextResponse.json({ ok: true });
 }
