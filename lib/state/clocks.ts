@@ -6,6 +6,7 @@ import { NotFoundError } from "./errors";
 import type { ClockStatus } from "./cadence";
 import { CLOCK_SEGMENT_CHOICES, CLOCK_STATUSES, type ClockOwnerKind } from "./clock-constants";
 import type { StateDb } from "./types";
+import { syncClockToIndex } from "@/lib/run/index-sync";
 
 // Re-exported so existing server-side importers are unaffected by the split;
 // see clock-constants.ts for why the client imports it directly instead.
@@ -76,6 +77,14 @@ export async function createClock(db: StateDb, input: CreateClockInput) {
     })
     .returning();
 
+  try {
+    await syncClockToIndex(db, input.campaignId, row.id);
+  } catch (err) {
+    // A failed index write must never fail the clock write that caused it —
+    // the index is a derived convenience and Settings can rebuild it.
+    console.warn("[search-index] sync failed:", (err as Error).message);
+  }
+
   return row;
 }
 
@@ -116,6 +125,14 @@ export async function updateClock(db: StateDb, id: string, input: UpdateClockInp
     })
     .where(eq(clocks.id, id))
     .returning();
+
+  try {
+    await syncClockToIndex(db, existing.campaignId, id);
+  } catch (err) {
+    // A failed index write must never fail the clock write that caused it —
+    // the index is a derived convenience and Settings can rebuild it.
+    console.warn("[search-index] sync failed:", (err as Error).message);
+  }
 
   return row;
 }

@@ -70,11 +70,20 @@ function writeRow(
  * Index (or re-index) a searchable object from its own table. Called on entity,
  * thread, and clock writes. An entity is findable whether or not it has a
  * briefing — that is what keeps the fallback card reachable.
+ *
+ * Aliases come from the existing index row when there is one — only a briefing
+ * write owns that column in the steady state. But when there is no existing
+ * row (the index hasn't been backfilled, or this is the entity's first write),
+ * falling back to "" would silently drop any aliases a briefing already holds
+ * for this target until some later briefing write happens to restore them. So
+ * with no existing row this looks the briefing up directly, mirroring how
+ * indexBriefing falls back to the entity's own table for its name when the
+ * reverse gap applies.
  */
 export async function indexEntity(db: StateDb, row: IndexRow): Promise<void> {
   const existing = readRow(db, row.campaignId, row.kind, row.targetId);
-  // Preserve briefing-derived aliases; only a briefing write owns that column.
-  const aliases = existing?.aliases ?? "";
+  const aliases =
+    existing?.aliases ?? lookupBriefingAliases(db, row.campaignId, row.kind, row.targetId).join(" ");
   writeRow(db, row.campaignId, row.kind, row.targetId, row.name, aliases, row.body ?? "");
 }
 
@@ -107,6 +116,32 @@ function lookupEntityName(
     WHERE id = ${targetId} AND campaign_id = ${campaignId}
   `)[0];
   return row?.name ?? "";
+}
+
+/**
+ * Read an entity's briefing aliases, if any. Used when an entity arrives for
+ * something that was never indexed, so a re-sync can't silently lose aliases a
+ * briefing already recorded — the mirror image of lookupEntityName above. A
+ * malformed aliases blob yields [] rather than throwing, matching the same
+ * tolerance rebuildSearchIndex and lib/run/briefings.ts's parseStringArray use.
+ */
+function lookupBriefingAliases(
+  db: StateDb,
+  campaignId: string,
+  kind: SearchKind,
+  targetId: string,
+): string[] {
+  const row = db.all<{ aliases: string }>(sql`
+    SELECT aliases FROM entity_briefings
+    WHERE campaign_id = ${campaignId} AND target_kind = ${kind} AND target_id = ${targetId}
+  `)[0];
+  if (!row) return [];
+  try {
+    const parsed: unknown = JSON.parse(row.aliases);
+    return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === "string") : [];
+  } catch {
+    return [];
+  }
 }
 
 /**

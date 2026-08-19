@@ -8,9 +8,21 @@ import {
   makeEntityRepo, linkCharacterFactionsByName, linkCharacterItemsByPageId,
   linkCharacterLocationsByPageId, linkSessionNoteLocationsByName,
 } from "./repos";
+import { syncEntityToIndex } from "@/lib/run/index-sync";
+import type { SearchKind } from "@/lib/run/search-index";
+import type { StateDb } from "@/lib/state/types";
 
 type Db = BetterSQLite3Database<Record<string, unknown>>;
 export type EntityType = "characters" | "items" | "factions" | "locations" | "sessionNotes";
+
+// sessionNotes has no entry: it isn't a search-index kind (see SearchKind in
+// lib/run/search-index.ts), so its rows are never sent to syncEntityToIndex.
+const SEARCH_KIND_FOR_TYPE: Partial<Record<EntityType, SearchKind>> = {
+  characters: "character",
+  items: "item",
+  factions: "faction",
+  locations: "location",
+};
 
 export interface SourceConfig {
   entityType: EntityType;
@@ -71,6 +83,20 @@ export async function syncCampaign(opts: {
 
       const result = reconcileEntity(repo, mapped);
       s[result.action] += 1;
+
+      const searchKind = SEARCH_KIND_FOR_TYPE[type];
+      if (searchKind) {
+        try {
+          // `db` here is typed loosely (Record<string, unknown> schema) to stay
+          // agnostic of the concrete schema shape; index-sync needs the fully
+          // typed StateDb. Same cast pattern as lib/notion/run-sync.ts.
+          await syncEntityToIndex(db as unknown as StateDb, campaignId, searchKind, result.id);
+        } catch (err) {
+          // A failed index write must never fail the sync that caused it — the
+          // index is a derived convenience and Settings can rebuild it.
+          console.warn("[search-index] sync failed:", (err as Error).message);
+        }
+      }
 
       if (type === "characters" && mapped.affiliations?.length) {
         linkCharacterFactionsByName(db, campaignId, result.id, mapped.affiliations);

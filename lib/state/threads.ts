@@ -4,6 +4,7 @@ import { generateId } from "@/lib/utils";
 import { recordEvent, type SourceKind } from "./timeline";
 import { NotFoundError } from "./errors";
 import type { StateDb } from "./types";
+import { syncThreadToIndex } from "@/lib/run/index-sync";
 
 export type ThreadStatus = "open" | "dormant" | "resolved" | "abandoned";
 export const THREAD_STATUSES: ThreadStatus[] = ["open", "dormant", "resolved", "abandoned"];
@@ -117,6 +118,14 @@ export async function createThread(db: StateDb, input: CreateThreadInput) {
     threadId: id,
   });
 
+  try {
+    await syncThreadToIndex(db, input.campaignId, id);
+  } catch (err) {
+    // A failed index write must never fail the thread write that caused it —
+    // the index is a derived convenience and Settings can rebuild it.
+    console.warn("[search-index] sync failed:", (err as Error).message);
+  }
+
   return row;
 }
 
@@ -161,6 +170,14 @@ export async function updateThread(db: StateDb, id: string, input: UpdateThreadI
       sourceKind: input.sourceKind ?? "manual",
       threadId: id,
     });
+  }
+
+  try {
+    await syncThreadToIndex(db, existing.campaignId, id);
+  } catch (err) {
+    // A failed index write must never fail the thread write that caused it —
+    // the index is a derived convenience and Settings can rebuild it.
+    console.warn("[search-index] sync failed:", (err as Error).message);
   }
 
   return row;
