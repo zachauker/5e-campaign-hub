@@ -280,7 +280,9 @@ export default function SettingsPage() {
           <div>
             <h2 className="font-display text-xl">Search index</h2>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Rebuilds the at-table lookup index from your entities, threads, and clocks. Run this once after upgrading.
+              Builds the index that <span className="text-foreground">Run</span> mode searches, from your
+              entities, threads, and clocks. Run this once after upgrading — until you do, searching at
+              the table finds almost nothing, which looks a lot like the feature being broken.
             </p>
           </div>
 

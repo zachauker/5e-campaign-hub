@@ -14,7 +14,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import type { Campaign } from "@/lib/db/schema";
 
 const SECTIONS = [
-  { href: "/run", label: "Run", icon: Play },
   { href: "/encounters", label: "Encounters", icon: Swords },
   { href: "/characters", label: "Characters", icon: Users },
   { href: "/locations", label: "Locations", icon: MapPin },
@@ -24,6 +23,10 @@ const SECTIONS = [
   { href: "/chronicle", label: "Chronicle", icon: BookOpen },
   { href: "/world", label: "World", icon: Globe },
   { href: "/maps", label: "Maps", icon: Map },
+  // Last, not first. Entering /run creates a persisted run session, so a
+  // mis-click while prepping is not just a wrong page — it opens a session.
+  // Keeping it away from where a hand reaches for Encounters costs nothing.
+  { href: "/run", label: "Run", icon: Play },
 ];
 
 export function TopBar() {
