@@ -1967,7 +1967,7 @@ export async function generateBriefing(
 - [ ] **Step 4: Run the test**
 
 Run: `npx vitest run lib/run/briefing-agent.test.ts`
-Expected: PASS, 10 tests.
+Expected: PASS, 12 tests (10, plus 2 request-shape tests added after review).
 
 If `tsc` complains that `output_config` is not a known property, the installed SDK's typings predate structured outputs. Cast the argument (`as Parameters<typeof client.messages.create>[0]`) rather than dropping the parameter, and leave a comment saying why.
 
@@ -2761,7 +2761,7 @@ export async function setMarkResolved(
 - [ ] **Step 4: Run the test**
 
 Run: `npx vitest run lib/run/marks.test.ts`
-Expected: PASS, 13 tests.
+Expected: PASS, 9 tests.
 
 - [ ] **Step 5: Commit**
 
