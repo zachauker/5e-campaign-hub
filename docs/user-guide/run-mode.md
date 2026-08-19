@@ -70,7 +70,7 @@ few of them, and **End run**.
 
 ## Briefing cards
 
-A briefing is six short things about one entity, written to be read aloud-adjacent
+A briefing is five short things about one entity, written to be read aloud-adjacent
 rather than studied:
 
 | Field | Is |
@@ -91,8 +91,9 @@ this entity. `→` walks to them, `←` comes back.
 ### Two badges
 
 - **Behind its notes** — the entity has changed since the briefing was written.
-  The card still works; it's just describing a slightly older version. Rebuild
-  it from the entity's own page when you have a moment.
+  The card still works; it's just describing a slightly older version. Refresh it
+  with either build in **Settings → Briefing builds** — both rebuild anything
+  that has fallen behind, and skip everything that hasn't.
 - **Built without the page body** — the briefing was written without the Notion
   page, either because Notion was unreachable or the page was empty. It's
   thinner than it should be.
@@ -154,9 +155,13 @@ briefing quietly in the background if it doesn't have one.
 
 ### Correcting a briefing
 
-Edit any field on the entity's own page and it becomes yours — future rebuilds
-leave it alone. This matters most for **Voice**: once you've worked out how
-someone actually sounds, no regeneration should overwrite it.
+Not yet, from the app. The card is read-only wherever it appears, and there is
+currently no screen for editing a field by hand — see **Known limits** below.
+
+What you *can* do is change the source and rebuild: the briefing is written from
+the entity's description, its Notion page body, and its open threads, so fixing
+those and re-running a build in **Settings → Briefing builds** is the way to
+correct a card that has someone wrong.
 
 ---
 
@@ -171,6 +176,11 @@ automatically, so tonight's flags never land on last week's timeline.
 ---
 
 ## Known limits
+
+**Briefings can't be hand-edited yet.** The storage underneath distinguishes a
+field you wrote from a generated one, and protects yours from being overwritten
+by a rebuild — but nothing in the app exposes that yet. It matters most for
+**Voice**: until there's a screen for it, a rebuild rewrites how someone sounds.
 
 **Your flags aren't readable anywhere yet.** Marks are captured, labelled, and
 stored safely — but there is currently no screen that shows them next to a
