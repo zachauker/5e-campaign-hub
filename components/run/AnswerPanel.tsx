@@ -28,6 +28,10 @@ export function AnswerPanel({ campaignId, onContextChange }: AnswerPanelProps) {
   });
   const [building, setBuilding] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  // The live selection, readable from inside an in-flight async callback.
+  // `build`'s closure captures whichever hit was selected when it was created,
+  // which is precisely the value that must not decide where the result lands.
+  const selectedRef = useRef<Hit | null>(null);
 
   const pinned = useRunStore((s) => s.pinned);
   const pin = useRunStore((s) => s.pin);
@@ -119,28 +123,43 @@ export function AnswerPanel({ campaignId, onContextChange }: AnswerPanelProps) {
 
   const build = useCallback(async () => {
     if (!selected) return;
+    const target = { type: selected.type, id: selected.id };
     setBuilding(true);
     try {
       const res = await fetch("/api/briefings", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ campaignId, targetKind: selected.type, targetId: selected.id }),
+        body: JSON.stringify({ campaignId, targetKind: target.type, targetId: target.id }),
       });
       if (res.ok) {
         const data: { briefing: BriefingCardData } = await res.json();
-        setBriefing(data.briefing);
-        setStale(false);
+        // A build takes a model call, so the DM can easily type ahead before it
+        // lands. Without this check the result is written into whatever card is
+        // on screen now — one NPC's briefing rendered under another's name, read
+        // aloud at the table as if it were theirs.
+        if (selectedRef.current?.id === target.id) {
+          setBriefing(data.briefing);
+          setStale(false);
+        }
       }
     } finally {
       setBuilding(false);
     }
   }, [selected, campaignId]);
 
+  useEffect(() => {
+    selectedRef.current = selected;
+  }, [selected]);
+
   // Any letter focuses search — no Cmd+K ceremony at the table.
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) {
+      // A mouse click on a result moves focus to that button, so treat it the
+      // same as the input — otherwise the arrows silently stop working the
+      // moment the DM clicks instead of types.
+      const inList = target?.getAttribute("role") === "option";
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || inList)) {
         if (e.key === "ArrowDown") { e.preventDefault(); setCursor((c) => Math.min(c + 1, effectiveHits.length - 1)); }
         if (e.key === "ArrowUp") { e.preventDefault(); setCursor((c) => Math.max(c - 1, 0)); }
         if (e.key === "Escape") { setQuery(""); inputRef.current?.blur(); }

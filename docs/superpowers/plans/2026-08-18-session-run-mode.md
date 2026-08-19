@@ -99,11 +99,24 @@ Find the vec0 virtual table block near the end of `runMigrations()` (it starts w
       context_kind TEXT,
       context_id TEXT,
       resolved INTEGER NOT NULL DEFAULT 0,
-      created_at INTEGER NOT NULL
+      created_at INTEGER NOT NULL,
+      local_id TEXT
     );
 
     CREATE INDEX IF NOT EXISTS idx_session_marks_run
       ON session_marks (run_session_id, at_ms);
+  `);
+
+  // Additive: session_marks existed before local_id (see above), so a
+  // database created before this migration needs the column added rather
+  // than relying on the CREATE TABLE. The unique index makes a retried mark
+  // write idempotent (lib/run/marks.ts createMark dedupes on local_id) —
+  // partial so the many pre-existing rows with no local_id don't collide
+  // with each other under NULL.
+  addColumnIfMissing("session_marks", "local_id", "TEXT");
+  sqlite.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_session_marks_local
+      ON session_marks (local_id) WHERE local_id IS NOT NULL;
   `);
 
   // FTS5 index backing /api/search. Standalone (not external-content): rows are
@@ -118,6 +131,8 @@ Find the vec0 virtual table block near the end of `runMigrations()` (it starts w
     body
   );`);
 ```
+
+`addColumnIfMissing` is defined further down in `runMigrations()` (the additive-migrations block, used for `combatants`, `maps`, etc.). Since `session_marks` itself is created in this later sub-project-19 block rather than the file's opening `CREATE TABLE` block, the `addColumnIfMissing("session_marks", ...)` call above must run after this whole block, not be folded into that earlier additive-migrations section — the table doesn't exist yet at that point.
 
 - [ ] **Step 2: Add the drizzle mirrors to schema.ts**
 
@@ -180,6 +195,10 @@ export const sessionMarks = sqliteTable("session_marks", {
   contextId: text("context_id"),
   resolved: integer("resolved", { mode: "boolean" }).notNull().default(false),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  // Client-generated. Lets createMark() dedupe a retried write that succeeded
+  // server-side but whose response was lost — see lib/run/marks.ts. Nullable:
+  // rows written before this column existed have none.
+  localId: text("local_id"),
 });
 ```
 
@@ -2697,6 +2716,31 @@ describe("MARK_TAGS", () => {
     expect(MARK_TAGS).toEqual(["npc", "promise", "loot", "lore", "todo"]);
   });
 });
+
+describe("createMark idempotency", () => {
+  it("returns the existing mark for a repeated localId instead of inserting a second row", async () => {
+    const { db, campaignId } = createTestDb();
+    const run = await startRun(db, { campaignId });
+    const first = await createMark(db, {
+      campaignId, runSessionId: run.id, atMs: 1_000, localId: "local-1",
+    });
+    // Simulates a retry after the first response was lost: same localId, same
+    // logical mark, arrives a second time.
+    const second = await createMark(db, {
+      campaignId, runSessionId: run.id, atMs: 1_000, localId: "local-1",
+    });
+    expect(second.id).toBe(first.id);
+    expect(await listMarks(db, run.id)).toHaveLength(1);
+  });
+
+  it("does not dedupe marks with no localId", async () => {
+    const { db, campaignId } = createTestDb();
+    const run = await startRun(db, { campaignId });
+    await createMark(db, { campaignId, runSessionId: run.id, atMs: 1_000 });
+    await createMark(db, { campaignId, runSessionId: run.id, atMs: 1_000 });
+    expect(await listMarks(db, run.id)).toHaveLength(2);
+  });
+});
 ```
 
 - [ ] **Step 2: Run it to verify it fails**
@@ -2727,6 +2771,8 @@ export interface CreateMarkInput {
   note?: string | null;
   contextKind?: string | null;
   contextId?: string | null;
+  /** Client-generated id of the queued mark. See the idempotency check below. */
+  localId?: string | null;
 }
 
 async function read(db: StateDb, id: string): Promise<SessionMark> {
@@ -2749,6 +2795,21 @@ export async function createMark(db: StateDb, input: CreateMarkInput): Promise<S
   const run = await db.query.runSessions.findFirst({ where: eq(runSessions.id, input.runSessionId) });
   if (!run) throw new NotFoundError("No run found with that id");
 
+  // A retry can legitimately duplicate a mark: the POST succeeds and inserts
+  // a row, the response is lost in transit, and the client — having no way to
+  // tell "failed" from "succeeded but I never heard back" — retries with the
+  // same localId. No client-side guard can prevent that. This check is what
+  // actually makes the retry idempotent: return the row that already exists
+  // instead of inserting a second one. idx_session_marks_local backs this
+  // with a unique constraint so a race between two such retries can't slip
+  // both inserts through.
+  if (input.localId) {
+    const existing = await db.query.sessionMarks.findFirst({
+      where: eq(sessionMarks.localId, input.localId),
+    });
+    if (existing) return existing;
+  }
+
   const now = new Date();
   const id = generateId();
   await db.insert(sessionMarks).values({
@@ -2763,6 +2824,7 @@ export async function createMark(db: StateDb, input: CreateMarkInput): Promise<S
     contextId: input.contextId ?? null,
     resolved: false,
     createdAt: now,
+    localId: input.localId ?? null,
   });
   return read(db, id);
 }
@@ -3501,6 +3563,10 @@ export function AnswerPanel({ campaignId, onContextChange }: AnswerPanelProps) {
   });
   const [building, setBuilding] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  // The live selection, readable from inside an in-flight async callback.
+  // `build`'s closure captures whichever hit was selected when it was created,
+  // which is precisely the value that must not decide where the result lands.
+  const selectedRef = useRef<Hit | null>(null);
 
   const pinned = useRunStore((s) => s.pinned);
   const pin = useRunStore((s) => s.pin);
@@ -3575,17 +3641,24 @@ export function AnswerPanel({ campaignId, onContextChange }: AnswerPanelProps) {
 
   const build = useCallback(async () => {
     if (!selected) return;
+    const target = { type: selected.type, id: selected.id };
     setBuilding(true);
     try {
       const res = await fetch("/api/briefings", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ campaignId, targetKind: selected.type, targetId: selected.id }),
+        body: JSON.stringify({ campaignId, targetKind: target.type, targetId: target.id }),
       });
       if (res.ok) {
         const data: { briefing: BriefingCardData } = await res.json();
-        setBriefing(data.briefing);
-        setStale(false);
+        // A build takes a model call, so the DM can easily type ahead before it
+        // lands. Without this check the result is written into whatever card is
+        // on screen now — one NPC's briefing rendered under another's name, read
+        // aloud at the table as if it were theirs.
+        if (selectedRef.current?.id === target.id) {
+          setBriefing(data.briefing);
+          setStale(false);
+        }
       }
     } finally {
       setBuilding(false);
