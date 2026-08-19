@@ -2424,6 +2424,24 @@ describe("startRun", () => {
     const runs = await listRuns(db, campaignId);
     expect(runs.find((r) => r.id === other.id)!.endedAt).toBeNull();
   });
+
+  it("leaves exactly one open run when starts race", async () => {
+    const { db, campaignId } = createTestDb();
+    // POST /api/runs is reachable twice in quick succession — a double-click
+    // entering run mode, a retry, or React re-invoking the start effect.
+    // Without the close and the insert being one operation, each request closes
+    // nothing and inserts one, leaving several open runs at once.
+    await Promise.all([
+      startRun(db, { campaignId }),
+      startRun(db, { campaignId }),
+      startRun(db, { campaignId }),
+    ]);
+    const open = db.all<{ n: number }>(sql`
+      SELECT COUNT(*) AS n FROM run_sessions
+      WHERE campaign_id = ${campaignId} AND ended_at IS NULL
+    `);
+    expect(open[0].n).toBe(1);
+  });
 });
 
 describe("getActiveRun", () => {
@@ -2561,7 +2579,7 @@ export async function linkSessionNote(
 - [ ] **Step 4: Run the test**
 
 Run: `npx vitest run lib/run/runs.test.ts`
-Expected: PASS, 9 tests.
+Expected: PASS, 10 tests.
 
 - [ ] **Step 5: Commit**
 

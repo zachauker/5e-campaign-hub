@@ -20,28 +20,41 @@ export async function startRun(
   input: { campaignId: string; label?: string | null },
 ): Promise<RunSession> {
   const now = new Date();
-  await db
-    .update(runSessions)
-    .set({ endedAt: now })
-    .where(and(eq(runSessions.campaignId, input.campaignId), isNull(runSessions.endedAt)));
-
   const id = generateId();
-  await db.insert(runSessions).values({
-    id,
-    campaignId: input.campaignId,
-    label: input.label ?? null,
-    startedAt: now,
-    endedAt: null,
-    sessionNoteId: null,
-    createdAt: now,
+
+  // Closing the old run and opening the new one are one operation. Awaiting
+  // between them yields to the event loop, and POST /api/runs is reachable
+  // twice in quick succession — a double-click entering run mode, a retry, or
+  // React re-invoking the start effect. Interleaved, two requests each close
+  // nothing and insert one, leaving two open runs in a campaign and defeating
+  // the very invariant the close exists to enforce.
+  db.transaction((tx) => {
+    tx
+      .update(runSessions)
+      .set({ endedAt: now })
+      .where(and(eq(runSessions.campaignId, input.campaignId), isNull(runSessions.endedAt)))
+      .run();
+
+    tx.insert(runSessions).values({
+      id,
+      campaignId: input.campaignId,
+      label: input.label ?? null,
+      startedAt: now,
+      endedAt: null,
+      sessionNoteId: null,
+      createdAt: now,
+    }).run();
   });
+
   return read(db, id);
 }
 
 export async function getActiveRun(db: StateDb, campaignId: string): Promise<RunSession | null> {
   const row = await db.query.runSessions.findFirst({
     where: and(eq(runSessions.campaignId, campaignId), isNull(runSessions.endedAt)),
-    orderBy: desc(runSessions.startedAt),
+    // id breaks a startedAt tie deterministically — these timestamps are
+    // second-resolution, so two runs opened in the same second are ordinary.
+    orderBy: [desc(runSessions.startedAt), desc(runSessions.id)],
   });
   return row ?? null;
 }
@@ -57,7 +70,9 @@ export async function endRun(db: StateDb, id: string): Promise<RunSession> {
 export async function listRuns(db: StateDb, campaignId: string): Promise<RunSession[]> {
   return db.query.runSessions.findMany({
     where: eq(runSessions.campaignId, campaignId),
-    orderBy: desc(runSessions.startedAt),
+    // id breaks a startedAt tie deterministically — these timestamps are
+    // second-resolution, so two runs opened in the same second are ordinary.
+    orderBy: [desc(runSessions.startedAt), desc(runSessions.id)],
   });
 }
 
