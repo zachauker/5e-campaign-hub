@@ -617,9 +617,41 @@ function writeRow(
  */
 export async function indexEntity(db: StateDb, row: IndexRow): Promise<void> {
   const existing = readRow(db, row.campaignId, row.kind, row.targetId);
-  // Preserve briefing-derived aliases; only a briefing write owns that column.
-  const aliases = existing?.aliases ?? "";
+  // Aliases stay with the row when one exists — a briefing write owns that
+  // column. When no row exists yet they are read from the briefing instead,
+  // rather than written blank: on a database whose index has not been
+  // backfilled, an entity write would otherwise drop "the mask guy" until some
+  // later briefing rebuild happened to restore it. The mirror of the name
+  // lookup in indexBriefing, and it keeps this path agreeing with
+  // rebuildSearchIndex, which has always merged briefing data.
+  const aliases =
+    existing?.aliases ?? lookupBriefingAliases(db, row.campaignId, row.kind, row.targetId).join(" ");
   writeRow(db, row.campaignId, row.kind, row.targetId, row.name, aliases, row.body ?? "");
+}
+
+/**
+ * Aliases recorded on a target's briefing. Used when an entity write arrives for
+ * something the index has never seen. Returns [] for a missing or malformed
+ * blob — a corrupt aliases value costs alias matching for one entity and must
+ * not throw on a write path.
+ */
+function lookupBriefingAliases(
+  db: StateDb,
+  campaignId: string,
+  kind: SearchKind,
+  targetId: string,
+): string[] {
+  const row = db.all<{ aliases: string }>(sql`
+    SELECT aliases FROM entity_briefings
+    WHERE campaign_id = ${campaignId} AND target_kind = ${kind} AND target_id = ${targetId}
+  `)[0];
+  if (!row) return [];
+  try {
+    const parsed: unknown = JSON.parse(row.aliases);
+    return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === "string") : [];
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -4566,7 +4598,7 @@ export async function syncClockToIndex(db: StateDb, campaignId: string, clockId:
 - [ ] **Step 5: Run the test**
 
 Run: `npx vitest run lib/run/index-sync.test.ts`
-Expected: PASS, 8 tests.
+Expected: PASS, 7 tests.
 
 - [ ] **Step 6: Call it from every write path found in Step 1**
 
