@@ -14,7 +14,9 @@ import { RelatedCard } from "@/components/glossary/RelatedCard";
 import { StatBlock } from "@/components/tracker/StatBlock";
 import { CharacterFormDialog, type CharacterWithLinks } from "@/components/entities/CharacterFormDialog";
 import { EntityThreadsBlock } from "@/components/state/EntityThreadsBlock";
+import { BriefingCard, type BriefingCardData } from "@/components/run/BriefingCard";
 import { useCampaignStore } from "@/lib/store/campaign-store";
+import { useRunStore } from "@/lib/store/run-store";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ddbCharacterToStatBlock } from "@/lib/ddb/client";
 import type { NotionBlockData } from "@/lib/notion/client";
@@ -46,6 +48,15 @@ export default function CharacterDetailPage() {
   const [ddbCharacter, setDdbCharacter] = useState<DDBCharacter | null>(null);
   const [ddbError, setDdbError] = useState<string | null>(null);
   const [ddbLoading, setDdbLoading] = useState(false);
+
+  const [briefing, setBriefing] = useState<BriefingCardData | null>(null);
+  const [briefingStale, setBriefingStale] = useState(false);
+  const [briefingThreads, setBriefingThreads] = useState<string[]>([]);
+  const [buildingBriefing, setBuildingBriefing] = useState(false);
+
+  const pinned = useRunStore((s) => s.pinned);
+  const pin = useRunStore((s) => s.pin);
+  const unpin = useRunStore((s) => s.unpin);
 
   // Used by CharacterFormDialog's onSaved callback (an event-handler context,
   // not an effect — synchronous setLoading(true) here is fine and doesn't
@@ -161,6 +172,53 @@ export default function CharacterDetailPage() {
     };
   }, [character?.ddbCharacterId]);
 
+  const buildBriefing = useCallback(async () => {
+    if (!activeCampaignId || !id) return;
+    setBuildingBriefing(true);
+    try {
+      const res = await fetch("/api/briefings", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ campaignId: activeCampaignId, targetKind: "character", targetId: id }),
+      });
+      if (res.ok) {
+        const data: { briefing: BriefingCardData } = await res.json();
+        setBriefing(data.briefing);
+        setBriefingStale(false);
+      }
+    } finally {
+      setBuildingBriefing(false);
+    }
+  }, [activeCampaignId, id]);
+
+  // Fetches the briefing on first view and builds it lazily when absent. This
+  // is a prep surface — /run never renders this page, so the round-trip and
+  // the model call it can trigger are affordable here and nowhere else.
+  useEffect(() => {
+    if (!activeCampaignId || !id) return;
+    let cancelled = false;
+    fetch(`/api/briefings?campaignId=${activeCampaignId}&targetKind=character&targetId=${id}`)
+      .then((r) => (r.ok ? r.json() : { briefing: null, stale: false }))
+      .then((data: { briefing: BriefingCardData | null; stale: boolean }) => {
+        if (cancelled) return;
+        setBriefing(data.briefing);
+        setBriefingStale(data.stale);
+        if (!data.briefing) void buildBriefing();
+      })
+      .catch(() => {});
+
+    fetch(`/api/threads?campaignId=${activeCampaignId}&targetKind=character&targetId=${id}`)
+      .then((r) => (r.ok ? r.json() : { items: [] }))
+      .then((data: { items?: { title: string }[] }) => {
+        if (!cancelled) setBriefingThreads((data.items ?? []).map((t) => t.title));
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeCampaignId, id, buildBriefing]);
+
   async function remove() {
     const ok = await confirm({
       title: "Delete character?",
@@ -232,6 +290,21 @@ export default function CharacterDetailPage() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6 pt-5">
+          <BriefingCard
+            name={character.name}
+            briefing={briefing}
+            fallback={{ description: character.description, threads: briefingThreads }}
+            stale={briefingStale}
+            pinned={pinned.some((p) => p.targetId === character.id)}
+            onTogglePin={() =>
+              pinned.some((p) => p.targetId === character.id)
+                ? unpin(character.id)
+                : pin({ kind: "character", targetId: character.id, name: character.name })
+            }
+            onBuild={buildBriefing}
+            building={buildingBriefing}
+          />
+
           {character.description && (
             <p className="text-[15px] leading-relaxed text-foreground/85 max-w-[68ch]">
               {character.description}

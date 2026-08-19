@@ -11,7 +11,9 @@ import { NotionPropsTable } from "@/components/glossary/NotionPropsTable";
 import { RelatedCard } from "@/components/glossary/RelatedCard";
 import { SimpleEntityFormDialog } from "@/components/entities/SimpleEntityFormDialog";
 import { EntityThreadsBlock } from "@/components/state/EntityThreadsBlock";
+import { BriefingCard, type BriefingCardData } from "@/components/run/BriefingCard";
 import { useCampaignStore } from "@/lib/store/campaign-store";
+import { useRunStore } from "@/lib/store/run-store";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { NotionBlockData } from "@/lib/notion/client";
 
@@ -55,6 +57,17 @@ export function SimpleEntityDetail({ resourcePath, label, icon: Icon }: SimpleEn
   const [notionBlocks, setNotionBlocks] = useState<NotionBlockData[] | null>(null);
   const [notionError, setNotionError] = useState<string | null>(null);
   const [notionLoading, setNotionLoading] = useState(false);
+
+  const [briefing, setBriefing] = useState<BriefingCardData | null>(null);
+  const [briefingStale, setBriefingStale] = useState(false);
+  const [briefingThreads, setBriefingThreads] = useState<string[]>([]);
+  const [buildingBriefing, setBuildingBriefing] = useState(false);
+
+  const pinned = useRunStore((s) => s.pinned);
+  const pin = useRunStore((s) => s.pin);
+  const unpin = useRunStore((s) => s.unpin);
+
+  const targetKind = resourcePath.replace(/s$/, "") as "location" | "item" | "faction";
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -108,6 +121,53 @@ export function SimpleEntityDetail({ resourcePath, label, icon: Icon }: SimpleEn
       cancelled = true;
     };
   }, [entity?.notionUrl]);
+
+  const buildBriefing = useCallback(async () => {
+    if (!activeCampaignId || !id) return;
+    setBuildingBriefing(true);
+    try {
+      const res = await fetch("/api/briefings", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ campaignId: activeCampaignId, targetKind, targetId: id }),
+      });
+      if (res.ok) {
+        const data: { briefing: BriefingCardData } = await res.json();
+        setBriefing(data.briefing);
+        setBriefingStale(false);
+      }
+    } finally {
+      setBuildingBriefing(false);
+    }
+  }, [activeCampaignId, targetKind, id]);
+
+  // Fetches the briefing on first view and builds it lazily when absent. This
+  // is a prep surface — /run never renders this component, so the round-trip
+  // and the model call it can trigger are affordable here and nowhere else.
+  useEffect(() => {
+    if (!activeCampaignId || !id) return;
+    let cancelled = false;
+    fetch(`/api/briefings?campaignId=${activeCampaignId}&targetKind=${targetKind}&targetId=${id}`)
+      .then((r) => (r.ok ? r.json() : { briefing: null, stale: false }))
+      .then((data: { briefing: BriefingCardData | null; stale: boolean }) => {
+        if (cancelled) return;
+        setBriefing(data.briefing);
+        setBriefingStale(data.stale);
+        if (!data.briefing) void buildBriefing();
+      })
+      .catch(() => {});
+
+    fetch(`/api/threads?campaignId=${activeCampaignId}&targetKind=${targetKind}&targetId=${id}`)
+      .then((r) => (r.ok ? r.json() : { items: [] }))
+      .then((data: { items?: { title: string }[] }) => {
+        if (!cancelled) setBriefingThreads((data.items ?? []).map((t) => t.title));
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeCampaignId, id, targetKind, buildBriefing]);
 
   async function remove() {
     const ok = await confirm({
@@ -189,6 +249,21 @@ export function SimpleEntityDetail({ resourcePath, label, icon: Icon }: SimpleEn
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6 pt-5">
+          <BriefingCard
+            name={entity.name}
+            briefing={briefing}
+            fallback={{ description: entity.description, threads: briefingThreads }}
+            stale={briefingStale}
+            pinned={pinned.some((p) => p.targetId === entity.id)}
+            onTogglePin={() =>
+              pinned.some((p) => p.targetId === entity.id)
+                ? unpin(entity.id)
+                : pin({ kind: targetKind, targetId: entity.id, name: entity.name })
+            }
+            onBuild={buildBriefing}
+            building={buildingBriefing}
+          />
+
           {entity.description && (
             <p className="text-[15px] leading-relaxed text-foreground/85 max-w-[68ch]">
               {entity.description}
