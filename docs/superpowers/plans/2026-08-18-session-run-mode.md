@@ -1101,6 +1101,7 @@ Create `lib/run/briefings.test.ts`:
 ```ts
 import { describe, it, expect } from "vitest";
 import { createTestDb } from "@/lib/notion/test-helpers";
+import { NotFoundError } from "@/lib/state/errors";
 import { getBriefing, upsertBriefing, setManualFields, BRIEFING_FIELDS } from "./briefings";
 import { searchIndex } from "./search-index";
 
@@ -1198,7 +1199,7 @@ describe("setManualFields", () => {
     const { db, campaignId } = createTestDb();
     await expect(
       setManualFields(db, campaignId, "character", "nope", { voice: "A" }),
-    ).rejects.toThrow(/not found/i);
+    ).rejects.toThrow(NotFoundError);
   });
 
   it("rejects a field name that is not a briefing field", async () => {
@@ -1459,6 +1460,7 @@ Create `lib/run/briefing-inputs.test.ts`:
 import { describe, it, expect } from "vitest";
 import { sql } from "drizzle-orm";
 import { createTestDb } from "@/lib/notion/test-helpers";
+import { NotFoundError } from "@/lib/state/errors";
 import { gatherInputs, hashInputs } from "./briefing-inputs";
 
 function seed(db: ReturnType<typeof createTestDb>["db"], campaignId: string) {
@@ -1493,7 +1495,7 @@ describe("gatherInputs", () => {
 
   it("throws when the target does not exist", async () => {
     const { db, campaignId } = createTestDb();
-    await expect(gatherInputs(db, campaignId, "character", "nope")).rejects.toThrow(/not found/i);
+    await expect(gatherInputs(db, campaignId, "character", "nope")).rejects.toThrow(NotFoundError);
   });
 
   it("rejects an unknown targetKind rather than interpolating it into SQL", async () => {
@@ -2346,6 +2348,7 @@ Create `lib/run/runs.test.ts`:
 ```ts
 import { describe, it, expect } from "vitest";
 import { createTestDb } from "@/lib/notion/test-helpers";
+import { NotFoundError } from "@/lib/state/errors";
 import { startRun, endRun, getActiveRun, listRuns, linkSessionNote } from "./runs";
 
 describe("startRun", () => {
@@ -2408,7 +2411,7 @@ describe("endRun", () => {
 
   it("throws for an unknown run", async () => {
     const { db } = createTestDb();
-    await expect(endRun(db, "nope")).rejects.toThrow(/not found/i);
+    await expect(endRun(db, "nope")).rejects.toThrow(NotFoundError);
   });
 });
 
@@ -2534,6 +2537,7 @@ Create `lib/run/marks.test.ts`:
 ```ts
 import { describe, it, expect } from "vitest";
 import { createTestDb } from "@/lib/notion/test-helpers";
+import { NotFoundError } from "@/lib/state/errors";
 import { startRun } from "./runs";
 import { createMark, listMarks, setMarkResolved, MARK_TAGS } from "./marks";
 
@@ -2583,7 +2587,7 @@ describe("createMark", () => {
     const { db, campaignId } = createTestDb();
     await expect(
       createMark(db, { campaignId, runSessionId: "nope", atMs: 0 }),
-    ).rejects.toThrow(/not found/i);
+    ).rejects.toThrow(NotFoundError);
   });
 });
 

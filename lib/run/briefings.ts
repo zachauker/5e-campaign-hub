@@ -178,7 +178,7 @@ export async function setManualFields(
   edits: Partial<Record<BriefingField, string | string[] | null>>,
 ): Promise<Briefing> {
   const existing = await readRow(db, campaignId, targetKind, targetId);
-  if (!existing) throw new NotFoundError("Briefing not found for that target");
+  if (!existing) throw new NotFoundError("No briefing found for that target");
 
   const manual = new Set(parseStringArray(existing.manualFields) as BriefingField[]);
   const values: Record<string, unknown> = { updatedAt: new Date() };

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createTestDb } from "@/lib/notion/test-helpers";
+import { NotFoundError } from "@/lib/state/errors";
 import { getBriefing, upsertBriefing, setManualFields, BRIEFING_FIELDS } from "./briefings";
 import { searchIndex } from "./search-index";
 
@@ -97,7 +98,7 @@ describe("setManualFields", () => {
     const { db, campaignId } = createTestDb();
     await expect(
       setManualFields(db, campaignId, "character", "nope", { voice: "A" }),
-    ).rejects.toThrow(/not found/i);
+    ).rejects.toThrow(NotFoundError);
   });
 
   it("rejects a field name that is not a briefing field", async () => {
