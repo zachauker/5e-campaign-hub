@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { sql } from "drizzle-orm";
 import { createTestDb } from "@/lib/db/test-helpers";
 import { indexEntity, indexBriefing, removeFromIndex, searchIndex, rebuildSearchIndex } from "./search-index";
@@ -61,7 +61,11 @@ describe("indexBriefing", () => {
   });
 });
 
-describe("indexBriefing [!dm] backstop", () => {
+describe("[!dm] backstop", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("leaves a field that copied a [!dm] callout out of the index, and warns", async () => {
     const { db, campaignId } = createTestDb();
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -82,7 +86,39 @@ describe("indexBriefing [!dm] backstop", () => {
     expect(await searchIndex(db, { campaignId, q: "thursday" })).toEqual([]);
     expect(await searchIndex(db, { campaignId, q: "informant" })).toEqual([]);
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("character c1"));
-    warn.mockRestore();
+  });
+
+  function seedContaminatedBriefing(db: ReturnType<typeof createTestDb>["db"], campaignId: string) {
+    db.run(sql`INSERT INTO characters (id, campaign_id, name, type, description, archived, created_at, updated_at)
+      VALUES ('c1', ${campaignId}, 'Garrick Veldros', 'npc', NULL, 0, 1, 1)`);
+    db.run(sql`INSERT INTO entity_briefings (id, campaign_id, target_kind, target_id, identity, wants, party_knows, aliases, source_hash, built_at, created_at, updated_at)
+      VALUES ('b1', ${campaignId}, 'character', 'c1', 'A broker.', '> [!dm] Plans reports every Thursday', 'A forged writ.',
+        '["the mask guy", "[!dm] informant"]', 'h', 1, 1, 1)`);
+  }
+
+  it("holds through rebuildSearchIndex, which reads the stored briefing", async () => {
+    const { db, campaignId } = createTestDb();
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    seedContaminatedBriefing(db, campaignId);
+
+    await rebuildSearchIndex(db, campaignId);
+
+    expect((await searchIndex(db, { campaignId, q: "broker" })).map((h) => h.targetId)).toEqual(["c1"]);
+    expect((await searchIndex(db, { campaignId, q: "forged" })).map((h) => h.targetId)).toEqual(["c1"]);
+    expect((await searchIndex(db, { campaignId, q: "mask guy" })).map((h) => h.targetId)).toEqual(["c1"]);
+    expect(await searchIndex(db, { campaignId, q: "thursday" })).toEqual([]);
+    expect(await searchIndex(db, { campaignId, q: "informant" })).toEqual([]);
+  });
+
+  it("holds in indexEntity's alias fallback when no index row exists yet", async () => {
+    const { db, campaignId } = createTestDb();
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    seedContaminatedBriefing(db, campaignId);
+
+    await indexEntity(db, { campaignId, kind: "character", targetId: "c1", name: "Garrick Veldros", body: null });
+
+    expect((await searchIndex(db, { campaignId, q: "mask guy" })).map((h) => h.targetId)).toEqual(["c1"]);
+    expect(await searchIndex(db, { campaignId, q: "informant" })).toEqual([]);
   });
 
   // Documents the limit rather than endorsing it: only a verbatim marker is caught.

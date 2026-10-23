@@ -83,7 +83,11 @@ function writeRow(
 export async function indexEntity(db: StateDb, row: IndexRow): Promise<void> {
   const existing = readRow(db, row.campaignId, row.kind, row.targetId);
   const aliases =
-    existing?.aliases ?? lookupBriefingAliases(db, row.campaignId, row.kind, row.targetId).join(" ");
+    existing?.aliases ??
+    briefingIndexText(
+      { aliases: lookupBriefingAliases(db, row.campaignId, row.kind, row.targetId) },
+      `${row.kind} ${row.targetId}`,
+    ).aliases;
   writeRow(db, row.campaignId, row.kind, row.targetId, row.name, aliases, row.body ?? "");
 }
 
@@ -135,9 +139,13 @@ function lookupBriefingAliases(
     SELECT aliases FROM entity_briefings
     WHERE campaign_id = ${campaignId} AND target_kind = ${kind} AND target_id = ${targetId}
   `)[0];
-  if (!row) return [];
+  return row ? parseAliases(row.aliases) : [];
+}
+
+/** Tolerant read of a briefing's aliases JSON: malformed yields [] rather than throwing. */
+function parseAliases(blob: string): string[] {
   try {
-    const parsed: unknown = JSON.parse(row.aliases);
+    const parsed: unknown = JSON.parse(blob);
     return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === "string") : [];
   } catch {
     return [];
@@ -146,11 +154,41 @@ function lookupBriefingAliases(
 
 const DM_MARKER = /\[!dm\]/i;
 
-/** False (with a warning) for text carrying a `[!dm]` marker; see `indexBriefing`. */
-function keepIndexable(text: string, label: string): boolean {
-  if (!DM_MARKER.test(text)) return true;
-  console.warn(`[search-index] Left a briefing field out of the index for ${label}: it contains a [!dm] marker.`);
-  return false;
+/**
+ * The ONE place briefing text becomes indexed text. `indexBriefing`,
+ * `rebuildSearchIndex` and `indexEntity`'s alias fallback all go through it, so
+ * the rule below cannot be undone by a path that forgot to apply it (a rebuild
+ * from `entity_briefings` would otherwise resurrect a field dropped at write time).
+ *
+ * Backstop: the briefing model is given the raw note, `[!dm]` callouts included,
+ * and told to keep them out of the indexed fields. That is an instruction, and
+ * an instruction can be ignored. So any field whose text still contains a
+ * `[!dm]` marker is left out of the index, with a warning. This catches only
+ * VERBATIM copying, the mechanically detectable failure. It does not catch a
+ * paraphrase of behind-the-screen text, which looks like any other sentence;
+ * the prompt remains the defence against that.
+ *
+ * `secret` is not a parameter: it is never indexed at all.
+ */
+function briefingIndexText(
+  fields: { identity?: string | null; wants?: string | null; partyKnows?: string | null; aliases: string[] },
+  label: string,
+): { body: string; aliases: string } {
+  let dropped = 0;
+  const keep = (text: string | null | undefined): text is string => {
+    if (!text) return false;
+    if (!DM_MARKER.test(text)) return true;
+    dropped++;
+    return false;
+  };
+  const body = [fields.identity, fields.wants, fields.partyKnows].filter(keep).join(" ");
+  const aliases = fields.aliases.filter(keep).join(" ");
+  if (dropped > 0) {
+    console.warn(
+      `[search-index] Left ${dropped} briefing field(s) out of the index for ${label}: they contain a [!dm] marker.`,
+    );
+  }
+  return { body, aliases };
 }
 
 /**
@@ -164,25 +202,15 @@ function keepIndexable(text: string, label: string): boolean {
  * `secret` is never written: a DM-only field that can be retrieved by typing its
  * contents into a search box is not DM-only.
  *
- * Backstop: the briefing model is given the raw note, `[!dm]` callouts included,
- * and told to keep them out of the indexed fields. That is an instruction, and
- * an instruction can be ignored. So any indexed field whose text still contains
- * a `[!dm]` marker is dropped from the index (and warned about). This catches
- * only VERBATIM copying, the mechanically detectable failure. It does not catch
- * a paraphrase of behind-the-screen text, which looks like any other sentence;
- * the prompt remains the defence against that.
+ * Fields carrying a `[!dm]` marker are left out; see `briefingIndexText`.
  */
 export async function indexBriefing(db: StateDb, row: BriefingRow): Promise<void> {
   const existing = readRow(db, row.campaignId, row.kind, row.targetId);
-  const label = `${row.kind} ${row.targetId}`;
-  const body = [row.identity, row.wants, row.partyKnows]
-    .filter((v): v is string => Boolean(v) && keepIndexable(v as string, label))
-    .join(" ");
-  const aliases = row.aliases.filter((a) => keepIndexable(a, label));
+  const { body, aliases } = briefingIndexText(row, `${row.kind} ${row.targetId}`);
   // `||` rather than `??`: an existing row with a blank name (written by an
   // older build) should self-heal on the next briefing write.
   const name = existing?.name || lookupEntityName(db, row.campaignId, row.kind, row.targetId);
-  writeRow(db, row.campaignId, row.kind, row.targetId, name, aliases.join(" "), body);
+  writeRow(db, row.campaignId, row.kind, row.targetId, name, aliases, body);
 }
 
 export async function removeFromIndex(
@@ -300,19 +328,13 @@ export async function rebuildSearchIndex(db: StateDb, campaignId: string): Promi
     `);
     for (const row of rows) {
       const b = briefingByTarget.get(`${kind}:${row.id}`);
-      const body = b
-        ? [b.identity, b.wants, b.partyKnows].filter(Boolean).join(" ")
-        : (row.description ?? "");
-      let aliases = "";
-      if (b) {
-        try {
-          const parsed: unknown = JSON.parse(b.aliases);
-          if (Array.isArray(parsed)) aliases = parsed.filter((a) => typeof a === "string").join(" ");
-        } catch {
-          // A malformed aliases blob costs alias matching for one entity; it
-          // must not abort the whole rebuild.
-        }
-      }
+      // Through the shared helper, not a local join: this rebuild reads the
+      // stored briefing, which may hold a field the write path already dropped.
+      const fromBriefing = b
+        ? briefingIndexText({ ...b, aliases: parseAliases(b.aliases) }, `${kind} ${row.id}`)
+        : null;
+      const body = fromBriefing ? fromBriefing.body : (row.description ?? "");
+      const aliases = fromBriefing ? fromBriefing.aliases : "";
       writeRow(db, campaignId, kind, row.id, row.name, aliases, body);
       written++;
     }
