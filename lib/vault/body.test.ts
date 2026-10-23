@@ -71,6 +71,36 @@ describe("digestBody", () => {
       }
     });
 
+    it("strips a [!dm] whose title is jammed against the bracket or fold suffix", () => {
+      for (const marker of ["[!dm]Tactics", "[!dm]-Tactics", "[!dm]+Tactics", "[!DM]Tactics", "[!DM]-Tactics"]) {
+        const text = digestBody(`> ${marker}\n> She targets Bartlebee.\n\nshown`).text;
+        expect(text, marker).not.toMatch(/Bartlebee|Tactics/);
+        expect(text, marker).toBe("shown");
+      }
+    });
+
+    it("strips a [!dm] however the quote prefix is spaced or indented", () => {
+      for (const prefix of [">", ">   ", "  > ", ">\t"]) {
+        const text = digestBody(`${prefix}[!dm] Title\n> hidden\n\nshown`).text;
+        expect(text, JSON.stringify(prefix)).not.toContain("hidden");
+        expect(text, JSON.stringify(prefix)).toBe("shown");
+      }
+    });
+
+    it("strips a [!dm] inside a top-level fenced code block (safe direction, deliberate)", () => {
+      const text = digestBody("```\n> [!dm]\n> hidden\n```\n\nshown").text;
+      expect(text).not.toContain("hidden");
+      expect(text).toContain("shown");
+    });
+
+    it("ends the dm block at a blank unquoted line inside a quoted fence; the rest is visible quote", () => {
+      // CommonMark and Obsidian both end the blockquote at the blank line, so the
+      // remaining quoted lines render as a separate, visible blockquote.
+      const text = digestBody("> [!dm]\n> ```\n> secret one\n\n> after the break\n> ```").text;
+      expect(text).not.toContain("secret one");
+      expect(text).toContain("after the break");
+    });
+
     it("strips a [!dm] block at the very start of the note", () => {
       expect(digestBody("> [!dm]\n> hidden\n\nshown").text).toBe("shown");
     });
@@ -118,6 +148,11 @@ describe("digestBody", () => {
       const text = digestBody("> [!dm]\n> hidden\n## Next Section\nBody text.").text;
       expect(text).not.toContain("hidden");
       expect(text).toBe("Next Section\nBody text.");
+    });
+
+    it("does not treat an ordered list not starting at 1 as an opener: it is a lazy continuation", () => {
+      expect(digestBody("> [!dm]\n> hidden\n2. secret plan\n\nshown").text).toBe("shown");
+      expect(digestBody("> [!dm]\n> hidden\n3) secret plan").text).toBe("");
     });
 
     it("stops at other block openers: list item, thematic break, code fence", () => {
@@ -199,6 +234,12 @@ describe("digestBody", () => {
       );
     });
 
+    it("keeps the visible text of a same-note heading link", () => {
+      expect(digestBody("Back to [[#History]] and [[#History|the past]].").text).toBe(
+        "Back to History and the past.",
+      );
+    });
+
     it("reduces markdown links to their text", () => {
       expect(digestBody("See [the wiki](https://example.com/page) now.").text).toBe("See the wiki now.");
     });
@@ -229,6 +270,11 @@ describe("digestBody", () => {
       const text = digestBody("Seen %%private note%% text <!-- hidden --> end\n\n%%\nmultiline\nsecret\n%%\n\nlast").text;
       expect(text).not.toMatch(/private|hidden|multiline|secret/);
       expect(text).toBe("Seen text end\nlast");
+    });
+
+    it("pairs %% comments document-wide, so two lone markers swallow what lies between", () => {
+      expect(digestBody("a %% b\n\nmiddle\n\nc %% d").text).toBe("a d");
+      expect(digestBody("a %% never closed\nstill here").text).toContain("still here");
     });
 
     it("drops trailing block ids", () => {

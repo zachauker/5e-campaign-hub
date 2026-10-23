@@ -27,18 +27,22 @@ const QUOTE_PREFIX = /^\s*((?:>\s?)+)(.*)$/;
 
 /**
  * `[!dm]` with an optional fold suffix (`-` collapsed, `+` expanded) and
- * optional Obsidian callout metadata (`[!dm|x]`), case-insensitively. It must
- * be followed by whitespace or the end of the line, so `[!dmg-roll]` is a
- * different callout type and is not matched.
+ * optional Obsidian callout metadata (`[!dm|x]`), case-insensitively. Nothing
+ * may be required after the closing bracket: a title jammed against it
+ * (`[!dm]Title`, `[!dm]-Title`) is still a DM callout, and a missed match here
+ * would index the whole callout as ordinary prose. The closing `]` is what
+ * separates `dm` from a different type such as `[!dmg-roll]`, which is not matched.
  */
-const DM_MARKER = /^\[!dm(?:\|[^\]]*)?\][+-]?(?:\s|$)/i;
+const DM_MARKER = /^\[!dm(?:\|[^\]]*)?\][+-]?/i;
 
 /**
  * A line that opens a new block construct. These interrupt a paragraph rather
  * than continuing it, so they cannot be a lazy continuation: ATX heading,
- * thematic break, code fence, or list item.
+ * thematic break, code fence, or a bullet or `1.` list item. An ordered list
+ * only interrupts a paragraph when it starts at 1 (CommonMark), so `2. text`
+ * after a quoted line is a lazy continuation and is not an opener.
  */
-const BLOCK_OPENER = /^\s{0,3}(?:#{1,6}(?:\s|$)|(?:[-*_])(?:\s*[-*_]){2,}\s*$|```|~~~|(?:[-*+]|\d{1,9}[.)])(?:\s|$))/;
+const BLOCK_OPENER = /^\s{0,3}(?:#{1,6}(?:\s|$)|(?:[-*_])(?:\s*[-*_]){2,}\s*$|```|~~~|(?:[-*+]|1[.)])(?:\s|$))/;
 
 /**
  * Remove every `[!dm]` callout. A callout is a blockquote, so it runs from its
@@ -83,8 +87,9 @@ const TABLE_SEPARATOR = /^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$/;
  * Comments (`%%…%%`, `<!--…-->`) are dropped deliberately, not by accident: both
  * are hidden in Obsidian's reading view, so the DM does not consider them prose
  * (the vault uses `<!-- Column 1 -->` as layout markers) and they should not be
- * indexed. Output is one trimmed, single-spaced line per
- * non-empty source line; blank lines are removed.
+ * indexed. Pairing is document-wide, so two unrelated lone `%%` swallow
+ * everything between them; an unterminated one matches nothing. Output is one
+ * trimmed, single-spaced line per non-empty source line; blank lines are removed.
  */
 function toPlainText(markdown: string): string {
   const withoutComments = markdown.replace(/%%[\s\S]*?%%/g, "").replace(/<!--[\s\S]*?-->/g, "");
@@ -102,7 +107,11 @@ function toPlainText(markdown: string): string {
       .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
       .replace(/\[\[[^\]]*\]\]/g, (link) => {
         const parsed = parseWikilink(link);
-        return parsed ? (parsed.label ?? parsed.target) : "";
+        if (parsed) return parsed.label ?? parsed.target;
+        // A same-note heading link (`[[#History]]`) has no target; keep its
+        // visible text (the label, else the heading) in the index.
+        const [anchor, label] = link.slice(2, -2).split("|");
+        return label?.trim() || anchor.replace(/^\s*#/, "").trim();
       })
       .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
       .replace(/^\s*#{1,6}\s+/, "")
