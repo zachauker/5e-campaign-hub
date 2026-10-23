@@ -2,6 +2,7 @@ import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import { and, eq, like } from "drizzle-orm";
 import * as schema from "@/lib/db/schema";
 import { parseSourceProps } from "@/lib/vault/props";
+import { omitLegacyColumns } from "@/lib/entities/legacy-columns";
 import { characters, locations, items, factions, characterFactions, characterLocations, characterItems } from "@/lib/db/schema";
 import { monsterCache, maps, mapMarkers } from "@/lib/db/schema";
 
@@ -35,7 +36,7 @@ export function getEntity(db: AppDb, campaignId: string, input: { kind: EntityKi
   const t = TABLES[input.kind];
   const row = db.select().from(t).where(and(eq(t.campaignId, campaignId), eq(t.id, input.id))).get();
   if (!row) return null;
-  const { sourceProps, ...rest } = row as Record<string, unknown>;
+  const { sourceProps, ...rest } = omitLegacyColumns(row) as Record<string, unknown>;
   return { ...rest, sourceProps: parseSourceProps(sourceProps as string | null) };
 }
 

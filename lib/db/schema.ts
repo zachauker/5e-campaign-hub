@@ -447,6 +447,7 @@ export type Faction = typeof factions.$inferSelect;
 export type NewFaction = typeof factions.$inferInsert;
 export type SessionNote = typeof sessionNotes.$inferSelect;
 export type NewSessionNote = typeof sessionNotes.$inferInsert;
+// Dead: see notionSources above. Nothing consumes these.
 export type NotionSource = typeof notionSources.$inferSelect;
 export type NewNotionSource = typeof notionSources.$inferInsert;
 export type VaultSource = typeof vaultSources.$inferSelect;

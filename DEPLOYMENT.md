@@ -166,8 +166,9 @@ The hub reads campaign notes from an Obsidian vault mounted into the container.
 
 Set `VAULT_HOST_PATH` in a `.env` file next to `docker-compose.yml` on the Unraid
 host (for example `VAULT_HOST_PATH=/mnt/user/<path-to-vault>`). If it is unset the
-mount falls back to an empty `./vault` directory, the container still starts, and
-every sync reports that it found no readable notes.
+mount falls back to an empty `./vault` directory and the container still starts.
+The campaign folder won't exist inside it, so every sync fails with a `503` and
+"the vault folder isn't reachable from the server" (see the third bullet below).
 
 - **`VAULT_PATH` is the vault root, not the campaign folder.** The folder holding
   `.obsidian/`. The campaign's own folder is a vault-relative path (for example

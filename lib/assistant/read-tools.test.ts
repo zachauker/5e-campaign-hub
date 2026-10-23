@@ -67,6 +67,9 @@ describe("getEntity + getRelationships", () => {
     expect(fjord.sourceProps).toEqual([{ label: "Race", value: "Half-orc" }]);
     expect(getEntity(db, campaignId, { kind: "character", id: "c2" })).toMatchObject({ sourceProps: [] });
     expect(getEntity(db, campaignId, { kind: "character", id: "c3" })).toMatchObject({ sourceProps: [] });
+    for (const key of ["notionUrl", "notionPageId", "notionProps", "notionSyncedAt"]) {
+      expect(fjord).not.toHaveProperty(key);
+    }
   });
 
   it("resolves reverse membership for location and item branches", () => {
