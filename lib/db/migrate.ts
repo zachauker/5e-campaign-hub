@@ -333,6 +333,43 @@ export function runMigrations() {
     addColumnIfMissing(table, "notion_synced_at", "INTEGER");
   }
 
+  // Obsidian vault mirror. Purely additive: the notion_* columns above stay in
+  // place so a rollback to a Notion build still works. session_notes already
+  // carries its notion_* columns from CREATE TABLE, so it joins only this loop.
+  const VAULT_MIRRORED_TABLES = ["characters", "items", "factions", "locations", "session_notes"];
+  for (const table of VAULT_MIRRORED_TABLES) {
+    addColumnIfMissing(table, "source_key", "TEXT");
+    addColumnIfMissing(table, "source_path", "TEXT");
+    addColumnIfMissing(table, "source_props", "TEXT");
+    addColumnIfMissing(table, "source_synced_at", "INTEGER");
+    addColumnIfMissing(table, "source_hash", "TEXT");
+    addColumnIfMissing(table, "source_text", "TEXT");
+  }
+  // No REFERENCES: the parent is resolved from a vault wikilink at sync time,
+  // so the id may dangle until (or unless) that note is synced.
+  addColumnIfMissing("locations", "parent_location_id", "TEXT");
+
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS vault_sources (
+      campaign_id TEXT PRIMARY KEY REFERENCES campaigns(id) ON DELETE CASCADE,
+      root_path TEXT NOT NULL,
+      last_synced_at INTEGER,
+      last_status TEXT
+    );
+  `);
+
+  // Backfill: the vault's frontmatter notion_id values are exactly what
+  // notion_page_id already holds, so copying them into source_key lets the
+  // first vault sync adopt every existing row instead of archiving it and
+  // creating a duplicate (which would strand map pins and briefings that point
+  // at the row ids). Idempotent by its own WHERE clause, so safe on every boot.
+  for (const table of VAULT_MIRRORED_TABLES) {
+    sqlite.exec(
+      `UPDATE ${table} SET source_key = notion_page_id
+       WHERE source_key IS NULL AND notion_page_id IS NOT NULL`,
+    );
+  }
+
   // Sub-project 6 retired: drop the abandoned map_features table if a prior
   // version created it. The orphaned legacy world-map flag column on maps is
   // left in place (harmless; unread) because SQLite DROP COLUMN support is

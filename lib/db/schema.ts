@@ -81,6 +81,12 @@ export const characters = sqliteTable("characters", {
   notionProps: text("notion_props"),
   archived: integer("archived", { mode: "boolean" }).notNull().default(false),
   notionSyncedAt: integer("notion_synced_at", { mode: "timestamp" }),
+  sourceKey: text("source_key"),
+  sourcePath: text("source_path"),
+  sourceProps: text("source_props"),
+  sourceSyncedAt: integer("source_synced_at", { mode: "timestamp" }),
+  sourceHash: text("source_hash"),
+  sourceText: text("source_text"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
@@ -96,6 +102,15 @@ export const locations = sqliteTable("locations", {
   notionProps: text("notion_props"),
   archived: integer("archived", { mode: "boolean" }).notNull().default(false),
   notionSyncedAt: integer("notion_synced_at", { mode: "timestamp" }),
+  sourceKey: text("source_key"),
+  sourcePath: text("source_path"),
+  sourceProps: text("source_props"),
+  sourceSyncedAt: integer("source_synced_at", { mode: "timestamp" }),
+  sourceHash: text("source_hash"),
+  sourceText: text("source_text"),
+  // No .references() by design: the parent comes from a vault wikilink resolved
+  // at sync time, so the id may dangle — same rationale as thread_links.
+  parentLocationId: text("parent_location_id"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
@@ -110,6 +125,12 @@ export const items = sqliteTable("items", {
   notionProps: text("notion_props"),
   archived: integer("archived", { mode: "boolean" }).notNull().default(false),
   notionSyncedAt: integer("notion_synced_at", { mode: "timestamp" }),
+  sourceKey: text("source_key"),
+  sourcePath: text("source_path"),
+  sourceProps: text("source_props"),
+  sourceSyncedAt: integer("source_synced_at", { mode: "timestamp" }),
+  sourceHash: text("source_hash"),
+  sourceText: text("source_text"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
@@ -124,6 +145,12 @@ export const factions = sqliteTable("factions", {
   notionProps: text("notion_props"),
   archived: integer("archived", { mode: "boolean" }).notNull().default(false),
   notionSyncedAt: integer("notion_synced_at", { mode: "timestamp" }),
+  sourceKey: text("source_key"),
+  sourcePath: text("source_path"),
+  sourceProps: text("source_props"),
+  sourceSyncedAt: integer("source_synced_at", { mode: "timestamp" }),
+  sourceHash: text("source_hash"),
+  sourceText: text("source_text"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
@@ -141,6 +168,12 @@ export const sessionNotes = sqliteTable("session_notes", {
   arc: text("arc"),                      // Notion "Arc" select
   archived: integer("archived", { mode: "boolean" }).notNull().default(false),
   notionSyncedAt: integer("notion_synced_at", { mode: "timestamp" }),
+  sourceKey: text("source_key"),
+  sourcePath: text("source_path"),
+  sourceProps: text("source_props"),
+  sourceSyncedAt: integer("source_synced_at", { mode: "timestamp" }),
+  sourceHash: text("source_hash"),
+  sourceText: text("source_text"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
@@ -166,6 +199,13 @@ export const notionSources = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.campaignId, t.entityType] })]
 );
+
+export const vaultSources = sqliteTable("vault_sources", {
+  campaignId: text("campaign_id").primaryKey().references(() => campaigns.id, { onDelete: "cascade" }),
+  rootPath: text("root_path").notNull(),
+  lastSyncedAt: integer("last_synced_at", { mode: "timestamp" }),
+  lastStatus: text("last_status"),
+});
 
 export const characterFactions = sqliteTable(
   "character_factions",
@@ -407,6 +447,8 @@ export type SessionNote = typeof sessionNotes.$inferSelect;
 export type NewSessionNote = typeof sessionNotes.$inferInsert;
 export type NotionSource = typeof notionSources.$inferSelect;
 export type NewNotionSource = typeof notionSources.$inferInsert;
+export type VaultSource = typeof vaultSources.$inferSelect;
+export type NewVaultSource = typeof vaultSources.$inferInsert;
 export type MapRow = typeof maps.$inferSelect;
 export type NewMapRow = typeof maps.$inferInsert;
 export type MapMarker = typeof mapMarkers.$inferSelect;
