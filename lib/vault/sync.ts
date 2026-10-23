@@ -202,6 +202,8 @@ export async function syncCampaign(opts: {
   const byTable: Record<VaultEntityTable, VaultNote[]> = {
     characters: [], items: [], factions: [], locations: [], sessionNotes: [],
   };
+  /** Keys of present-but-unroutable notes; no table may archive against them. */
+  const unroutedKeys: string[] = [];
   for (const note of notes) {
     const type = typeOf(note);
     const route = tableForType(type);
@@ -216,6 +218,15 @@ export async function syncCampaign(opts: {
       warnOnce(summary.campaign, type === undefined
         ? `Skipped ${note.path}: no type: in its frontmatter`
         : `Skipped ${note.path}: unknown type "${type}"`);
+      // The note is present — it just cannot be routed, which is usually a typo
+      // (`type: locatoin`). It parsed, so its key IS recoverable even though its
+      // table is not, so the key protects its existing row in whichever table
+      // that row lives in. One harmless extra key per table, and no entity
+      // vanishes from the hub (and the search index) over one mistyped
+      // character while the DM fixes it. A recognised-skip type gets no such
+      // protection: retyping a note to `thread` is deliberate, and archiving
+      // its old row is the same wanted behaviour as any cross-table retype.
+      unroutedKeys.push(resolveSourceKey(note).key);
       continue;
     }
     byTable[route].push(note);
@@ -230,7 +241,7 @@ export async function syncCampaign(opts: {
     try {
       await syncTable({
         db, campaignId, table, notes: byTable[table],
-        summary: s, synced: linked[table], scanIncomplete,
+        summary: s, synced: linked[table], scanIncomplete, unroutedKeys,
       });
     } catch (err) {
       // A table-level failure (a SQLite error, say) is isolated: the remaining
@@ -267,10 +278,16 @@ interface TableRun {
   synced: { id: string; m: MappedEntity }[];
   /** True when the scan missed part of the folder; suppresses archiving. */
   scanIncomplete: boolean;
+  /**
+   * Keys of notes no table could claim. Excluded from this table's archive step
+   * without counting towards its mass-wipe guard, which must keep measuring the
+   * notes this table actually saw.
+   */
+  unroutedKeys: string[];
 }
 
 async function syncTable(run: TableRun): Promise<void> {
-  const { db, campaignId, table, notes, summary: s, synced, scanIncomplete } = run;
+  const { db, campaignId, table, notes, summary: s, synced, scanIncomplete, unroutedKeys } = run;
   const t = TABLES[table];
   // R24: one repo per run. It owns the run's claim map (which note wrote which
   // row), so a repo outliving the run would read a note whose path moved as a
@@ -351,7 +368,7 @@ async function syncTable(run: TableRun): Promise<void> {
     );
     return;
   }
-  for (const id of archiveUnseen(db, t, campaignId, seenKeys)) {
+  for (const id of archiveUnseen(db, t, campaignId, [...seenKeys, ...unroutedKeys])) {
     s.archived += 1;
     // An archived entity is invisible in the hub, so it must stop answering
     // run-mode searches too; syncEntityToIndex removes archived rows.

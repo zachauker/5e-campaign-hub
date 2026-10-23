@@ -383,6 +383,51 @@ describe("syncCampaign", () => {
     }
   });
 
+  it("does not archive a row whose note gained an unknown type", async () => {
+    // `type: locatoin` is a typo, not a deletion. The note parsed, so its key is
+    // recoverable even though its table is not — and the row must not vanish
+    // from the hub (or the search index) while the DM fixes one character.
+    const { db, campaignId } = createTestDb();
+    const vault = fullVault({ "camp/PCs/Shale.md": note({ type: "pc" }) });
+    await sync(db, campaignId, vault);
+    const beilar = db.select().from(characters).where(eq(characters.name, "Beilar")).get()!;
+
+    fs.writeFileSync(path.join(vault, "camp/NPCs/Beilar.md"), note({ type: "nnpc" }), "utf8");
+    const summary = await sync(db, campaignId, vault);
+
+    // characters still saw Shale, so the mass-wipe guard does not fire and the
+    // scan is complete: only the unrouted key protects Beilar's row.
+    expect(summary.tables.characters.unchanged).toBe(1);
+    expect(summary.tables.characters.archived).toBe(0);
+    expect(sum(summary, "archived")).toBe(0);
+    const after = db.select().from(characters).where(eq(characters.id, beilar.id)).get()!;
+    expect(Boolean(after.archived)).toBe(false);
+    expect(indexRows(db, campaignId).map((r) => r.target_id)).toContain(beilar.id);
+    // The DM is still told, campaign-wide, that the note is unroutable.
+    expect(summary.campaign.skipped).toBe(1);
+    expect(summary.campaign.warnings).toHaveLength(1);
+    expect(summary.campaign.warnings[0]).toContain("camp/NPCs/Beilar.md");
+    expect(summary.campaign.warnings[0]).toContain("nnpc");
+    expect(tableWarnings(summary)).toEqual([]);
+  });
+
+  it("archives a row whose note was retyped to a recognised non-mirrored type", async () => {
+    // The mirror image: retyping a note to `thread` is deliberate, so the old
+    // row should archive exactly as any cross-table retype does.
+    const { db, campaignId } = createTestDb();
+    const vault = fullVault({ "camp/PCs/Shale.md": note({ type: "pc" }) });
+    await sync(db, campaignId, vault);
+    const beilar = db.select().from(characters).where(eq(characters.name, "Beilar")).get()!;
+
+    fs.writeFileSync(path.join(vault, "camp/NPCs/Beilar.md"), note({ type: "thread" }), "utf8");
+    const summary = await sync(db, campaignId, vault);
+
+    expect(summary.tables.characters.archived).toBe(1);
+    expect(Boolean(db.select().from(characters).where(eq(characters.id, beilar.id)).get()!.archived)).toBe(true);
+    expect(indexRows(db, campaignId).map((r) => r.target_id)).not.toContain(beilar.id);
+    expect(summary.campaign.warnings).toEqual([]); // skipped types stay silent
+  });
+
   it("does not archive anything when one note became unreadable", async () => {
     // The likeliest incompleteness on this deployment: the vault syncs between a
     // Mac and a server, so a half-saved file or an Obsidian conflict copy is an
