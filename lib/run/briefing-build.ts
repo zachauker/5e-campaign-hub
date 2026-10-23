@@ -78,11 +78,16 @@ export async function buildBriefing(db: StateDb, opts: BuildOptions): Promise<Br
  *
  * The note is represented by the `source_hash` column, so this reads only local
  * SQLite; no file is opened and it does not depend on the vault being mounted.
+ *
+ * A `partial` briefing is always stale. It was written without the note, and the
+ * hash it stored comes from the row's `source_hash`, which does not move when
+ * the vault comes back. Without this, a build run while the vault was unmounted
+ * (which makes every card partial at once) would never be offered a rebuild.
  */
 export async function isStale(db: StateDb, briefing: Briefing): Promise<boolean> {
   try {
     const inputs = await gatherInputs(db, briefing.campaignId, briefing.targetKind, briefing.targetId);
-    return hashInputs(inputs) !== briefing.sourceHash;
+    return briefing.partial || hashInputs(inputs) !== briefing.sourceHash;
   } catch {
     return true;
   }

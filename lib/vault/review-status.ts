@@ -37,7 +37,17 @@ export async function getReviewStatus(db: StateDb, sessionNoteId: string): Promi
   let currentHash: string | null = null;
   try {
     const { text, hash } = await readNoteForReview(note.sourcePath);
-    if (!text.trim()) return { reviewable: false, needsReview: false };
+    if (!text.trim()) {
+      // Not offered (the review route would refuse), but a note that was reviewed
+      // before it was emptied keeps its history.
+      return {
+        reviewable: false,
+        needsReview: false,
+        lastReviewedAt: last?.reviewedAt ?? null,
+        lastProposalCount: last?.proposalCount ?? 0,
+        currentHash: hash,
+      };
+    }
     currentHash = hash;
   } catch (err) {
     const failure = reviewSourceFailure(err);

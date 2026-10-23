@@ -7,6 +7,7 @@ import { createTestVault } from "@/lib/vault/test-helpers";
 import { buildBriefing, isStale } from "./briefing-build";
 import { buildPrompt, type BriefingResult } from "./briefing-agent";
 import type { BriefingInputs } from "./briefing-inputs";
+import { selectBuildTargets } from "./briefing-batch";
 import { getBriefing, upsertBriefing, setManualFields } from "./briefings";
 
 const result: BriefingResult = {
@@ -237,6 +238,30 @@ describe("isStale", () => {
     delete process.env.VAULT_PATH;
 
     expect(await isStale(db, b!)).toBe(false);
+  });
+
+  it("is true for a partial briefing even though its hash still matches", async () => {
+    const { db, campaignId } = createTestDb();
+    seed(db, campaignId);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const realRoot = process.env.VAULT_PATH!;
+    process.env.VAULT_PATH = path.join(realRoot, "unmounted");
+    const built = await build(db, campaignId);
+    expect(built.partial).toBe(true);
+
+    // The mount comes back. source_hash never moved, so the hash alone says "fresh".
+    process.env.VAULT_PATH = realRoot;
+    const b = await getBriefing(db, campaignId, "character", "c1");
+    expect(await isStale(db, b!)).toBe(true);
+    expect(await selectBuildTargets(db, campaignId, "all")).toEqual([
+      { targetKind: "character", targetId: "c1" },
+    ]);
+
+    // Rebuilding with the note readable clears it, and it is then left alone.
+    const rebuilt = await build(db, campaignId);
+    expect(rebuilt.partial).toBe(false);
+    expect(await isStale(db, rebuilt)).toBe(false);
+    expect(await selectBuildTargets(db, campaignId, "all")).toEqual([]);
   });
 
   it("reports stale rather than throwing when the entity has been deleted", async () => {

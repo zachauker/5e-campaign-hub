@@ -14,7 +14,6 @@ interface SessionNote {
   date: string | null;
 }
 
-
 export function SessionNotesBrowser() {
   const { activeCampaignId } = useCampaignStore();
   const [notes, setNotes] = useState<SessionNote[]>([]);

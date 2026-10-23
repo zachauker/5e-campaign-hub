@@ -52,6 +52,19 @@ describe("getReviewStatus", () => {
     expect((await getReviewStatus(db, "n1")).reviewable).toBe(false);
   });
 
+  it("keeps the review history of a note that was reviewed and later emptied", async () => {
+    const root = createTestVault({ "Sessions/S1.md": "They fought a wolf.\n" });
+    process.env.VAULT_PATH = root;
+    seedNote("n1", "Sessions/S1.md");
+    seedReview("n1", (await readNoteForReview("Sessions/S1.md")).hash, 4);
+
+    const fs = await import("fs");
+    fs.writeFileSync(`${root}/Sessions/S1.md`, "---\ntype: session\n---\n");
+    const status = await getReviewStatus(db, "n1");
+    expect(status).toMatchObject({ reviewable: false, needsReview: false, lastProposalCount: 4 });
+    expect(status.lastReviewedAt).toBeInstanceOf(Date);
+  });
+
   it("reports no review needed after a review of the same note, using the hash the review route stores", async () => {
     process.env.VAULT_PATH = createTestVault({ "Sessions/S1.md": "They fought a wolf.\n" });
     seedNote("n1", "Sessions/S1.md");

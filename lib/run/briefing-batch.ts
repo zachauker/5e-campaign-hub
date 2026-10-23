@@ -22,7 +22,8 @@ const ENTITY_TABLES: { table: string; kind: BriefingTargetKind }[] = [
  *
  * "session" walks entities linked to open threads — the ones likely to come up
  * at the next table. "all" walks the campaign. Both skip anything whose
- * briefing is already current, so a repeated build costs nothing and a run that
+ * briefing is already current (a `partial` one counts as not current, see
+ * `isStale`), so a repeated build costs nothing and a run that
  * dies partway can simply be started again.
  */
 export async function selectBuildTargets(

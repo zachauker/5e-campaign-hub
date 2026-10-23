@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { sql } from "drizzle-orm";
 import { createTestDb } from "@/lib/db/test-helpers";
 import { indexEntity, indexBriefing, removeFromIndex, searchIndex, rebuildSearchIndex } from "./search-index";
@@ -58,6 +58,42 @@ describe("indexBriefing", () => {
       secret: "He is the Assembly's informant.",
     });
     expect(await searchIndex(db, { campaignId, q: "informant" })).toEqual([]);
+  });
+});
+
+describe("indexBriefing [!dm] backstop", () => {
+  it("leaves a field that copied a [!dm] callout out of the index, and warns", async () => {
+    const { db, campaignId } = createTestDb();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await indexEntity(db, { campaignId, kind: "character", targetId: "c1", name: "Garrick", body: null });
+    await indexBriefing(db, {
+      campaignId, kind: "character", targetId: "c1",
+      aliases: ["the mask guy", "[!dm] Thursday informant"],
+      identity: "A broker of favours.",
+      wants: "> [!dm] Plans\n> Reports to the Assembly every Thursday.",
+      partyKnows: "That he sold them a forged writ.",
+    });
+
+    // Clean fields are still indexed...
+    expect((await searchIndex(db, { campaignId, q: "broker" })).map((h) => h.targetId)).toEqual(["c1"]);
+    expect((await searchIndex(db, { campaignId, q: "forged" })).map((h) => h.targetId)).toEqual(["c1"]);
+    expect((await searchIndex(db, { campaignId, q: "mask" })).map((h) => h.targetId)).toEqual(["c1"]);
+    // ...the contaminated ones are not.
+    expect(await searchIndex(db, { campaignId, q: "thursday" })).toEqual([]);
+    expect(await searchIndex(db, { campaignId, q: "informant" })).toEqual([]);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("character c1"));
+    warn.mockRestore();
+  });
+
+  // Documents the limit rather than endorsing it: only a verbatim marker is caught.
+  it("does not (and cannot) catch a paraphrase", async () => {
+    const { db, campaignId } = createTestDb();
+    await indexEntity(db, { campaignId, kind: "character", targetId: "c1", name: "Garrick", body: null });
+    await indexBriefing(db, {
+      campaignId, kind: "character", targetId: "c1", aliases: [],
+      identity: null, wants: "Reports to the Assembly every Thursday.", partyKnows: null,
+    });
+    expect((await searchIndex(db, { campaignId, q: "thursday" })).map((h) => h.targetId)).toEqual(["c1"]);
   });
 });
 

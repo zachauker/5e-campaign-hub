@@ -144,6 +144,15 @@ function lookupBriefingAliases(
   }
 }
 
+const DM_MARKER = /\[!dm\]/i;
+
+/** False (with a warning) for text carrying a `[!dm]` marker; see `indexBriefing`. */
+function keepIndexable(text: string, label: string): boolean {
+  if (!DM_MARKER.test(text)) return true;
+  console.warn(`[search-index] Left a briefing field out of the index for ${label}: it contains a [!dm] marker.`);
+  return false;
+}
+
 /**
  * Enrich the row with briefing content.
  *
@@ -154,14 +163,26 @@ function lookupBriefingAliases(
  *
  * `secret` is never written: a DM-only field that can be retrieved by typing its
  * contents into a search box is not DM-only.
+ *
+ * Backstop: the briefing model is given the raw note, `[!dm]` callouts included,
+ * and told to keep them out of the indexed fields. That is an instruction, and
+ * an instruction can be ignored. So any indexed field whose text still contains
+ * a `[!dm]` marker is dropped from the index (and warned about). This catches
+ * only VERBATIM copying, the mechanically detectable failure. It does not catch
+ * a paraphrase of behind-the-screen text, which looks like any other sentence;
+ * the prompt remains the defence against that.
  */
 export async function indexBriefing(db: StateDb, row: BriefingRow): Promise<void> {
   const existing = readRow(db, row.campaignId, row.kind, row.targetId);
-  const body = [row.identity, row.wants, row.partyKnows].filter(Boolean).join(" ");
+  const label = `${row.kind} ${row.targetId}`;
+  const body = [row.identity, row.wants, row.partyKnows]
+    .filter((v): v is string => Boolean(v) && keepIndexable(v as string, label))
+    .join(" ");
+  const aliases = row.aliases.filter((a) => keepIndexable(a, label));
   // `||` rather than `??`: an existing row with a blank name (written by an
   // older build) should self-heal on the next briefing write.
   const name = existing?.name || lookupEntityName(db, row.campaignId, row.kind, row.targetId);
-  writeRow(db, row.campaignId, row.kind, row.targetId, name, row.aliases.join(" "), body);
+  writeRow(db, row.campaignId, row.kind, row.targetId, name, aliases.join(" "), body);
 }
 
 export async function removeFromIndex(
