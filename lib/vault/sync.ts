@@ -408,8 +408,9 @@ async function syncTable(run: TableRun): Promise<void> {
         `${quotedList(createdFromBasename.sort())} had no hub_id or notion_id, so ` +
         `${createdFromBasename.length === 1 ? "it was" : "they were"} created from the file name in the same pass ` +
         `that archived ${quotedList(names)}. If one of these is a renamed or re-keyed version of an ` +
-        "archived entry, its pins, links and briefing are still on the archived row: give the note " +
-        "that row's id as notion_id.",
+        "archived entry, its pins, links and briefing are still on the archived row: do not delete it. " +
+        "Give the note a hub_id set to that entry's name, exactly as spelled above. See " +
+        "\"A name changed and now there are two entries\" in docs/user-guide/vault-sync.md.",
       );
     }
   }
