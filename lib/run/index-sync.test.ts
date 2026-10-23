@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { sql } from "drizzle-orm";
-import { createTestDb } from "@/lib/notion/test-helpers";
+import { createTestDb } from "@/lib/db/test-helpers";
 import { syncEntityToIndex, syncThreadToIndex, syncClockToIndex } from "./index-sync";
 import { searchIndex } from "./search-index";
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createTestDb } from "@/lib/notion/test-helpers";
+import { createTestDb } from "@/lib/db/test-helpers";
 import { referenceCollections, referenceChunks } from "@/lib/db/schema";
 import { searchReference, upsertVectors, type Embedder } from "./retrieve";
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createTestDb } from "@/lib/notion/test-helpers";
+import { createTestDb } from "@/lib/db/test-helpers";
 import { characters, factions, locations, items, characterFactions, characterLocations, characterItems } from "@/lib/db/schema";
 import { searchEntities, listEntities, getEntity, getRelationships } from "./read-tools";
 import { monsterCache, maps, mapMarkers } from "@/lib/db/schema";

@@ -11,7 +11,7 @@ export type TestDb = ReturnType<typeof drizzle<typeof schema>>;
 
 /** Fresh migrated SQLite file + drizzle instance for a single test. */
 export function createTestDb(): { db: TestDb; campaignId: string } {
-  const file = path.join(os.tmpdir(), `notion-sync-${crypto.randomUUID()}.db`);
+  const file = path.join(os.tmpdir(), `hub-test-${crypto.randomUUID()}.db`);
   process.env.DB_PATH = file; // runMigrations() reads DB_PATH at call time
   runMigrations();
 

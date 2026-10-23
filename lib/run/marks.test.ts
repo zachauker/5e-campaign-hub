@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createTestDb } from "@/lib/notion/test-helpers";
+import { createTestDb } from "@/lib/db/test-helpers";
 import { NotFoundError } from "@/lib/state/errors";
 import { startRun } from "./runs";
 import { createMark, listMarks, setMarkResolved, MARK_TAGS } from "./marks";

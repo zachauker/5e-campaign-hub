@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { eq } from "drizzle-orm";
-import { createTestDb } from "@/lib/notion/test-helpers";
+import { createTestDb } from "@/lib/db/test-helpers";
 import { threads, threadLinks, timelineEvents } from "@/lib/db/schema";
 import { createThread, updateThread, listThreads, listThreadsForTarget } from "./threads";
 

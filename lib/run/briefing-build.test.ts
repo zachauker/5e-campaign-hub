@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { sql } from "drizzle-orm";
-import { createTestDb } from "@/lib/notion/test-helpers";
+import { createTestDb } from "@/lib/db/test-helpers";
 import { buildBriefing, isStale } from "./briefing-build";
 import { getBriefing, upsertBriefing, setManualFields } from "./briefings";
 import type { BriefingResult } from "./briefing-agent";

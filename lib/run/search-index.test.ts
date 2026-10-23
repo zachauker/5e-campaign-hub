@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { sql } from "drizzle-orm";
-import { createTestDb } from "@/lib/notion/test-helpers";
+import { createTestDb } from "@/lib/db/test-helpers";
 import { indexEntity, indexBriefing, removeFromIndex, searchIndex, rebuildSearchIndex } from "./search-index";
 
 function seedCharacter(db: ReturnType<typeof createTestDb>["db"], campaignId: string, id: string, name: string, description: string | null) {

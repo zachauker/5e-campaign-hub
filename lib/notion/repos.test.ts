@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { and, eq } from "drizzle-orm";
-import { createTestDb } from "./test-helpers";
+import { createTestDb } from "@/lib/db/test-helpers";
 import { makeEntityRepo, linkCharacterFactionsByName, linkCharacterItemsByPageId, linkCharacterLocationsByPageId, linkSessionNoteLocationsByName } from "./repos";
 import { reconcileEntity } from "./reconcile";
 import { characters, factions, items, characterFactions, characterItems, locations, characterLocations, sessionNotes, sessionNoteLocations } from "@/lib/db/schema";

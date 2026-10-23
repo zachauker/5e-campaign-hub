@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { eq } from "drizzle-orm";
-import { createTestDb } from "@/lib/notion/test-helpers";
+import { createTestDb } from "@/lib/db/test-helpers";
 import { threads, threadLinks, clocks, timelineEvents, sessionReviews, campaigns } from "@/lib/db/schema";
 
 describe("campaign state schema", () => {

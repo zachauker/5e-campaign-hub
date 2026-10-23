@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { sql } from "drizzle-orm";
-import { createTestDb } from "@/lib/notion/test-helpers";
+import { createTestDb } from "@/lib/db/test-helpers";
 import { selectBuildTargets } from "./briefing-batch";
 
 function seedEntities(db: ReturnType<typeof createTestDb>["db"], campaignId: string) {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { eq } from "drizzle-orm";
-import { createTestDb } from "./test-helpers";
+import { createTestDb } from "@/lib/db/test-helpers";
 import { syncCampaign, type SourceConfig } from "./sync";
 import {
   characters, factions, items, characterFactions, locations, characterLocations,
