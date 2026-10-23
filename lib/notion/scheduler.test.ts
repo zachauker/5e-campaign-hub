@@ -8,7 +8,7 @@ import {
   startNotionAutoSync,
 } from "./scheduler";
 import { settings } from "@/lib/db/schema";
-import { tryAcquireSync, releaseSync } from "./sync-lock";
+import { tryAcquireSync, releaseSync } from "@/lib/vault/sync-lock";
 
 const MIN = 60_000;
 

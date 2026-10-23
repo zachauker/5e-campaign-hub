@@ -3,7 +3,7 @@ export async function register() {
     const { runMigrations } = await import("./lib/db/migrate");
     runMigrations();
 
-    const { startNotionAutoSync } = await import("./lib/notion/scheduler");
-    startNotionAutoSync();
+    const { startVaultSync } = await import("./lib/vault/scheduler");
+    startVaultSync();
   }
 }

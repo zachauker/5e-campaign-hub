@@ -110,6 +110,7 @@ Anthropic key) are entered in **Settings** and stored in the database, not in en
 | `REFERENCE_MODEL_DIR` | bundled/downloaded | Embedding model for the reference library |
 | `REFERENCE_INBOX_DIR` | — | Directory to drop PDFs/notes into for in-app ingestion |
 | `WORLD_DATA_DIR` | `world-data/build` | PMTiles, glyphs, and styles for the world map |
+| `VAULT_PATH` | `/vault` | Root of the read-only Obsidian vault. The default is the container mount point; set it to the vault's path when running locally. The campaign's folder inside it is configured per campaign in **Settings** |
 
 ### External services
 

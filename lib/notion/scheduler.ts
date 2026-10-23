@@ -2,7 +2,7 @@ import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/lib/db/schema";
 import { db as defaultDb } from "@/lib/db";
 import { runCampaignSync, listCampaignsWithSources } from "./run-sync";
-import { tryAcquireSync, releaseSync } from "./sync-lock";
+import { tryAcquireSync, releaseSync } from "@/lib/vault/sync-lock";
 
 type SyncDb = BetterSQLite3Database<typeof schema>;
 

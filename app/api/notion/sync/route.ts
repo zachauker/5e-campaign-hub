@@ -4,7 +4,7 @@ import {
   NotionTokenMissingError,
   NoNotionSourcesError,
 } from "@/lib/notion/run-sync";
-import { tryAcquireSync, releaseSync } from "@/lib/notion/sync-lock";
+import { tryAcquireSync, releaseSync } from "@/lib/vault/sync-lock";
 
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as { campaignId?: string };
