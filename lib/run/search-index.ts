@@ -67,15 +67,20 @@ function writeRow(
 }
 
 /**
- * The text an entity contributes to the index body: the vault note's stripped
- * prose (`source_text`, already free of `[!dm]` callouts) when it has any,
- * otherwise `description` — hub-made and world-seeded rows have no note, and a
- * note with an empty body falls back to the description it was synced with.
+ * The text an entity contributes to the index body: its `description` and the
+ * vault note's stripped prose (`source_text`, already free of `[!dm]` callouts),
+ * both when present and either alone otherwise. They hold different text — a
+ * note's frontmatter `description:` is a summary, the body is the prose — so
+ * preferring one would make the other unsearchable. Hub-made and world-seeded
+ * rows have no note and index their description alone.
  */
 export function entityIndexBody(
   row: { sourceText?: string | null; description?: string | null },
 ): string {
-  return row.sourceText && row.sourceText.trim() !== "" ? row.sourceText : (row.description ?? "");
+  const parts = [row.description, row.sourceText]
+    .map((p) => (p ?? "").trim())
+    .filter((p, i, all) => p !== "" && all.indexOf(p) === i);
+  return parts.join("\n\n");
 }
 
 /**

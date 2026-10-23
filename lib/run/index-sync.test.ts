@@ -103,6 +103,19 @@ describe("note body in the index", () => {
     expect((await searchIndex(db, { campaignId, q: "lighthouse" })).map((h) => h.targetId)).toEqual(["c1"]);
   });
 
+  it("indexes the description and the note body together, neither hiding the other", async () => {
+    const { db, campaignId } = createTestDb();
+    insert(db, campaignId, "Owes a debt to the lighthouse keeper.", "A celebrated duellist.");
+
+    await syncEntityToIndex(db, campaignId, "character", "c1");
+    expect((await searchIndex(db, { campaignId, q: "lighthouse" })).map((h) => h.targetId)).toEqual(["c1"]);
+    expect((await searchIndex(db, { campaignId, q: "celebrated" })).map((h) => h.targetId)).toEqual(["c1"]);
+
+    await rebuildSearchIndex(db, campaignId);
+    expect((await searchIndex(db, { campaignId, q: "lighthouse" })).map((h) => h.targetId)).toEqual(["c1"]);
+    expect((await searchIndex(db, { campaignId, q: "celebrated" })).map((h) => h.targetId)).toEqual(["c1"]);
+  });
+
   it("falls back to the description when the note has no body text", async () => {
     const { db, campaignId } = createTestDb();
     insert(db, campaignId, "", "A duellist.");

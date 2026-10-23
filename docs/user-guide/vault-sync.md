@@ -107,7 +107,7 @@ Some of these do more than display:
 The note's Markdown body is not a property: it's rendered in place on the entry's
 **Vault Note** tab, and it's what [briefings](run-mode.md) read. It also feeds the
 [search index](settings.md#search-index), so run-mode search finds prose that exists
-only in the note. If a note has no body text, its `description` is indexed instead.
+only in the note. A `description:` in the frontmatter is indexed too, alongside the body.
 Anything inside a `> [!dm]` callout is kept out of the search index.
 
 ---
