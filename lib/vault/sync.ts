@@ -86,6 +86,16 @@ function warnOnce(s: { warnings: string[] }, warning: string): void {
   if (!s.warnings.includes(warning)) s.warnings.push(warning);
 }
 
+/** Names listed in one warning before it falls back to "and N more". */
+const NAME_LIST_CAP = 10;
+
+/** `"A", "B", "C" and 4 more`, so a mass archive cannot produce a wall of text. */
+function quotedList(names: string[]): string {
+  const shown = names.slice(0, NAME_LIST_CAP).map((n) => `"${n}"`);
+  const more = names.length - shown.length;
+  return more > 0 ? `${shown.join(", ")} and ${more} more` : shown.join(", ");
+}
+
 function reason(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
@@ -326,6 +336,12 @@ async function syncTable(run: TableRun): Promise<void> {
   for (const item of mapped) (repo.findByKey(item.m.sourceKey) ? exact : rest).push(item);
 
   const collided = new Set<string>();
+  /**
+   * Notes that created a row while keyed on their basename (no `hub_id`, no
+   * `notion_id`). The only identity that can silently fail to carry over, so
+   * they are reported if this same pass also archives a row in the table.
+   */
+  const createdFromBasename: string[] = [];
   for (const { note, m } of [...exact, ...rest]) {
     if (!m.name) {
       s.skipped += 1;
@@ -339,6 +355,7 @@ async function syncTable(run: TableRun): Promise<void> {
       // a key flag n-1 times. Deduped by key, and the key is what the warning
       // can name — the flag does not say which path lost.
       if (result.collision) collided.add(m.sourceKey);
+      if (result.action === "created" && resolveSourceKey(note).tier === 3) createdFromBasename.push(m.name);
 
       await indexEntity(db, campaignId, table, result.id);
       synced.push({ id: result.id, m });
@@ -368,11 +385,33 @@ async function syncTable(run: TableRun): Promise<void> {
     );
     return;
   }
-  for (const id of archiveUnseen(db, t, campaignId, [...seenKeys, ...unroutedKeys])) {
+  const archivedRows = archiveUnseen(db, t, campaignId, [...seenKeys, ...unroutedKeys]);
+  for (const { id } of archivedRows) {
     s.archived += 1;
     // An archived entity is invisible in the hub, so it must stop answering
     // run-mode searches too; syncEntityToIndex removes archived rows.
     await indexEntity(db, campaignId, table, id);
+  }
+  // Archiving is the one destructive outcome, so it is named, not just counted.
+  if (archivedRows.length > 0) {
+    const names = archivedRows.map((r) => r.name).sort();
+    s.warnings.push(
+      `Archived ${archivedRows.length} ${archivedRows.length === 1 ? "entry" : "entries"} ` +
+      `no longer in the vault: ${quotedList(names)}.`,
+    );
+    // A note keyed on its basename that created a row in the same pass that
+    // archived another is the signature of an identity that did not carry over:
+    // the old row (with its map pins, links and briefing) was archived and a
+    // blank one took its place.
+    if (createdFromBasename.length > 0) {
+      s.warnings.push(
+        `${quotedList(createdFromBasename.sort())} had no hub_id or notion_id, so ` +
+        `${createdFromBasename.length === 1 ? "it was" : "they were"} created from the file name in the same pass ` +
+        `that archived ${quotedList(names)}. If one of these is a renamed or re-keyed version of an ` +
+        "archived entry, its pins, links and briefing are still on the archived row: give the note " +
+        "that row's id as notion_id.",
+      );
+    }
   }
 }
 
@@ -430,9 +469,11 @@ function linkRelations(opts: {
  * Archive (never delete) the rows this table owns that the vault no longer
  * holds: a `source_key` the scan did not see. Rows with no `source_key` are
  * hand-made or world-seeded and are never the vault's to archive. Returns the
- * ids archived.
+ * id and name of each row archived.
  */
-function archiveUnseen(db: Db, table: SyncTable, campaignId: string, seenKeys: string[]): string[] {
+function archiveUnseen(
+  db: Db, table: SyncTable, campaignId: string, seenKeys: string[],
+): { id: string; name: string }[] {
   const t = table as unknown as typeof characters;
   const stale = db.select().from(t).where(and(
     eq(t.campaignId, campaignId),
@@ -443,5 +484,5 @@ function archiveUnseen(db: Db, table: SyncTable, campaignId: string, seenKeys: s
   if (stale.length === 0) return [];
   const ids = stale.map((r) => r.id);
   db.update(t).set({ archived: true, updatedAt: new Date() }).where(inArray(t.id, ids)).run();
-  return ids;
+  return stale.map((r) => ({ id: r.id, name: r.name }));
 }

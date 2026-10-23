@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { sql } from "drizzle-orm";
 import { createTestDb } from "@/lib/db/test-helpers";
 import { syncEntityToIndex, syncThreadToIndex, syncClockToIndex } from "./index-sync";
-import { searchIndex } from "./search-index";
+import { rebuildSearchIndex, searchIndex } from "./search-index";
 
 describe("syncEntityToIndex", () => {
   it("indexes a newly written entity", async () => {
@@ -88,3 +88,51 @@ describe("syncClockToIndex", () => {
     expect((await searchIndex(db, { campaignId, q: "assembly" })).map((h) => h.targetId)).toEqual(["k1"]);
   });
 });
+
+describe("note body in the index", () => {
+  const insert = (db: ReturnType<typeof createTestDb>["db"], campaignId: string, sourceText: string | null, description: string | null) =>
+    db.run(sql`INSERT INTO characters (id, campaign_id, name, type, description, source_text, archived, created_at, updated_at)
+      VALUES ('c1', ${campaignId}, 'Mereth Kain', 'npc', ${description}, ${sourceText}, 0, 1, 1)`);
+
+  it("finds a phrase that appears only in the note body", async () => {
+    const { db, campaignId } = createTestDb();
+    insert(db, campaignId, "Owes a debt to the lighthouse keeper.", "A duellist.");
+
+    await syncEntityToIndex(db, campaignId, "character", "c1");
+
+    expect((await searchIndex(db, { campaignId, q: "lighthouse" })).map((h) => h.targetId)).toEqual(["c1"]);
+  });
+
+  it("falls back to the description when the note has no body text", async () => {
+    const { db, campaignId } = createTestDb();
+    insert(db, campaignId, "", "A duellist.");
+    await syncEntityToIndex(db, campaignId, "character", "c1");
+    expect((await searchIndex(db, { campaignId, q: "duellist" })).map((h) => h.targetId)).toEqual(["c1"]);
+
+    db.run(sql`UPDATE characters SET source_text = '   ' WHERE id = 'c1'`);
+    await syncEntityToIndex(db, campaignId, "character", "c1");
+    expect((await searchIndex(db, { campaignId, q: "duellist" })).map((h) => h.targetId)).toEqual(["c1"]);
+  });
+
+  it("finds a body-only phrase after a full rebuild too", async () => {
+    const { db, campaignId } = createTestDb();
+    insert(db, campaignId, "Owes a debt to the lighthouse keeper.", null);
+
+    await rebuildSearchIndex(db, campaignId);
+
+    expect((await searchIndex(db, { campaignId, q: "lighthouse" })).map((h) => h.targetId)).toEqual(["c1"]);
+  });
+
+  it("lets a stored briefing win over the note body on rebuild", async () => {
+    const { db, campaignId } = createTestDb();
+    insert(db, campaignId, "Owes a debt to the lighthouse keeper.", null);
+    db.run(sql`INSERT INTO entity_briefings (id, campaign_id, target_kind, target_id, aliases, identity, source_hash, built_at, created_at, updated_at)
+      VALUES ('b1', ${campaignId}, 'character', 'c1', '[]', 'A smuggler of salt.', 'h', 1, 1, 1)`);
+
+    await rebuildSearchIndex(db, campaignId);
+
+    expect((await searchIndex(db, { campaignId, q: "smuggler" })).map((h) => h.targetId)).toEqual(["c1"]);
+    expect(await searchIndex(db, { campaignId, q: "lighthouse" })).toEqual([]);
+  });
+});
+

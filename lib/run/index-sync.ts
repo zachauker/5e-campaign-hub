@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import type { StateDb } from "@/lib/state/types";
-import { indexEntity, removeFromIndex, type SearchKind } from "./search-index";
+import { entityIndexBody, indexEntity, removeFromIndex, type SearchKind } from "./search-index";
 import { BRIEFING_TARGET_KINDS, type BriefingTargetKind } from "./briefings";
 
 const TABLE_FOR_KIND: Record<BriefingTargetKind, string> = {
@@ -28,8 +28,8 @@ export async function syncEntityToIndex(
   if (!(BRIEFING_TARGET_KINDS as string[]).includes(kind)) return;
   const table = TABLE_FOR_KIND[kind as BriefingTargetKind];
 
-  const row = db.all<{ name: string; description: string | null; archived: number }>(sql`
-    SELECT name, description, archived FROM ${sql.raw(table)}
+  const row = db.all<{ name: string; description: string | null; sourceText: string | null; archived: number }>(sql`
+    SELECT name, description, source_text AS sourceText, archived FROM ${sql.raw(table)}
     WHERE id = ${targetId} AND campaign_id = ${campaignId}
   `)[0];
 
@@ -42,7 +42,7 @@ export async function syncEntityToIndex(
     kind: kind as SearchKind,
     targetId,
     name: row.name,
-    body: row.description,
+    body: entityIndexBody(row),
   });
 }
 

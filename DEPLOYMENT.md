@@ -155,6 +155,7 @@ to confirm the app container restarted on the new image.
 ## The Obsidian vault
 
 The hub reads campaign notes from an Obsidian vault mounted into the container.
+Before the first sync, work through the [first-sync pre-flight](#first-sync-pre-flight-do-this-before-the-first-sync).
 `docker-compose.yml` declares the mount and `VAULT_PATH`:
 
 ```yaml
@@ -190,6 +191,82 @@ The campaign folder won't exist inside it, so every sync fails with a `503` and
   containing the vault, the deployed container has no notes to sync and the hub
   stays empty. Development and tests run against the local vault via
   `VAULT_PATH` in `.env.local`.
+
+## First-sync pre-flight (do this before the first sync)
+
+**Do not press Sync, and do not let the background sync run, until this checklist
+is done.** Two notes in the live vault have no id, and without one the first sync
+will archive their existing hub rows and create blank replacements. An archived
+row takes its map pins, thread links and briefing with it; the replacement has
+none of them. The app cannot undo this, and the vault is mounted read-only, so
+the fix is a one-time edit **in Obsidian, on the Mac**.
+
+**Why these two.** A note with neither `hub_id` nor `notion_id` is keyed on its
+file name. The first deploy backfills `source_key` from `notion_page_id` on every
+existing row, so the old row is keyed on its Notion id, the basename matches
+nothing, and name-based adoption (which only claims rows whose `source_key` is
+empty) never gets a look. For `Shale Telenna (Hill)` the file name also carries
+a player name in parentheses that the hub row almost certainly lacks.
+
+| Note (under `D&D/Explorers of Exandria/`) | Hub table |
+|---|---|
+| `Arcs/Dangerous Designs Pt 1.md` | `session_notes` |
+| `Characters/PCs/Shale Telenna (Hill).md` | `characters` |
+
+Checked against the live vault on 2026-10-23: both were still id-less, and no
+note carried a `hub_id`. Re-run step 1 before relying on that.
+
+- [ ] **1. Confirm which mirrored notes have no id.** On the Mac, from the vault root:
+
+  ```bash
+  cd "D&D/Explorers of Exandria" && \
+    find . -name "*.md" -not -path "./_Templates/*" -not -path "*/.*" -print0 \
+    | xargs -0 grep -lE "^type: *[\"']?(npc|pc|location|item|faction|session|arc|encounter|scene)[\"']?[[:space:]]*$" \
+    | while IFS= read -r f; do grep -qE "^(hub_id|notion_id):" "$f" || echo "NO ID: $f"; done
+  ```
+
+  Expected: the two notes above, or fewer. Any other path is a mirrored note that
+  needs the same treatment.
+
+- [ ] **2. Read the matching ids from the production database.** On the Unraid
+  host (the live database is `./data/encounter-tracker.db` under the deploy
+  directory). Run this **before** the first sync of the new build, or any time
+  while those rows are still unarchived:
+
+  ```bash
+  sqlite3 data/encounter-tracker.db "
+    SELECT 'characters' AS tbl, id, name, notion_page_id, source_key FROM characters
+      WHERE name LIKE 'Shale%';
+    SELECT 'session_notes' AS tbl, id, name, notion_page_id, source_key FROM session_notes
+      WHERE name LIKE 'Dangerous Designs%';"
+  ```
+
+  `notion_page_id` is the value to copy. If a query returns more than one row,
+  pick the one whose `archived` is 0 and that actually carries the pins and
+  briefing. No `sqlite3` on the host: run the same two queries with
+  `docker exec -it encounter-tracker node -e` and `better-sqlite3`, or copy the
+  `.db` file off the host and query the copy.
+
+- [ ] **3. Put that id in the note's frontmatter** as `notion_id:`:
+
+  ```yaml
+  notion_id: 0123456789abcdef0123456789abcdef
+  ```
+
+  Dashes in the id are fine; the hub strips them before comparing. Do not try to
+  fix this by renaming the note to match the hub row's `name`: the backfill has
+  already keyed that row on its Notion id, and a name match only adopts a row whose
+  `source_key` is empty, so the rename would still create a duplicate.
+
+- [ ] **4. Verify.** Re-run the command from step 1. **It must print nothing.**
+  Every mirrored note now resolves as `hub_id` or `notion_id`, never the file name.
+
+- [ ] **5. Let the vault reach the server** (see the open prerequisite above), then
+  run the first sync. Afterwards open **Settings → Obsidian Vault** and read the
+  warnings. A sync that archived anything lists the rows by name. If it also says
+  a note "was created from the file name in the same pass" that archived an entry,
+  an identity did not carry over: put the archived entry's `notion_page_id` on that
+  note, and the next sync re-adopts the row and un-archives it.
 
 ## Manual deploy (fallback)
 

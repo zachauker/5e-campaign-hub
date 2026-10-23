@@ -37,10 +37,11 @@ export interface VaultScan {
   /** Human-readable, for the sync summary. Wording is not a contract. */
   warnings: string[];
   /**
-   * Vault-relative paths of directories the walk could not read, and of notes
-   * it could not parse. Both mean the note list is knowingly incomplete, which
-   * is what callers must branch on — a caller that matched warning strings
-   * instead would break the first time one is reworded.
+   * Vault-relative paths of directories the walk could not read (including
+   * symlinks, which are never followed), and of notes it could not parse. Both
+   * mean the note list is knowingly incomplete, which is what callers must
+   * branch on — a caller that matched warning strings instead would break the
+   * first time one is reworded.
    *
    * A parse failure yields only a path: the note's `type:` and its `hub_id` /
    * `notion_id` live in the frontmatter that failed, so neither the table it
@@ -81,6 +82,29 @@ export function scanVault(folder: string, root: string = vaultRoot()): VaultScan
     entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
     for (const entry of entries) {
       const full = path.join(dir, entry.name);
+      if (entry.isSymbolicLink()) {
+        // Dirent reports a symlink as neither a directory nor a file, so without
+        // this branch a symlinked subtree contributes no notes and says nothing,
+        // and every row beneath it is archived as deleted. Links are not followed
+        // (a loop or a target outside the vault would defeat the root-relative
+        // paths), so a link that stands for notes is a knowingly incomplete scan
+        // and is recorded like any other directory the walk could not read.
+        if (isExcludedDir(entry.name)) continue;
+        let reason: string | null = null;
+        try {
+          const target = fs.statSync(full);
+          if (target.isDirectory()) reason = "it is a symlinked directory";
+          else if (target.isFile() && entry.name.endsWith(".md")) reason = "it is a symlinked note";
+        } catch {
+          reason = "it is a symlink whose target cannot be read";
+        }
+        if (reason !== null) {
+          const rel = path.relative(root, full).split(path.sep).join("/");
+          unreadableDirs.push(rel);
+          warnings.push(`Skipped ${rel}: ${reason}, and symlinks are not followed`);
+        }
+        continue;
+      }
       if (entry.isDirectory()) {
         if (!isExcludedDir(entry.name)) walk(full);
       } else if (entry.isFile() && entry.name.endsWith(".md") && !isExcludedFile(entry.name)) {

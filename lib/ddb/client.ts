@@ -1,4 +1,5 @@
 import type { DDBCharacter, DDBSpell, DDBFeature, DDBAttack, StatBlock } from "@/lib/types";
+import { parseDdbCharacterId } from "./character-id";
 
 // DDB's character-list API (character-service.dndbeyond.com) is blocked for
 // server-side requests via Cloudflare TLS fingerprinting — all attempts return
@@ -14,9 +15,8 @@ const BROWSER_HEADERS: Record<string, string> = {
 };
 
 export async function fetchPublicCharacter(shareUrl: string): Promise<DDBCharacter> {
-  const idMatch = shareUrl.match(/\/characters\/(\d+)/) ?? shareUrl.match(/^(\d+)$/);
-  if (!idMatch) throw new Error("Paste a full D&D Beyond character URL or just the numeric ID");
-  const id = idMatch[1];
+  const id = parseDdbCharacterId(shareUrl);
+  if (!id) throw new Error("Paste a full D&D Beyond character URL or just the numeric ID");
   const res = await fetch(`https://www.dndbeyond.com/character/${id}/json`, {
     headers: BROWSER_HEADERS,
   });

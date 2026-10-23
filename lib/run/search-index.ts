@@ -67,6 +67,18 @@ function writeRow(
 }
 
 /**
+ * The text an entity contributes to the index body: the vault note's stripped
+ * prose (`source_text`, already free of `[!dm]` callouts) when it has any,
+ * otherwise `description` — hub-made and world-seeded rows have no note, and a
+ * note with an empty body falls back to the description it was synced with.
+ */
+export function entityIndexBody(
+  row: { sourceText?: string | null; description?: string | null },
+): string {
+  return row.sourceText && row.sourceText.trim() !== "" ? row.sourceText : (row.description ?? "");
+}
+
+/**
  * Index (or re-index) a searchable object from its own table. Called on entity,
  * thread, and clock writes. An entity is findable whether or not it has a
  * briefing — that is what keeps the fallback card reachable.
@@ -322,8 +334,8 @@ export async function rebuildSearchIndex(db: StateDb, campaignId: string): Promi
   ];
 
   for (const { table, kind } of entityTables) {
-    const rows = db.all<{ id: string; name: string; description: string | null }>(sql`
-      SELECT id, name, description FROM ${sql.raw(table)}
+    const rows = db.all<{ id: string; name: string; description: string | null; sourceText: string | null }>(sql`
+      SELECT id, name, description, source_text AS sourceText FROM ${sql.raw(table)}
       WHERE campaign_id = ${campaignId} AND archived = 0
     `);
     for (const row of rows) {
@@ -333,7 +345,7 @@ export async function rebuildSearchIndex(db: StateDb, campaignId: string): Promi
       const fromBriefing = b
         ? briefingIndexText({ ...b, aliases: parseAliases(b.aliases) }, `${kind} ${row.id}`)
         : null;
-      const body = fromBriefing ? fromBriefing.body : (row.description ?? "");
+      const body = fromBriefing ? fromBriefing.body : entityIndexBody(row);
       const aliases = fromBriefing ? fromBriefing.aliases : "";
       writeRow(db, campaignId, kind, row.id, row.name, aliases, body);
       written++;

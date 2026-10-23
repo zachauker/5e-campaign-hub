@@ -104,6 +104,37 @@ describe("scanVault", () => {
     },
   );
 
+  describe("symlinks", () => {
+    it("treats a symlinked directory as unreadable, not as empty", () => {
+      const vault = createTestVault({ "camp/Fine.md": NOTE, "elsewhere/Hidden.md": NOTE });
+      fs.symlinkSync(path.join(vault, "elsewhere"), path.join(vault, "camp", "Linked"));
+      const scan = scanVault(path.join(vault, "camp"), vault);
+      expect(scan.notes.map((n) => n.basename)).toEqual(["Fine"]);
+      expect(scan.unreadableDirs).toEqual(["camp/Linked"]);
+      expect(scan.warnings).toHaveLength(1);
+      expect(scan.warnings[0]).toContain("camp/Linked");
+      expect(scan.warnings[0]).toContain("symlink");
+    });
+
+    it("treats a symlinked note and a dangling link the same way", () => {
+      const vault = createTestVault({ "camp/Fine.md": NOTE, "elsewhere/Real.md": NOTE });
+      fs.symlinkSync(path.join(vault, "elsewhere", "Real.md"), path.join(vault, "camp", "Alias.md"));
+      fs.symlinkSync(path.join(vault, "nowhere"), path.join(vault, "camp", "Dangling"));
+      const scan = scanVault(path.join(vault, "camp"), vault);
+      expect(scan.notes.map((n) => n.basename)).toEqual(["Fine"]);
+      expect(scan.unreadableDirs).toEqual(["camp/Alias.md", "camp/Dangling"]);
+    });
+
+    it("ignores a symlink that stands for something never ingested", () => {
+      const vault = createTestVault({ "camp/Fine.md": NOTE, "elsewhere/Real.md": NOTE, "elsewhere/art.png": "x" });
+      fs.symlinkSync(path.join(vault, "elsewhere"), path.join(vault, "camp", ".obsidian"));
+      fs.symlinkSync(path.join(vault, "elsewhere", "art.png"), path.join(vault, "camp", "art.png"));
+      const scan = scanVault(path.join(vault, "camp"), vault);
+      expect(scan.unreadableDirs).toEqual([]);
+      expect(scan.warnings).toEqual([]);
+    });
+  });
+
   it("ignores non-markdown files", () => {
     const vault = createTestVault({
       "camp/Real.md": NOTE,

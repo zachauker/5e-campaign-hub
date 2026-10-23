@@ -1,5 +1,6 @@
 import { parseWikilink, parseWikilinkList } from "./links";
 import { digestBody } from "./body";
+import { parseDdbCharacterId } from "@/lib/ddb/character-id";
 import type { VaultNote } from "./scan";
 
 export type PropEntry = { label: string; value: string };
@@ -134,11 +135,13 @@ function pushIf(list: PropEntry[], label: string, value: string | number | null 
   }
 }
 
-/** D&D Beyond character id from a sheet URL (copied from the Notion-era prop readers). */
+/**
+ * D&D Beyond character id from a sheet URL. Delegates to the same parser the
+ * public-sheet fetcher uses, so the short `ddb.ac/characters/<id>/<slug>` links
+ * half the party writes resolve exactly as the long form does.
+ */
 export function extractDdbId(url: string | null): string | null {
-  if (!url) return null;
-  const m = url.match(/dndbeyond\.com\/(?:profile\/[^/]+\/)?characters\/(\d+)/i);
-  return m ? m[1] : null;
+  return parseDdbCharacterId(url);
 }
 
 /** A link field's visible name: the label if it has one, else the target. */
@@ -200,7 +203,11 @@ export function mapNote(note: VaultNote, table: VaultEntityTable): MappedEntity 
       if (sheetUrl && !ddbCharacterId) pushIf(props, "Sheet", sheetUrl);
       archived = data.active === false;
       extra.type = data.type === "pc" ? "pc" : "npc";
-      extra.ddbCharacterId = ddbCharacterId;
+      // Only when an id was actually read. `ddb_character_id` is hub-entered as
+      // often as vault-derived, and `extra` is spread into the UPDATE, so
+      // emitting null for an unrecognised (or absent) sheet would blank a
+      // working D&D Beyond connection. Same guard shape as `description` below.
+      if (ddbCharacterId !== null) extra.ddbCharacterId = ddbCharacterId;
       entity.factionTargets = parseWikilinkList(data.factions);
       entity.locationTargets = parseWikilinkList(data.location);
       break;

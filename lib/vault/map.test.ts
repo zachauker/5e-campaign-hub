@@ -121,6 +121,10 @@ describe("extractDdbId", () => {
     expect(extractDdbId("https://www.dndbeyond.com/characters/12345678")).toBe("12345678");
     expect(extractDdbId("https://www.dndbeyond.com/profile/zach/characters/87654321")).toBe("87654321");
   });
+  it("extracts the id from a ddb.ac short link", () => {
+    expect(extractDdbId("https://ddb.ac/characters/12345678/AbCdEf")).toBe("12345678");
+    expect(extractDdbId("https://ddb.ac/characters/12345678")).toBe("12345678");
+  });
   it("returns null otherwise", () => {
     expect(extractDdbId("https://example.com/sheet")).toBeNull();
     expect(extractDdbId(null)).toBeNull();
@@ -160,8 +164,14 @@ describe("mapNote", () => {
       expect(prop(m, "Level")).toBe("7");
     });
 
-    it("has no ddb id for an npc without a sheet", () => {
-      expect(mapNote(note("Vex", npc), "characters").extra.ddbCharacterId).toBeNull();
+    it("extracts the D&D Beyond id from a ddb.ac short link", () => {
+      const m = mapNote(note("Percy", { ...npc, type: "pc", sheet: "https://ddb.ac/characters/12345678/AbCdEf" }), "characters");
+      expect(m.extra.ddbCharacterId).toBe("12345678");
+      expect(labels(m)).not.toContain("Sheet");
+    });
+
+    it("emits no ddb id for an npc without a sheet, so a hub-entered one survives", () => {
+      expect(Object.hasOwn(mapNote(note("Vex", npc), "characters").extra, "ddbCharacterId")).toBe(false);
     });
 
     it("shows the sheet url as a property only when no ddb id was extracted", () => {
@@ -169,7 +179,7 @@ describe("mapNote", () => {
       expect(labels(withId)).not.toContain("Sheet");
       const without = mapNote(note("P", { ...npc, sheet: "https://example.com/sheet.pdf" }), "characters");
       expect(prop(without, "Sheet")).toBe("https://example.com/sheet.pdf");
-      expect(without.extra.ddbCharacterId).toBeNull();
+      expect(Object.hasOwn(without.extra, "ddbCharacterId")).toBe(false);
     });
 
     it("shows race, joined class, disposition and role", () => {

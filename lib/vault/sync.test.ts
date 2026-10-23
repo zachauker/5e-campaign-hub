@@ -7,6 +7,7 @@ import { createTestDb, type TestDb } from "@/lib/db/test-helpers";
 import { createTestVault } from "./test-helpers";
 import { syncCampaign, type SyncSummary } from "./sync";
 import { VaultUnreadableError } from "./config";
+import { searchIndex } from "@/lib/run/search-index";
 import {
   characters, factions, items, locations, sessionNotes,
   characterFactions, characterLocations, characterItems, sessionNoteLocations,
@@ -259,6 +260,61 @@ describe("syncCampaign", () => {
     expect(indexRows(db, campaignId).map((r) => r.target_id)).not.toContain(manner.id);
     // The surviving NPC is untouched.
     expect(Boolean(db.select().from(characters).where(eq(characters.name, "Beilar")).get()!.archived)).toBe(false);
+    // Archiving is named, not just counted — and a plain deletion is not a re-keying.
+    expect(summary.tables.characters.warnings).toEqual(['Archived 1 entry no longer in the vault: "Manner".']);
+  });
+
+  it("names the rows it archived, capped with an 'and N more' tail", async () => {
+    const { db, campaignId } = createTestDb();
+    const names = Array.from({ length: 12 }, (_, i) => `Gone ${String(i).padStart(2, "0")}`);
+    const vault = fullVault(Object.fromEntries(names.map((n) => [`camp/NPCs/${n}.md`, note({ type: "npc" })])));
+    await sync(db, campaignId, vault);
+    for (const n of names) fs.rmSync(path.join(vault, `camp/NPCs/${n}.md`));
+
+    const summary = await sync(db, campaignId, vault);
+
+    expect(summary.tables.characters.archived).toBe(12);
+    const [warning] = summary.tables.characters.warnings;
+    expect(warning).toContain("Archived 12 entries");
+    expect(warning).toContain('"Gone 00"');
+    expect(warning).toContain('"Gone 09"');
+    expect(warning).not.toContain('"Gone 10"');
+    expect(warning).toContain("and 2 more");
+  });
+
+  it("warns, naming both, when a basename-keyed note creates a row in the pass that archives another", async () => {
+    // The Shale case: the hub row is keyed on the old notion id, the note lost it
+    // (or never had it) and now falls to a basename that matches nothing.
+    const { db, campaignId } = createTestDb();
+    const oldId = "shale00000000000000000000000001";
+    const vault = fullVault({ "camp/PCs/Shale Telenna.md": note({ type: "pc", notion_id: oldId }) });
+    await sync(db, campaignId, vault);
+    fs.rmSync(path.join(vault, "camp/PCs/Shale Telenna.md"));
+    fs.writeFileSync(path.join(vault, "camp/PCs/Shale Telenna (Hill).md"), note({ type: "pc" }));
+
+    const summary = await sync(db, campaignId, vault);
+
+    expect(summary.tables.characters.created).toBe(1);
+    expect(summary.tables.characters.archived).toBe(1);
+    const warning = summary.tables.characters.warnings.find((w) => w.includes("created from the file name"));
+    expect(warning).toBeDefined();
+    expect(warning).toContain('"Shale Telenna (Hill)"');
+    expect(warning).toContain('"Shale Telenna"');
+    expect(warning).toContain("notion_id");
+  });
+
+  it("does not raise the re-keying warning for a basename-keyed note that merely sits beside an archive", async () => {
+    // Created in a different table from the archive, so nothing here lost an identity.
+    const { db, campaignId } = createTestDb();
+    const vault = fullVault({ "camp/NPCs/Manner.md": note({ type: "npc" }) });
+    await sync(db, campaignId, vault);
+    fs.rmSync(path.join(vault, "camp/NPCs/Manner.md"));
+    fs.writeFileSync(path.join(vault, "camp/Locations/Newtown.md"), note({ type: "location" }));
+
+    const summary = await sync(db, campaignId, vault);
+
+    expect(summary.tables.locations.created).toBe(1);
+    expect(allWarnings(summary).some((w) => w.includes("created from the file name"))).toBe(false);
   });
 
   it("archives a row whose note changed to a type in another table", async () => {
@@ -489,6 +545,27 @@ describe("syncCampaign", () => {
     },
   );
 
+  it("archives nothing when part of the campaign is a symlink the scan cannot follow", async () => {
+    const { db, campaignId } = createTestDb();
+    // A second character outside the link keeps the characters table seeing notes,
+    // so the mass-wipe guard cannot stand in for the one under test.
+    const vault = fullVault({ "camp/PCs/Percy.md": note({ type: "pc" }) });
+    await sync(db, campaignId, vault);
+    // The NPC folder is replaced by a link: its note vanishes from the scan, and
+    // without the guard that reads as "deleted" and archives Beilar.
+    const real = path.join(vault, "elsewhere");
+    fs.mkdirSync(real);
+    fs.renameSync(path.join(vault, "camp/NPCs"), path.join(real, "NPCs"));
+    fs.symlinkSync(path.join(real, "NPCs"), path.join(vault, "camp/NPCs"));
+
+    const summary = await sync(db, campaignId, vault);
+
+    expect(sum(summary, "archived")).toBe(0);
+    expect(Boolean(db.select().from(characters).where(eq(characters.name, "Beilar")).get()!.archived)).toBe(false);
+    expect(summary.campaign.warnings.some((w) => w.includes("camp/NPCs") && w.includes("symlink"))).toBe(true);
+    expect(summary.tables.characters.warnings.join(" ")).toContain("nothing was archived");
+  });
+
   it("is idempotent — a second pass changes nothing", async () => {
     const { db, campaignId } = createTestDb();
     const vault = fullVault();
@@ -582,6 +659,24 @@ describe("syncCampaign", () => {
     expect(rows.map((r) => r.target_id)).not.toContain(note30.id);
   });
 
+  it("makes a phrase that lives only in a note body searchable, and keeps [!dm] out", async () => {
+    const { db, campaignId } = createTestDb();
+    const vault = fullVault({
+      "camp/NPCs/Mereth.md": note(
+        { type: "npc" },
+        "Keeps the lighthouse.\n\n> [!dm] Secret\n> Secretly a vampire.\n",
+      ),
+    });
+
+    await sync(db, campaignId, vault);
+
+    const find = async (q: string) =>
+      (await searchIndex(db, { campaignId, q })).map((h) => h.targetId);
+    const mereth = db.select().from(characters).where(eq(characters.name, "Mereth")).get()!;
+    expect(await find("lighthouse")).toEqual([mereth.id]);
+    expect(await find("vampire")).toEqual([]);
+  });
+
   it("prefers a session note's location wikilinks over its settings strings", async () => {
     const { db, campaignId } = createTestDb();
     const vault = fullVault({
@@ -667,5 +762,33 @@ describe("syncCampaign", () => {
     const manner = db.select().from(characters).where(eq(characters.name, "Manner")).get()!;
     expect(Boolean(manner.archived)).toBe(true);
     expect(indexRows(db, campaignId).map((r) => r.target_id)).not.toContain(manner.id);
+  });
+
+  describe("D&D Beyond connection", () => {
+    const pc = (sheet?: string) =>
+      note({ type: "pc", notion_id: "pc1", ...(sheet ? { sheet } : {}) });
+    const ddbIdOf = (db: TestDb) =>
+      db.select().from(characters).where(eq(characters.name, "Percy")).get()!.ddbCharacterId;
+
+    it("reads the id from a ddb.ac short link", async () => {
+      const { db, campaignId } = createTestDb();
+      await sync(db, campaignId, fullVault({ "camp/PCs/Percy.md": pc("https://ddb.ac/characters/9988/Slug") }));
+      expect(ddbIdOf(db)).toBe("9988");
+    });
+
+    it("leaves a hub-entered ddb_character_id alone when the sheet url is unrecognised", async () => {
+      const { db, campaignId } = createTestDb();
+      const vault = fullVault({ "camp/PCs/Percy.md": pc("https://ddb.ac/characters/9988/Slug") });
+      await sync(db, campaignId, vault);
+      db.update(characters).set({ ddbCharacterId: "5555" }).where(eq(characters.name, "Percy")).run();
+
+      fs.writeFileSync(path.join(vault, "camp/PCs/Percy.md"), pc("https://example.com/sheet.pdf"));
+      await sync(db, campaignId, vault);
+      expect(ddbIdOf(db)).toBe("5555");
+
+      fs.writeFileSync(path.join(vault, "camp/PCs/Percy.md"), pc()); // sheet removed entirely
+      await sync(db, campaignId, vault);
+      expect(ddbIdOf(db)).toBe("5555");
+    });
   });
 });

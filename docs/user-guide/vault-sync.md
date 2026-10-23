@@ -94,8 +94,8 @@ column](entities.md). Fields it doesn't recognise are left alone.
 
 Some of these do more than display:
 
-- A character's **`sheet`** URL, if it's a D&D Beyond link, connects them to their
-  live sheet in [the tracker](encounters.md).
+- A character's **`sheet`** URL, if it's a D&D Beyond link (`dndbeyond.com` or the
+  short `ddb.ac` form), connects them to their live sheet in [the tracker](encounters.md).
 - **`factions`**, **`location`**, **`held_by`**, **`parent`**, and **`locations`**
   take `[[wikilinks]]` and draw the links between entries — the ones that show up on
   detail pages and feed the assistant. The sync only ever *adds* links; it never
@@ -105,9 +105,10 @@ Some of these do more than display:
 - A location's **`parent`** nests it under another location.
 
 The note's Markdown body is not a property: it's rendered in place on the entry's
-**Vault Note** tab, and it's what [briefings](run-mode.md) and the [search
-index](settings.md#search-index) read. Anything inside a `> [!dm]` callout is kept
-out of the search index.
+**Vault Note** tab, and it's what [briefings](run-mode.md) read. It also feeds the
+[search index](settings.md#search-index), so run-mode search finds prose that exists
+only in the note. If a note has no body text, its `description` is indexed instead.
+Anything inside a `> [!dm]` callout is kept out of the search index.
 
 ---
 
@@ -162,13 +163,17 @@ the rest.**
 The vault owns names, properties, the note body, and whether an entry is archived —
 plus the description on items and locations, when the note supplies one. The hub
 owns everything the vault has no opinion about: map pins, threads and clocks,
-briefings, links you've drawn, the location types that drive map layering, D&D
-Beyond connections.
+briefings, links you've drawn, the location types that drive map layering. A D&D
+Beyond connection is shared: a `sheet:` that is a D&D Beyond link sets it, and
+anything else leaves it alone.
 
-Two deliberate exceptions, both there to stop the sync from destroying work:
+Three deliberate exceptions, all there to stop the sync from destroying work:
 
 - A **blank** `description:` in the vault doesn't overwrite an existing description.
   Emptying a field is not the same as saying "delete what's there."
+- A **`sheet:`** that isn't a recognisable D&D Beyond link (or no `sheet:` at all)
+  doesn't clear a D&D Beyond connection you've set in the hub. The URL still shows
+  as a **Sheet** property. To disconnect a character, do it in the hub.
 - A location's **type** is never written by the vault, because it decides how the
   location is drawn and grouped on the map. A `location_type` in the note shows as
   a property, nothing more.
@@ -221,6 +226,17 @@ done:
   at a note that doesn't exist, so that link wasn't drawn.
 - **No hub location matches setting "…"** — a session note's `settings` name
   matched no location.
+- **Archived N entries no longer in the vault: "…"** — the sync archived these
+  entries because their notes are gone (up to ten are named, then "and N more").
+  If one of them should still exist, the note was renamed or lost its id.
+- **"…" had no hub_id or notion_id, so it was created from the file name in the same
+  pass that archived "…"** — almost always a note whose identity didn't carry over:
+  the old entry (with its pins, links and briefing) is archived and a blank one
+  replaced it. Put the archived entry's `notion_id` on the note and the next sync
+  re-adopts it. See the first-sync pre-flight in `DEPLOYMENT.md`.
+- **Skipped *path*: … symlink** — the vault holds a symlink the sync doesn't follow.
+  It counts as a part of the folder that couldn't be read, so nothing is archived
+  until the link is replaced with the real folder or note.
 - **Part of the campaign folder could not be read, so nothing was archived this
   pass** — see below.
 - **No usable notes for …; skipped archiving to avoid a mass wipe** and **The
