@@ -23,9 +23,32 @@ type SyncTable = typeof characters | typeof items | typeof factions | typeof loc
 
 export interface SourceSummary {
   created: number; adopted: number; updated: number; unchanged: number; archived: number;
-  skipped: number; warnings: string[]; error?: string;
+  /** Notes routed to this table that were not written (no name, unmappable). */
+  skipped: number;
+  warnings: string[]; error?: string;
 }
-export type SyncSummary = Record<VaultEntityTable, SourceSummary>;
+
+/**
+ * Findings that belong to the scan rather than to any one table: a note that
+ * could not be parsed, a note whose `type:` is unknown or absent, and the count
+ * of notes whose type is recognised but deliberately mirrored nowhere
+ * (`thread`, `player-note`, `reference`, `campaign`).
+ *
+ * These have no table, and attributing them to one would point the DM at the
+ * wrong place to look — a malformed NPC note is not a session-notes problem.
+ * `vault_sources` is one row per campaign, so the status blob is campaign-scoped
+ * already and this is the shape that matches it.
+ */
+export interface CampaignSummary {
+  /** Notes the scan saw but no table claimed. */
+  skipped: number;
+  warnings: string[];
+}
+
+export interface SyncSummary {
+  tables: Record<VaultEntityTable, SourceSummary>;
+  campaign: CampaignSummary;
+}
 
 const TABLES: Record<VaultEntityTable, SyncTable> = {
   characters, items, factions, locations, sessionNotes,
@@ -55,22 +78,11 @@ const SEARCH_KIND_FOR_TABLE: Partial<Record<VaultEntityTable, SearchKind>> = {
  */
 const ORDER: VaultEntityTable[] = ["factions", "characters", "locations", "items", "sessionNotes"];
 
-/**
- * Where campaign-wide, table-less findings are recorded: a malformed note, an
- * unknown `type:`, and the count of recognised-but-skipped notes all belong to
- * no hub table, and `SyncSummary` has no campaign-level bucket. They are
- * recorded once here rather than duplicated across all five summaries, which
- * would show the same warning five times in the settings panel. Session notes
- * is the closest fit: the skipped types (`thread`, `player-note`, `reference`,
- * `campaign`) are notes, not entities.
- */
-const TABLELESS: VaultEntityTable = "sessionNotes";
-
 function emptySummary(): SourceSummary {
   return { created: 0, adopted: 0, updated: 0, unchanged: 0, archived: 0, skipped: 0, warnings: [] };
 }
 
-function warnOnce(s: SourceSummary, warning: string): void {
+function warnOnce(s: { warnings: string[] }, warning: string): void {
   if (!s.warnings.includes(warning)) s.warnings.push(warning);
 }
 
@@ -110,6 +122,9 @@ function typeOf(note: VaultNote): string | undefined {
  * `VaultUnreadableError`) or holds no markdown at all. Both are what a dropped
  * mount looks like, and archiving on either would hide the whole campaign and
  * dangle every map pin, thread link and briefing that holds an entity id.
+ *
+ * The summary has two parts: `tables`, one `SourceSummary` per hub table, and
+ * `campaign`, for what belongs to the scan rather than to any table.
  */
 export async function syncCampaign(opts: {
   db: Db;
@@ -118,10 +133,11 @@ export async function syncCampaign(opts: {
   folder: string;
 }): Promise<SyncSummary> {
   const { db, campaignId, folder } = opts;
-  const summary: SyncSummary = {
+  const tables: Record<VaultEntityTable, SourceSummary> = {
     characters: emptySummary(), items: emptySummary(), factions: emptySummary(),
     locations: emptySummary(), sessionNotes: emptySummary(),
   };
+  const summary: SyncSummary = { tables, campaign: { skipped: 0, warnings: [] } };
 
   // ─── Abort 1: the mount is gone ────────────────────────────────────────────
   assertFolderReadable(folder);
@@ -130,16 +146,18 @@ export async function syncCampaign(opts: {
 
   // ─── Abort 2: not one readable note ───────────────────────────────────────
   if (notes.length === 0) {
+    // Per table, not campaign-level: this is the reason each table skipped its
+    // own archive step, which is what the DM needs to read beside its counts.
     for (const table of ORDER) {
-      summary[table].warnings.push(
+      tables[table].warnings.push(
         "The campaign folder holds no readable markdown notes; skipped archiving to avoid a mass wipe.",
       );
     }
-    for (const warning of scanWarnings) warnOnce(summary[TABLELESS], warning);
+    for (const warning of scanWarnings) warnOnce(summary.campaign, warning);
     return summary;
   }
 
-  for (const warning of scanWarnings) warnOnce(summary[TABLELESS], warning);
+  for (const warning of scanWarnings) warnOnce(summary.campaign, warning);
 
   // ─── The resolver (R1) ────────────────────────────────────────────────────
   // A wikilink target is a note basename, but nearly every row is keyed on
@@ -169,12 +187,12 @@ export async function syncCampaign(opts: {
     if (route === "skip") {
       // Recognised types with no hub table are skipped silently: ~29 notes in
       // the live vault, so warning here would mean 29 warnings every tick.
-      summary[TABLELESS].skipped += 1;
+      summary.campaign.skipped += 1;
       continue;
     }
     if (route === "unknown") {
-      summary[TABLELESS].skipped += 1;
-      warnOnce(summary[TABLELESS], type === undefined
+      summary.campaign.skipped += 1;
+      warnOnce(summary.campaign, type === undefined
         ? `Skipped ${note.path}: no type: in its frontmatter`
         : `Skipped ${note.path}: unknown type "${type}"`);
       continue;
@@ -187,7 +205,7 @@ export async function syncCampaign(opts: {
     characters: [], items: [], factions: [], locations: [], sessionNotes: [],
   };
   for (const table of ORDER) {
-    const s = summary[table];
+    const s = tables[table];
     try {
       await syncTable({ db, campaignId, table, notes: byTable[table], summary: s, synced: linked[table] });
     } catch (err) {
@@ -199,7 +217,7 @@ export async function syncCampaign(opts: {
 
   // ─── Relations, once every row exists ─────────────────────────────────────
   for (const table of ORDER) {
-    const s = summary[table];
+    const s = tables[table];
     misses = new Set<string>();
     for (const { id, m } of linked[table]) {
       try {

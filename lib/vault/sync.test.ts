@@ -41,9 +41,11 @@ function sync(db: TestDb, campaignId: string, vault: string, folder = "camp"): P
   return syncCampaign({ db, campaignId, folder: path.join(vault, folder) });
 }
 
-const allWarnings = (s: SyncSummary): string[] => Object.values(s).flatMap((t) => t.warnings);
+/** Warnings a table owns; campaign-scoped findings live in `summary.campaign`. */
+const tableWarnings = (s: SyncSummary): string[] => Object.values(s.tables).flatMap((t) => t.warnings);
+const allWarnings = (s: SyncSummary): string[] => [...tableWarnings(s), ...s.campaign.warnings];
 const sum = (s: SyncSummary, key: "created" | "skipped" | "archived" | "updated"): number =>
-  Object.values(s).reduce((n, t) => n + t[key], 0);
+  Object.values(s.tables).reduce((n, t) => n + t[key], 0);
 const indexRows = (db: TestDb, campaignId: string) =>
   db.all<{ kind: string; target_id: string }>(sql`
     SELECT kind, target_id FROM search_index WHERE campaign_id = ${campaignId}
@@ -66,11 +68,11 @@ describe("syncCampaign", () => {
 
     const summary = await sync(db, campaignId, vault);
 
-    expect(summary.characters.created).toBe(2);
-    expect(summary.locations.created).toBe(1);
-    expect(summary.items.created).toBe(1);
-    expect(summary.factions.created).toBe(1);
-    expect(summary.sessionNotes.created).toBe(4);
+    expect(summary.tables.characters.created).toBe(2);
+    expect(summary.tables.locations.created).toBe(1);
+    expect(summary.tables.items.created).toBe(1);
+    expect(summary.tables.factions.created).toBe(1);
+    expect(summary.tables.sessionNotes.created).toBe(4);
     expect(allWarnings(summary)).toEqual([]);
 
     const chars = db.select().from(characters).where(eq(characters.campaignId, campaignId)).all();
@@ -182,10 +184,10 @@ describe("syncCampaign", () => {
     const summary = await sync(db, campaignId, vault);
 
     expect(allWarnings(summary)).toEqual([]);
-    expect(sum(summary, "skipped")).toBe(4);
-    // Table-less notes have no table of their own; they are counted once on
-    // sessionNotes rather than duplicated across all five summaries.
-    expect(summary.sessionNotes.skipped).toBe(4);
+    // Notes no table claimed are counted on the campaign bucket, not charged to
+    // a table that had nothing to do with them.
+    expect(summary.campaign.skipped).toBe(4);
+    expect(sum(summary, "skipped")).toBe(0);
     expect(db.select().from(sessionNotes).where(eq(sessionNotes.campaignId, campaignId)).all())
       .toHaveLength(1);
   });
@@ -199,13 +201,39 @@ describe("syncCampaign", () => {
 
     const summary = await sync(db, campaignId, vault);
 
-    const warnings = allWarnings(summary);
+    // A note no table claimed is a campaign-level finding: charging it to a
+    // table would send the DM looking in the wrong place.
+    const warnings = summary.campaign.warnings;
     expect(warnings.filter((w) => w.includes("camp/Odd/Prophecy.md"))).toHaveLength(1);
     expect(warnings.filter((w) => w.includes("camp/Odd/Untyped.md"))).toHaveLength(1);
     expect(warnings).toHaveLength(2);
     expect(warnings.join(" ")).toMatch(/prophecy/);
-    expect(sum(summary, "skipped")).toBe(2);
+    expect(tableWarnings(summary)).toEqual([]);
+    expect(summary.campaign.skipped).toBe(2);
+    expect(sum(summary, "skipped")).toBe(0);
     expect(sum(summary, "created")).toBe(5);
+  });
+
+  it("keeps campaign-scoped findings out of the per-table summaries", async () => {
+    const { db, campaignId } = createTestDb();
+    const vault = fullVault({
+      "camp/NPCs/Broken.md": "---\ntype: [unclosed\n: :\n---\nbody\n",
+      "camp/Odd/Prophecy.md": note({ type: "prophecy" }),
+      "camp/Threads/The Debt.md": note({ type: "thread" }),
+    });
+
+    const summary = await sync(db, campaignId, vault);
+
+    // A parse failure and an unknown type warn; a recognised-skip type is
+    // silent. All three are counted and reported campaign-wide.
+    expect(summary.campaign.warnings).toHaveLength(2);
+    expect(summary.campaign.skipped).toBe(2); // prophecy + thread; Broken never routed
+    expect(tableWarnings(summary)).toEqual([]);
+    expect(sum(summary, "skipped")).toBe(0);
+    expect(sum(summary, "created")).toBe(5);
+    expect(Object.keys(summary.tables).sort()).toEqual([
+      "characters", "factions", "items", "locations", "sessionNotes",
+    ]);
   });
 
   it("archives a row whose note disappeared", async () => {
@@ -218,7 +246,7 @@ describe("syncCampaign", () => {
     fs.rmSync(path.join(vault, "camp/NPCs/Manner.md"));
     const summary = await sync(db, campaignId, vault);
 
-    expect(summary.characters.archived).toBe(1);
+    expect(summary.tables.characters.archived).toBe(1);
     const after = db.select().from(characters).where(eq(characters.id, manner.id)).get()!;
     expect(after).toBeDefined(); // archived, never deleted
     expect(Boolean(after.archived)).toBe(true);
@@ -241,8 +269,8 @@ describe("syncCampaign", () => {
     );
     const summary = await sync(db, campaignId, vault);
 
-    expect(summary.characters.archived).toBe(1);
-    expect(summary.locations.created).toBe(1);
+    expect(summary.tables.characters.archived).toBe(1);
+    expect(summary.tables.locations.created).toBe(1);
     expect(Boolean(db.select().from(characters).where(eq(characters.id, asCharacter.id)).get()!.archived)).toBe(true);
     // No stale duplicate: exactly one characters row and one locations row for the note.
     expect(db.select().from(characters).where(eq(characters.name, "Manner")).all()).toHaveLength(1);
@@ -268,8 +296,8 @@ describe("syncCampaign", () => {
 
     const summary = await sync(db, campaignId, vault);
 
-    expect(summary.characters.archived).toBe(0);
-    expect(summary.characters.warnings.join(" ")).toMatch(/no/i);
+    expect(summary.tables.characters.archived).toBe(0);
+    expect(summary.tables.characters.warnings.join(" ")).toMatch(/no/i);
     expect(sum(summary, "archived")).toBe(0);
     for (const row of [
       db.select().from(characters).where(eq(characters.campaignId, campaignId)).get()!,
@@ -294,10 +322,10 @@ describe("syncCampaign", () => {
     fs.rmSync(path.join(vault, "camp/Factions"), { recursive: true });
     const summary = await sync(db, campaignId, vault);
 
-    expect(summary.factions.archived).toBe(0);
-    expect(summary.factions.warnings.join(" ")).toMatch(/mass wipe/i);
+    expect(summary.tables.factions.archived).toBe(0);
+    expect(summary.tables.factions.warnings.join(" ")).toMatch(/mass wipe/i);
     expect(Boolean(db.select().from(factions).where(eq(factions.id, malice.id)).get()!.archived)).toBe(false);
-    expect(summary.characters.unchanged).toBe(1);
+    expect(summary.tables.characters.unchanged).toBe(1);
   });
 
   it("throws VaultUnreadableError before touching any row when the folder is missing", async () => {
@@ -338,8 +366,10 @@ describe("syncCampaign", () => {
     const summary = await sync(db, campaignId, vault);
 
     expect(sum(summary, "created")).toBe(5);
-    const warnings = allWarnings(summary).filter((w) => w.includes("camp/NPCs/Broken.md"));
+    // The scan could not read the note at all, so no table owns the failure.
+    const warnings = summary.campaign.warnings.filter((w) => w.includes("camp/NPCs/Broken.md"));
     expect(warnings).toHaveLength(1);
+    expect(tableWarnings(summary)).toEqual([]);
     expect(db.select().from(characters).where(eq(characters.name, "Beilar")).get()).toBeDefined();
     expect(db.select().from(characters).where(eq(characters.name, "Broken")).get()).toBeUndefined();
   });
@@ -352,7 +382,7 @@ describe("syncCampaign", () => {
 
     const summary = await sync(db, campaignId, vault);
 
-    expect(summary.characters).toMatchObject({ created: 0, adopted: 0, updated: 0, unchanged: 1, archived: 0 });
+    expect(summary.tables.characters).toMatchObject({ created: 0, adopted: 0, updated: 0, unchanged: 1, archived: 0 });
     expect(sum(summary, "created")).toBe(0);
     expect(sum(summary, "updated")).toBe(0);
     const after = db.select().from(characters).where(eq(characters.id, before.id)).get()!;
@@ -376,12 +406,12 @@ describe("syncCampaign", () => {
     const kept = db.select().from(characters).where(eq(characters.id, legacy.id)).get()!;
     expect(kept.sourceKey).toBe("Manner");
     expect(kept.sourcePath).toBe("camp/Z/Manner.md");
-    expect(summary.characters.created).toBe(1);
-    expect(summary.characters.adopted).toBe(0);
+    expect(summary.tables.characters.created).toBe(1);
+    expect(summary.tables.characters.adopted).toBe(0);
     const promoted = db.select().from(characters).where(eq(characters.sourceKey, "hub-7")).get()!;
     expect(promoted.id).not.toBe(legacy.id);
     expect(promoted.sourcePath).toBe("camp/A/Manner.md");
-    expect(summary.characters.archived).toBe(0);
+    expect(summary.tables.characters.archived).toBe(0);
   });
 
   it("updates a note that moved to a new path instead of colliding with itself", async () => {
@@ -398,7 +428,7 @@ describe("syncCampaign", () => {
     fs.renameSync(path.join(vault, "camp/NPCs/Manner.md"), path.join(vault, "camp/Z/Manner.md"));
     const summary = await sync(db, campaignId, vault);
 
-    expect(summary.characters).toMatchObject({ created: 0, updated: 1, archived: 0 });
+    expect(summary.tables.characters).toMatchObject({ created: 0, updated: 1, archived: 0 });
     const after = db.select().from(characters).where(eq(characters.id, before.id)).get()!;
     expect(after.sourcePath).toBe("camp/Z/Manner.md");
   });
@@ -422,7 +452,7 @@ describe("syncCampaign", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].sourcePath).toBe("camp/A/One.md");
     expect(db.select().from(characters).where(eq(characters.campaignId, campaignId)).all()).toHaveLength(2);
-    expect(summary.characters.archived).toBe(0);
+    expect(summary.tables.characters.archived).toBe(0);
   });
 
   it("indexes the four entity tables and never a session note", async () => {
@@ -488,7 +518,7 @@ describe("syncCampaign", () => {
 
     const summary = await sync(db, campaignId, vault);
 
-    expect(summary.locations.adopted).toBe(1);
+    expect(summary.tables.locations.adopted).toBe(1);
     const rows = db.select().from(locations).where(eq(locations.campaignId, campaignId)).all();
     expect(rows).toHaveLength(1);
     expect(rows[0].id).toBe("seed-druvenlode");
@@ -507,7 +537,7 @@ describe("syncCampaign", () => {
 
     const summary = await sync(db, campaignId, vault);
 
-    expect(summary.characters.archived).toBe(0);
+    expect(summary.tables.characters.archived).toBe(0);
     expect(Boolean(db.select().from(characters).where(eq(characters.id, "hand-made")).get()!.archived)).toBe(false);
   });
 
@@ -517,8 +547,8 @@ describe("syncCampaign", () => {
 
     const summary = await sync(db, campaignId, vault);
 
-    expect(summary.characters.created).toBe(2);
-    expect(summary.characters.archived).toBe(0); // the note is present; `active` did this
+    expect(summary.tables.characters.created).toBe(2);
+    expect(summary.tables.characters.archived).toBe(0); // the note is present; `active` did this
     const manner = db.select().from(characters).where(eq(characters.name, "Manner")).get()!;
     expect(Boolean(manner.archived)).toBe(true);
     expect(indexRows(db, campaignId).map((r) => r.target_id)).not.toContain(manner.id);
