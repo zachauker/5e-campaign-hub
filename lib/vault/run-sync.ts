@@ -35,7 +35,10 @@ export interface RunCampaignSyncOpts {
  * lastSyncedAt / lastStatus. Shared by the manual API route and the background
  * scheduler so both behave identically.
  *
- * Throws NoVaultSourceError when no folder is configured. An unreachable mount
+ * Throws NoVaultSourceError when no folder is configured, and
+ * InvalidRootPathError when the stored path is absolute or climbs out of the
+ * vault (re-checked here because a row can arrive by a route other than
+ * `setVaultSource`; the folder is never resolved or scanned in that case). An unreachable mount
  * (VaultUnreadableError) is recorded in lastStatus as `{ error }` and then
  * rethrown, so the route can answer 503 while the Settings panel still has the
  * failure to show on a background tick nobody was watching.
@@ -48,6 +51,9 @@ export async function runCampaignSync(campaignId: string, opts: RunCampaignSyncO
 
   const source = await getVaultSource(campaignId, db);
   if (!source) throw new NoVaultSourceError();
+  // The write path guards root_path, but a guarantee that holds only for rows
+  // written one way is contingent on provenance. Check on read as well.
+  assertRelativeInsideVault(source.rootPath);
 
   let summary: SyncSummary;
   try {
@@ -55,9 +61,15 @@ export async function runCampaignSync(campaignId: string, opts: RunCampaignSyncO
     summary = await syncCampaign({ db: db as never, campaignId, folder });
   } catch (err) {
     if (err instanceof VaultUnreadableError) {
-      await db.update(vaultSources)
-        .set({ lastSyncedAt: new Date(), lastStatus: JSON.stringify({ error: err.message }) })
-        .where(eq(vaultSources.campaignId, campaignId));
+      // Best effort: a failure recording the status must not mask the mount
+      // error, or the route answers 500 instead of 503.
+      try {
+        await db.update(vaultSources)
+          .set({ lastSyncedAt: new Date(), lastStatus: JSON.stringify({ error: err.message }) })
+          .where(eq(vaultSources.campaignId, campaignId));
+      } catch (writeErr) {
+        console.error("[vault-sync] could not record the mount failure in last_status", writeErr);
+      }
     }
     throw err;
   }
@@ -76,7 +88,7 @@ export async function runCampaignSync(campaignId: string, opts: RunCampaignSyncO
  * the Settings panel keys its "the vault folder isn't reachable" message off it.
  */
 export function statusForSyncError(err: unknown): 400 | 503 | null {
-  if (err instanceof NoVaultSourceError) return 400;
+  if (err instanceof NoVaultSourceError || err instanceof InvalidRootPathError) return 400;
   if (err instanceof VaultUnreadableError) return 503;
   return null;
 }

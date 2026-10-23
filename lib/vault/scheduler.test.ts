@@ -6,6 +6,7 @@ import {
   runAutoSyncTick,
   runTickAndComputeDelay,
   startVaultSync,
+  tickAndReschedule,
   VAULT_AUTO_SYNC_ENABLED_KEY,
   VAULT_AUTO_SYNC_INTERVAL_KEY,
   DEFAULT_INTERVAL_MINUTES,
@@ -196,30 +197,44 @@ describe("runTickAndComputeDelay", () => {
   });
 });
 
-describe("startVaultSync", () => {
-  it("is idempotent and schedules one unref'd timer at the first-tick delay", () => {
-    vi.useFakeTimers();
-    const realSetTimeout = globalThis.setTimeout;
-    const scheduled: number[] = [];
+describe("timers", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  /** setTimeout stub that records delays and hands back a timer whose unref() is observable. */
+  function stubSetTimeout() {
     const unref = vi.fn();
-    // Wrap the (fake) setTimeout so we can see the delay and that unref() is called.
-    globalThis.setTimeout = ((fn: () => void, ms?: number) => {
-      scheduled.push(ms ?? 0);
-      const t = realSetTimeout(fn, ms) as unknown as { unref: () => unknown };
-      const innerUnref = t.unref.bind(t);
-      t.unref = () => { unref(); return innerUnref(); };
-      return t;
-    }) as typeof setTimeout;
-    try {
-      startVaultSync();
-      startVaultSync();
-      startVaultSync();
-      expect(scheduled).toEqual([FIRST_TICK_DELAY_MS]);
-      expect(unref).toHaveBeenCalledTimes(1);
-    } finally {
-      globalThis.setTimeout = realSetTimeout;
-      vi.clearAllTimers();
-      vi.useRealTimers();
-    }
+    const spy = vi.spyOn(globalThis, "setTimeout").mockImplementation((() => ({ unref })) as never);
+    return { spy, unref };
+  }
+
+  it("startVaultSync is idempotent and schedules one unref'd timer at the first-tick delay", () => {
+    const { spy, unref } = stubSetTimeout();
+    startVaultSync();
+    startVaultSync();
+    startVaultSync();
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0][1]).toBe(FIRST_TICK_DELAY_MS);
+    expect(unref).toHaveBeenCalledTimes(1);
+  });
+
+  it("each reschedule arms an unref'd timer at the interval just read", async () => {
+    const { spy, unref } = stubSetTimeout();
+    await tickAndReschedule({
+      readConfig: async () => ({ enabled: true, intervalMinutes: 7 }),
+      runTick: async () => {},
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0][1]).toBe(7 * MIN);
+    expect(unref).toHaveBeenCalledTimes(1);
+
+    // A throwing tick still reschedules (and still unrefs).
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await tickAndReschedule({
+      readConfig: async () => ({ enabled: true, intervalMinutes: 3 }),
+      runTick: async () => { throw new Error("kaboom"); },
+    });
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy.mock.calls[1][1]).toBe(3 * MIN);
+    expect(unref).toHaveBeenCalledTimes(2);
   });
 });

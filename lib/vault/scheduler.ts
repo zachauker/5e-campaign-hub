@@ -130,8 +130,9 @@ export async function runTickAndComputeDelay(deps: TickCycleDeps = {}): Promise<
   return intervalMinutes * MINUTE_MS;
 }
 
-async function tickAndReschedule(): Promise<void> {
-  const delayMs = await runTickAndComputeDelay();
+/** Exported with injectable deps so the reschedule step can be tested without a real timer. */
+export async function tickAndReschedule(deps: TickCycleDeps = {}): Promise<void> {
+  const delayMs = await runTickAndComputeDelay(deps);
   timer = setTimeout(() => void tickAndReschedule(), delayMs);
   // Don't keep the event loop alive purely for the sync timer.
   if (typeof timer.unref === "function") timer.unref();

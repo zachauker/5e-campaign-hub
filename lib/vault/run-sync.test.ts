@@ -1,3 +1,4 @@
+import path from "path";
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { createTestDb, type TestDb } from "@/lib/db/test-helpers";
@@ -12,9 +13,13 @@ import {
   InvalidRootPathError,
 } from "./run-sync";
 import { VaultUnreadableError } from "./config";
+import { runAutoSyncTick } from "./scheduler";
 import { vaultSources, characters } from "@/lib/db/schema";
 
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+});
 
 function seedSource(db: TestDb, campaignId: string, rootPath: string) {
   db.insert(vaultSources).values({ campaignId, rootPath }).run();
@@ -62,6 +67,60 @@ describe("runCampaignSync", () => {
     const row = db.select().from(vaultSources).where(eq(vaultSources.campaignId, campaignId)).get()!;
     expect(row.lastSyncedAt).toBeInstanceOf(Date);
     expect(JSON.parse(row.lastStatus!).error).toBe(err.message);
+  });
+
+  it.each([
+    ["an absolute path", "/etc"],
+    ["a path containing ..", "camp/../../etc"],
+  ])("refuses a stored root_path that is %s without scanning", async (_label, rootPath) => {
+    const { db, campaignId } = createTestDb();
+    // A row that arrived by some route other than setVaultSource. A real note
+    // sits at the escape target, so a scan would create a character.
+    const vault = createTestVault({ "camp/NPCs/Shale.md": "---\ntype: npc\n---\nProse.\n" });
+    vi.stubEnv("VAULT_PATH", vault);
+    seedSource(db, campaignId, rootPath);
+
+    const err = await runCampaignSync(campaignId, { db }).catch((e) => e);
+    expect(err).toBeInstanceOf(InvalidRootPathError);
+    expect(statusForSyncError(err)).toBe(400);
+    expect(db.select().from(characters).all()).toEqual([]);
+    expect(db.select().from(vaultSources).get()!.lastSyncedAt).toBeNull();
+  });
+
+  it("a stored root_path that escapes the vault fails in the scheduler's tick too", async () => {
+    const { db, campaignId } = createTestDb();
+    // The mount is vault/sub, so "../camp" escapes it to a real folder of notes.
+    const vault = createTestVault({
+      "sub/keep.md": "x",
+      "camp/NPCs/Shale.md": "---\ntype: npc\n---\nProse.\n",
+    });
+    vi.stubEnv("VAULT_PATH", path.join(vault, "sub"));
+    seedSource(db, campaignId, "../camp");
+
+    const result = await runAutoSyncTick({
+      listCampaigns: () => listCampaignsWithSources(db),
+      runOne: async (id) => { await runCampaignSync(id, { db }); },
+      log: () => {},
+    });
+    expect(result).toEqual({ synced: [], skipped: [], failed: [campaignId] });
+    expect(db.select().from(characters).all()).toEqual([]);
+  });
+
+  it("still throws the mount error when recording it in last_status fails", async () => {
+    const { db, campaignId } = createTestDb();
+    vi.stubEnv("VAULT_PATH", createTestVault({}));
+    seedSource(db, campaignId, "no-such-folder");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const failing = new Proxy(db, {
+      get(target, prop, recv) {
+        if (prop === "update") return () => { throw new Error("database is locked"); };
+        return Reflect.get(target, prop, recv);
+      },
+    });
+
+    const err = await runCampaignSync(campaignId, { db: failing }).catch((e) => e);
+    expect(err).toBeInstanceOf(VaultUnreadableError);
+    expect(statusForSyncError(err)).toBe(503);
   });
 
   it("is self-contained: two runs in a row both reconcile against the database", async () => {
@@ -147,11 +206,12 @@ describe("setVaultSource", () => {
 describe("statusForSyncError", () => {
   it("maps a missing source to 400 and an unreachable mount to 503", () => {
     expect(statusForSyncError(new NoVaultSourceError())).toBe(400);
+    expect(statusForSyncError(new InvalidRootPathError("x"))).toBe(400);
     expect(statusForSyncError(new VaultUnreadableError("mount gone"))).toBe(503);
   });
 
   it("returns null for anything else, so the route rethrows a real bug", () => {
     expect(statusForSyncError(new Error("boom"))).toBeNull();
-    expect(statusForSyncError(new InvalidRootPathError("x"))).toBeNull();
+    expect(statusForSyncError(new TypeError("x"))).toBeNull();
   });
 });
