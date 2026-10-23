@@ -162,12 +162,18 @@ describe("syncCampaign", () => {
       "camp/Threads/The Debt.md": note({ type: "thread" }),
       "camp/NPCs/Beilar.md": note({ type: "npc", factions: '["[[Ghost Faction]]", "[[The Debt]]"]' }),
       "camp/PCs/Shale.md": note({ type: "pc", factions: '"[[Ghost Faction]]"' }),
+      // The same dead target cited from a second table: still one warning.
+      "camp/Items/Fragment.md": note({ type: "item", held_by: '"[[Ghost Faction]]"' }),
     });
 
     const summary = await sync(db, campaignId, vault);
+
+    // A target matching no note anywhere is a fact about the scan, so it is
+    // reported once campaign-wide rather than once per citing table.
     const ghost = allWarnings(summary).filter((w) => w.includes("Ghost Faction"));
     expect(ghost).toHaveLength(1);
-    expect(ghost[0]).toMatch(/Ghost Faction/);
+    expect(summary.campaign.warnings).toEqual(ghost);
+    expect(tableWarnings(summary)).toEqual([]);
     // The Debt resolves to a real note that simply has no hub table: not a dead link.
     expect(allWarnings(summary).some((w) => w.includes("The Debt"))).toBe(false);
   });
@@ -217,17 +223,16 @@ describe("syncCampaign", () => {
   it("keeps campaign-scoped findings out of the per-table summaries", async () => {
     const { db, campaignId } = createTestDb();
     const vault = fullVault({
-      "camp/NPCs/Broken.md": "---\ntype: [unclosed\n: :\n---\nbody\n",
       "camp/Odd/Prophecy.md": note({ type: "prophecy" }),
       "camp/Threads/The Debt.md": note({ type: "thread" }),
     });
 
     const summary = await sync(db, campaignId, vault);
 
-    // A parse failure and an unknown type warn; a recognised-skip type is
-    // silent. All three are counted and reported campaign-wide.
-    expect(summary.campaign.warnings).toHaveLength(2);
-    expect(summary.campaign.skipped).toBe(2); // prophecy + thread; Broken never routed
+    // An unknown type warns; a recognised-skip type is silent. Both are counted
+    // and reported campaign-wide, never charged to a table.
+    expect(summary.campaign.warnings).toHaveLength(1);
+    expect(summary.campaign.skipped).toBe(2); // prophecy + thread
     expect(tableWarnings(summary)).toEqual([]);
     expect(sum(summary, "skipped")).toBe(0);
     expect(sum(summary, "created")).toBe(5);
@@ -369,10 +374,75 @@ describe("syncCampaign", () => {
     // The scan could not read the note at all, so no table owns the failure.
     const warnings = summary.campaign.warnings.filter((w) => w.includes("camp/NPCs/Broken.md"));
     expect(warnings).toHaveLength(1);
-    expect(tableWarnings(summary)).toEqual([]);
     expect(db.select().from(characters).where(eq(characters.name, "Beilar")).get()).toBeDefined();
     expect(db.select().from(characters).where(eq(characters.name, "Broken")).get()).toBeUndefined();
+    // Every table says why it archived nothing: the scan was incomplete.
+    for (const t of Object.values(summary.tables)) {
+      expect(t.archived).toBe(0);
+      expect(t.warnings.join(" ")).toMatch(/could not be read/i);
+    }
   });
+
+  it("does not archive anything when one note became unreadable", async () => {
+    // The likeliest incompleteness on this deployment: the vault syncs between a
+    // Mac and a server, so a half-saved file or an Obsidian conflict copy is an
+    // everyday event. Beilar's note is unparseable, so Beilar is absent from the
+    // scan — indistinguishable from deletion, and his row must survive.
+    const { db, campaignId } = createTestDb();
+    const vault = fullVault({ "camp/PCs/Shale.md": note({ type: "pc" }) });
+    await sync(db, campaignId, vault);
+    const beilar = db.select().from(characters).where(eq(characters.name, "Beilar")).get()!;
+
+    fs.writeFileSync(path.join(vault, "camp/NPCs/Beilar.md"), "---\ntype: [unclosed\n: :\n---\nbody\n", "utf8");
+    const summary = await sync(db, campaignId, vault);
+
+    // The table still saw Shale, so the per-table mass-wipe guard does NOT fire:
+    // only the scan-incompleteness guard stands between Beilar and the archive.
+    expect(summary.tables.characters.unchanged).toBe(1);
+    expect(summary.tables.characters.archived).toBe(0);
+    expect(summary.tables.characters.warnings.join(" ")).toMatch(/could not be read/i);
+    const after = db.select().from(characters).where(eq(characters.id, beilar.id)).get()!;
+    expect(Boolean(after.archived)).toBe(false);
+    // Still searchable in run mode, too: nothing was de-indexed.
+    expect(indexRows(db, campaignId).map((r) => r.target_id)).toContain(beilar.id);
+    expect(sum(summary, "archived")).toBe(0);
+  });
+
+  // Skipped as root, which can read a 0o000 directory regardless of its mode.
+  it.skipIf(process.getuid?.() === 0)(
+    "does not archive anything when one subdirectory cannot be read", async () => {
+      const { db, campaignId } = createTestDb();
+      const vault = fullVault({
+        "camp/NPCs/Manner.md": note({ type: "npc" }),
+        "camp/PCs/Shale.md": note({ type: "pc" }),
+      });
+      await sync(db, campaignId, vault);
+      const hidden = db.select().from(characters)
+        .where(eq(characters.campaignId, campaignId)).all()
+        .filter((c) => c.sourcePath?.startsWith("camp/NPCs/"));
+      expect(hidden).toHaveLength(2);
+
+      const locked = path.join(vault, "camp", "NPCs");
+      fs.chmodSync(locked, 0o000);
+      try {
+        const summary = await sync(db, campaignId, vault);
+
+        // characters still saw Shale, so only the scan-incompleteness guard
+        // protects the two NPCs under the unreadable subtree.
+        expect(summary.tables.characters.unchanged).toBe(1);
+        expect(summary.tables.characters.archived).toBe(0);
+        expect(sum(summary, "archived")).toBe(0);
+        expect(summary.campaign.warnings.join(" ")).toContain("camp/NPCs");
+        for (const row of hidden) {
+          const after = db.select().from(characters).where(eq(characters.id, row.id)).get()!;
+          expect(Boolean(after.archived)).toBe(false);
+          expect(indexRows(db, campaignId).map((r) => r.target_id)).toContain(row.id);
+        }
+      } finally {
+        fs.chmodSync(locked, 0o755);
+      }
+    },
+  );
 
   it("is idempotent — a second pass changes nothing", async () => {
     const { db, campaignId } = createTestDb();

@@ -17,8 +17,12 @@ describe("scanVault", () => {
       "camp/Locations/Blackvein Quarry.md": "---\ntype: location\n---\n# Quarry\n",
       "camp/NPCs/Manner.md": NOTE,
     });
-    const { notes, warnings } = scanVault(path.join(vault, "camp"), vault);
+    const { notes, warnings, unreadableDirs, parseFailures } = scanVault(path.join(vault, "camp"), vault);
     expect(warnings).toEqual([]);
+    // Both empty: the caller reads these, not the warning strings, to decide
+    // whether the note list is complete enough to archive against.
+    expect(unreadableDirs).toEqual([]);
+    expect(parseFailures).toEqual([]);
     expect(notes).toHaveLength(2);
     const quarry = notes.find((n) => n.basename === "Blackvein Quarry")!;
     expect(quarry.path).toBe("camp/Locations/Blackvein Quarry.md");
@@ -88,10 +92,12 @@ describe("scanVault", () => {
       const locked = path.join(vault, "camp", "Locked");
       fs.chmodSync(locked, 0o000);
       try {
-        const { notes, warnings } = scanVault(path.join(vault, "camp"), vault);
-        expect(notes.map((n) => n.basename)).toEqual(["Fine", "AlsoFine"]);
-        expect(warnings).toHaveLength(1);
-        expect(warnings[0]).toContain("camp/Locked");
+        const scan = scanVault(path.join(vault, "camp"), vault);
+        expect(scan.notes.map((n) => n.basename)).toEqual(["Fine", "AlsoFine"]);
+        expect(scan.warnings).toHaveLength(1);
+        expect(scan.warnings[0]).toContain("camp/Locked");
+        expect(scan.unreadableDirs).toEqual(["camp/Locked"]);
+        expect(scan.parseFailures).toEqual([]);
       } finally {
         fs.chmodSync(locked, 0o755);
       }
@@ -119,6 +125,10 @@ describe("scanVault", () => {
     expect(result.notes.map((n) => n.basename).sort()).toEqual(["AlsoFine", "Fine"]);
     expect(result.warnings).toHaveLength(1);
     expect(result.warnings[0]).toContain("camp/A/Broken.md");
+    // Structured, because the sync must suppress archiving on it: the note's
+    // `type:` and ids were in the frontmatter that failed, so only a path survives.
+    expect(result.parseFailures).toEqual(["camp/A/Broken.md"]);
+    expect(result.unreadableDirs).toEqual([]);
   });
 
   it("treats a note with no frontmatter as valid", () => {

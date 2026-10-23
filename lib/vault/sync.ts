@@ -142,7 +142,25 @@ export async function syncCampaign(opts: {
   // ─── Abort 1: the mount is gone ────────────────────────────────────────────
   assertFolderReadable(folder);
 
-  const { notes, warnings: scanWarnings } = scanVault(folder);
+  const scan = scanVault(folder);
+  const { notes, warnings: scanWarnings } = scan;
+
+  /**
+   * The scan knowingly missed part of the folder: a directory it could not read
+   * or a note it could not parse. Those notes are absent from `notes`, so a
+   * table full of them is indistinguishable from a table whose notes were
+   * deleted — and archiving on that reading would hide live rows and strand
+   * every map pin, thread link and briefing holding their ids.
+   *
+   * Suppression is campaign-wide rather than per table or per key because a
+   * parse failure carries neither: the `type:` that would name the table and
+   * the `hub_id`/`notion_id` that would name the key both live in the
+   * frontmatter that failed to parse, leaving only a path. So all-table
+   * suppression is the only sound option, and the right bias — "I could not
+   * read all of your vault, so I will not hide anything". Deletions stop
+   * propagating until the vault reads cleanly, and the warning says so.
+   */
+  const scanIncomplete = scan.unreadableDirs.length > 0 || scan.parseFailures.length > 0;
 
   // ─── Abort 2: not one readable note ───────────────────────────────────────
   if (notes.length === 0) {
@@ -164,14 +182,17 @@ export async function syncCampaign(opts: {
   // `hub_id`/`notion_id`, so a target has to travel basename -> note -> that
   // note's source_key before any linker can look it up. Built once per scan.
   const index = buildLinkIndex(notes);
-  let misses: Set<string> | null = null;
+  // Campaign-level, not per table: a target matching no note anywhere in the
+  // vault is a fact about the scan, so the same dead target cited by a character
+  // note and an item note warns once rather than once per citing table.
+  const misses = new Set<string>();
   const resolve: ResolveTargetToKey = (target) => {
     const note = index.resolve(target);
     if (!note) {
       // A link to a note that exists but has no hub table (a thread, a player
       // note) resolves fine and simply links nothing; only a link matching no
       // note at all is a dead link worth reporting.
-      misses?.add(target);
+      misses.add(target);
       return undefined;
     }
     return resolveSourceKey(note).key;
@@ -207,7 +228,10 @@ export async function syncCampaign(opts: {
   for (const table of ORDER) {
     const s = tables[table];
     try {
-      await syncTable({ db, campaignId, table, notes: byTable[table], summary: s, synced: linked[table] });
+      await syncTable({
+        db, campaignId, table, notes: byTable[table],
+        summary: s, synced: linked[table], scanIncomplete,
+      });
     } catch (err) {
       // A table-level failure (a SQLite error, say) is isolated: the remaining
       // tables still sync and nothing was archived for this one.
@@ -218,7 +242,6 @@ export async function syncCampaign(opts: {
   // ─── Relations, once every row exists ─────────────────────────────────────
   for (const table of ORDER) {
     const s = tables[table];
-    misses = new Set<string>();
     for (const { id, m } of linked[table]) {
       try {
         linkRelations({ db, campaignId, table, id, m, resolve, summary: s });
@@ -226,10 +249,9 @@ export async function syncCampaign(opts: {
         s.warnings.push(`Could not link ${m.sourcePath}: ${reason(err)}`);
       }
     }
-    for (const target of [...misses].sort()) {
-      warnOnce(s, `No vault note matches the link "${target}"`);
-    }
-    misses = null;
+  }
+  for (const target of [...misses].sort()) {
+    warnOnce(summary.campaign, `No vault note matches the link "${target}"`);
   }
 
   return summary;
@@ -243,10 +265,12 @@ interface TableRun {
   summary: SourceSummary;
   /** Filled with each synced row and the note that wrote it, for the link pass. */
   synced: { id: string; m: MappedEntity }[];
+  /** True when the scan missed part of the folder; suppresses archiving. */
+  scanIncomplete: boolean;
 }
 
 async function syncTable(run: TableRun): Promise<void> {
-  const { db, campaignId, table, notes, summary: s, synced } = run;
+  const { db, campaignId, table, notes, summary: s, synced, scanIncomplete } = run;
   const t = TABLES[table];
   // R24: one repo per run. It owns the run's claim map (which note wrote which
   // row), so a repo outliving the run would read a note whose path moved as a
@@ -255,8 +279,16 @@ async function syncTable(run: TableRun): Promise<void> {
 
   // Map first, with per-note isolation, so one unmappable note cannot cost the
   // table its scan (and so the two-pass partition below sees every note).
+  //
+  // The key is taken from the note itself, before and independently of mapping,
+  // and recorded for every note the scan handed us: a note that is present but
+  // fails to map or to reconcile must still count as seen, or the archive step
+  // below would hide the very row it was about to update. `mapNote` sets
+  // `sourceKey` from this same `resolveSourceKey`, so the two cannot drift.
+  const seenKeys: string[] = [];
   const mapped: { note: VaultNote; m: MappedEntity }[] = [];
   for (const note of notes) {
+    seenKeys.push(resolveSourceKey(note).key);
     try {
       mapped.push({ note, m: mapNote(note, table) });
     } catch (err) {
@@ -276,7 +308,6 @@ async function syncTable(run: TableRun): Promise<void> {
   const rest: typeof mapped = [];
   for (const item of mapped) (repo.findByKey(item.m.sourceKey) ? exact : rest).push(item);
 
-  const seenKeys: string[] = [];
   const collided = new Set<string>();
   for (const { note, m } of [...exact, ...rest]) {
     if (!m.name) {
@@ -284,9 +315,6 @@ async function syncTable(run: TableRun): Promise<void> {
       s.warnings.push(`Skipped ${m.sourcePath}: the note has no name`);
       continue;
     }
-    // Recorded before reconciling: a note that is present but fails to sync
-    // must still count as seen, or the archive step would hide its row.
-    seenKeys.push(m.sourceKey);
     try {
       const result = reconcileEntity(repo, m, candidateKeys(note));
       s[result.action] += 1;
@@ -312,6 +340,15 @@ async function syncTable(run: TableRun): Promise<void> {
   // as "everything is gone", so the rows stay visible and the sync warns.
   if (seenKeys.length === 0) {
     s.warnings.push(`No usable notes for ${table}; skipped archiving to avoid a mass wipe.`);
+    return;
+  }
+  // The second, independent guard: the table saw notes, but the scan did not see
+  // all of the folder, so "absent from the scan" does not mean "gone".
+  if (scanIncomplete) {
+    s.warnings.push(
+      "Part of the campaign folder could not be read, so nothing was archived this pass; " +
+      "deletions will apply once the whole folder reads cleanly.",
+    );
     return;
   }
   for (const id of archiveUnseen(db, t, campaignId, seenKeys)) {
