@@ -23,7 +23,8 @@ mount). Point it at the **vault root**, not at a campaign folder inside it.
 
 On a server, mount the vault into the container **read-only**. That is on purpose:
 it makes "the hub never writes to your vault" a fact about the mount, not a promise
-about the code. See the [README](../../README.md#configuration) for the variable.
+about the code. See the [README](../../README.md#configuration) for the variable and
+[DEPLOYMENT.md](../../DEPLOYMENT.md#the-obsidian-vault) for the compose mount.
 
 ### 2. Tell the hub which folder is the campaign
 

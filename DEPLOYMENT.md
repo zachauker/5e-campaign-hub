@@ -152,6 +152,44 @@ different body, so status-code-only checking isn't enough here). Check
 and ran `scripts/update.sh` end to end, and `docker logs encounter-tracker`
 to confirm the app container restarted on the new image.
 
+## The Obsidian vault
+
+The hub reads campaign notes from an Obsidian vault mounted into the container.
+`docker-compose.yml` declares the mount and `VAULT_PATH`:
+
+```yaml
+    volumes:
+      - ${VAULT_HOST_PATH:-./vault}:/vault:ro
+    environment:
+      - VAULT_PATH=/vault
+```
+
+Set `VAULT_HOST_PATH` in a `.env` file next to `docker-compose.yml` on the Unraid
+host (for example `VAULT_HOST_PATH=/mnt/user/<path-to-vault>`). If it is unset the
+mount falls back to an empty `./vault` directory, the container still starts, and
+every sync reports that it found no readable notes.
+
+- **`VAULT_PATH` is the vault root, not the campaign folder.** The folder holding
+  `.obsidian/`. The campaign's own folder is a vault-relative path (for example
+  `D&D/Explorers of Exandria`) set per campaign in **Settings → Obsidian Vault**;
+  an absolute path or one containing `..` is refused.
+- **The mount is `:ro` deliberately.** The hub never writes to the vault, and a
+  read-only mount makes that a property of the deployment rather than a promise
+  about the code. Do not remove it to "fix" a permissions problem.
+- **A missing or dropped mount is loud, not silent.** The sync route answers `503`
+  and Settings shows "the vault folder isn't reachable from the server", recorded
+  as the last sync status so a background pass that failed unattended is still
+  visible. Nothing is archived or deleted when the folder can't be read: a sync
+  that cannot see the vault never concludes that your notes are gone.
+- **Open prerequisite: nothing yet puts the vault on the server.** The vault is
+  edited on the DM's Mac (`~/Documents/Willowbrook-Remote/`); it is not a git
+  repository and carries no sync journal. Whether Nextcloud (installed on the Mac)
+  or anything else delivers those files to the Unraid host was never confirmed.
+  Until that is answered and `VAULT_HOST_PATH` points at a real directory
+  containing the vault, the deployed container has no notes to sync and the hub
+  stays empty. Development and tests run against the local vault via
+  `VAULT_PATH` in `.env.local`.
+
 ## Manual deploy (fallback)
 
 If the webhook is ever down or you just want to force a redeploy without

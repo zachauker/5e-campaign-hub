@@ -6,6 +6,11 @@ services:
       - "7542:3000"
     volumes:
       - ./data:/data
+      # The Obsidian vault, mounted read-only on purpose: the hub only ever reads it.
+      # Mount the vault ROOT (the campaign folder is chosen in Settings, relative to
+      # it). Set VAULT_HOST_PATH in this directory's .env to the vault's path on the
+      # host, e.g. /mnt/user/<path-to-vault>. See DEPLOYMENT.md, "The Obsidian vault".
+      - ${VAULT_HOST_PATH:-./vault}:/vault:ro
     environment:
       - DB_PATH=/data/encounter-tracker.db
       # Reference-library embedding model, mounted from the /data volume (not baked into
@@ -14,6 +19,8 @@ services:
       # In-app reference ingestion inbox: drop PDFs/notes into ./data/reference-inbox
       # on the host and ingest them from Settings → Reference Library. Created on demand.
       - REFERENCE_INBOX_DIR=/data/reference-inbox
+      # Where the vault is mounted inside the container (matches the volume above).
+      - VAULT_PATH=/vault
     labels:
       - "net.unraid.docker.icon=https://img.icons8.com/?size=100&id=vcao1uuXchDQ&format=png&color=000000"
     networks:

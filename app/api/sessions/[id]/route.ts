@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { sessionNotes, sessionNoteLocations, locations, mapMarkers, maps } from "@/lib/db/schema";
 import { eq, inArray, and } from "drizzle-orm";
 import { parseSourceProps } from "@/lib/vault/props";
+import { omitLegacyColumns } from "@/lib/entities/legacy-columns";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -33,7 +34,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   );
 
   return NextResponse.json({
-    ...row,
+    ...omitLegacyColumns(row),
     linkedLocations: linkedLocations.map((l) => ({ id: l.id, name: l.name, type: l.type })),
     mapMarkers: mapMarkersResolved,
     // The raw column is a JSON string; the page reads the decoded list.

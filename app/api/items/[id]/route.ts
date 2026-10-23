@@ -4,6 +4,7 @@ import { items, characterItems, characters } from "@/lib/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { syncEntityToIndex } from "@/lib/run/index-sync";
 import { parseSourceProps } from "@/lib/vault/props";
+import { omitLegacyColumns } from "@/lib/entities/legacy-columns";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -21,7 +22,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       : [];
 
   return NextResponse.json({
-    ...row,
+    ...omitLegacyColumns(row),
     linkedCharacters: linkedCharacters.map((c) => ({ id: c.id, name: c.name, type: c.type })),
     // The raw column is a JSON string; the page reads the decoded list.
     sourceProps: parseSourceProps(row.sourceProps),

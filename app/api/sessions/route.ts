@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { sessionNotes } from "@/lib/db/schema";
 import { eq, and, desc } from "drizzle-orm";
+import { omitLegacyColumns } from "@/lib/entities/legacy-columns";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -21,5 +22,5 @@ export async function GET(req: Request) {
   if (campaignId) archivedConditions.push(eq(sessionNotes.campaignId, campaignId));
   const archived = await db.query.sessionNotes.findMany({ where: and(...archivedConditions) });
 
-  return NextResponse.json({ items: rows, archivedCount: archived.length });
+  return NextResponse.json({ items: rows.map(omitLegacyColumns), archivedCount: archived.length });
 }

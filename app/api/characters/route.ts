@@ -4,6 +4,7 @@ import { characters } from "@/lib/db/schema";
 import { generateId } from "@/lib/utils";
 import { eq, asc, and } from "drizzle-orm";
 import { syncEntityToIndex } from "@/lib/run/index-sync";
+import { omitLegacyColumns } from "@/lib/entities/legacy-columns";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -25,7 +26,7 @@ export async function GET(req: Request) {
   const archivedWhere = scope ? and(scope, eq(characters.archived, true)) : eq(characters.archived, true);
   const archivedCount = (await db.select().from(characters).where(archivedWhere)).length;
 
-  return NextResponse.json({ items: rows, archivedCount });
+  return NextResponse.json({ items: rows.map(omitLegacyColumns), archivedCount });
 }
 
 export async function POST(req: Request) {
@@ -61,5 +62,5 @@ export async function POST(req: Request) {
     console.warn("[search-index] sync failed:", (err as Error).message);
   }
 
-  return NextResponse.json(character, { status: 201 });
+  return NextResponse.json(omitLegacyColumns(character), { status: 201 });
 }

@@ -4,6 +4,7 @@ import { characters, characterFactions, characterLocations, characterItems, fact
 import { eq, and, inArray } from "drizzle-orm";
 import { syncEntityToIndex } from "@/lib/run/index-sync";
 import { parseSourceProps } from "@/lib/vault/props";
+import { omitLegacyColumns } from "@/lib/entities/legacy-columns";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -42,7 +43,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   );
 
   return NextResponse.json({
-    ...row,
+    ...omitLegacyColumns(row),
     factionIds: factionLinks.map((l) => l.factionId),
     locationIds: locationLinks.map((l) => l.locationId),
     itemIds: itemLinks.map((l) => l.itemId),
