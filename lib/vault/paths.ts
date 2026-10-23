@@ -54,7 +54,8 @@ function queryString(params: Record<string, string>): string {
  */
 export function obsidianUri(vaultName: string, sourcePath: string): string {
   const params: Record<string, string> = {};
-  if (vaultName.trim() !== "") params.vault = vaultName;
+  // Trimmed: a trailing space typed into the Settings field must not become part of the name.
+  if (vaultName.trim() !== "") params.vault = vaultName.trim();
   params.file = sourcePath;
   return `obsidian://open?${queryString(params)}`;
 }
@@ -92,6 +93,18 @@ export function hubHref(kind: HubKind, id: string): string {
 /** Where a relation-embed row links (a subset of `hubHref`'s kinds). */
 export function embedItemHref(kind: EmbedItemKind, id: string): string {
   return hubHref(kind, id);
+}
+
+/**
+ * The `src` for an image block. `![[Art.png]]` names a vault attachment, which
+ * the attachment route finds by basename; `![alt](https://...)` carries a web
+ * URL in the same field and must be used as is, because sent to the attachment
+ * route it would be matched by basename and could serve an unrelated vault file
+ * that happens to share it.
+ */
+export function imageSrc(target: string, width?: number): string {
+  if (/^https?:\/\//i.test(target.trim())) return safeExternalHref(target) ?? "";
+  return attachmentUrl(target, width);
 }
 
 /**

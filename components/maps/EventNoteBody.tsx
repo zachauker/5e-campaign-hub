@@ -33,6 +33,8 @@ export function EventNoteBody({ marker }: { marker: ResolvedMarker }) {
     (async () => {
       if (!marker.entityId) {
         if (!cancelled) {
+          // Clear the previous pin's note: the slide-over reuses this component across markers.
+          setDetail(null);
           setDetailLoading(false);
           setDetailError("Session note not found.");
         }

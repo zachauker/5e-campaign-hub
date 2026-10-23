@@ -5,6 +5,7 @@ import {
   attachmentUrl,
   embedItemHref,
   hubHref,
+  imageSrc,
   obsidianUri,
   safeExternalHref,
   vaultPageUrl,
@@ -58,6 +59,12 @@ describe("obsidianUri", () => {
     const uri = obsidianUri("V", "A B+C.md");
     expect(uri).not.toContain("+");
     expect(uri).toContain("A%20B%2BC.md");
+  });
+
+  it("trims the vault name, so a trailing space does not become part of it", () => {
+    const uri = obsidianUri("  My Vault ", "Note.md");
+    expect(uri).toBe("obsidian://open?vault=My%20Vault&file=Note.md");
+    expect(new URL(uri).searchParams.get("vault")).toBe("My Vault");
   });
 
   it("omits the vault param when no vault name is configured", () => {
@@ -191,5 +198,21 @@ describe("hubHref", () => {
     expect(hubHref("item", "i")).toBe("/items/i");
     expect(hubHref("faction", "f")).toBe("/factions/f");
     expect(hubHref("session", "s")).toBe("/sessions/s");
+  });
+});
+
+describe("imageSrc", () => {
+  it("sends a vault attachment through the attachment route", () => {
+    expect(imageSrc("Art & Co.png", 640)).toBe("/api/vault/attachment?target=Art%20%26%20Co.png&w=640");
+  });
+
+  it("uses a web image URL as is, never through the attachment route", () => {
+    expect(imageSrc("https://example.com/art.png?a=1&b=2", 640)).toBe("https://example.com/art.png?a=1&b=2");
+    expect(imageSrc("HTTP://example.com/art.png")).toBe("HTTP://example.com/art.png");
+    expect(imageSrc("https://example.com/art.png")).not.toContain("/api/vault/attachment");
+  });
+
+  it("does not treat a file whose name merely starts with http as a URL", () => {
+    expect(imageSrc("https-diagram.png")).toBe("/api/vault/attachment?target=https-diagram.png");
   });
 });

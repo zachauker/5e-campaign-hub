@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import type { MdBlock, MdInline } from "@/lib/vault/markdown";
 import type { EmbedResult } from "@/lib/vault/embeds";
 import type { LinkTarget } from "@/lib/vault/page";
-import { attachmentUrl, embedItemHref, hubHref, safeExternalHref } from "@/lib/vault/paths";
+import { embedItemHref, hubHref, imageSrc, safeExternalHref } from "@/lib/vault/paths";
 import { calloutLabel, calloutStyle } from "@/components/glossary/callout-styles";
 
 /** Width requested for an inline image: wide enough for a hi-dpi panel, well under the 2048 cap. */
@@ -238,7 +238,7 @@ function Blocks({ blocks, embeds }: { blocks: MdBlock[]; embeds: Record<string, 
           // eslint-disable-next-line @next/next/no-img-element -- served and resized by /api/vault/attachment, not a static asset
           <img
             key={b.id}
-            src={attachmentUrl(b.imageTarget, IMAGE_WIDTH)}
+            src={imageSrc(b.imageTarget, IMAGE_WIDTH)}
             alt={b.imageTarget}
             loading="lazy"
             className="max-w-full rounded-lg border border-border"
