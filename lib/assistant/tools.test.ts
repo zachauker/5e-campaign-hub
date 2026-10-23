@@ -10,7 +10,7 @@ describe("buildTools", () => {
     expect(names).toEqual([
       "get_entity", "get_map_context", "get_relationships",
       "list_clocks", "list_entities", "list_monsters", "list_open_threads",
-      "propose_encounter", "propose_entity", "propose_marker", "propose_notion_sync",
+      "propose_encounter", "propose_entity", "propose_marker", "propose_vault_sync",
       "search_entities", "search_reference",
     ]);
   });
@@ -25,14 +25,14 @@ describe("buildTools", () => {
     expect(JSON.parse(await run({}))[0]).toMatchObject({ title: "Find Ovid" });
   });
 
-  it("propose_notion_sync returns a proposal object, does not mutate", async () => {
+  it("propose_vault_sync returns a proposal object, does not mutate", async () => {
     const { db, campaignId } = createTestDb();
     const tools = buildTools(db, campaignId);
-    const tool = tools.find((t) => t.name === "propose_notion_sync")!;
+    const tool = tools.find((t) => t.name === "propose_vault_sync")!;
     // `tools` is a union of tool types, so `.run`'s param narrows to the intersection
-    // of all input schemas; cast to call propose_notion_sync (empty input) directly.
+    // of all input schemas; cast to call propose_vault_sync (empty input) directly.
     const run = tool.run as (input: Record<string, never>) => Promise<string>;
     const result = await run({});
-    expect(JSON.parse(result as string)).toMatchObject({ proposal: { targetRoute: "/api/notion/sync" } });
+    expect(JSON.parse(result as string)).toMatchObject({ proposal: { targetRoute: "/api/vault/sync" } });
   });
 });

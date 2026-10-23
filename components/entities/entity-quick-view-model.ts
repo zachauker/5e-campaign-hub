@@ -31,7 +31,6 @@ export interface EntityDetailResponse {
   name: string;
   description?: string | null;
   type?: string | null;
-  notionUrl?: string | null;
   sourceProps?: { label: string; value: string }[];
   // Simple entities (locations/items/factions):
   linkedCharacters?: { id: string; name: string; type: string }[];

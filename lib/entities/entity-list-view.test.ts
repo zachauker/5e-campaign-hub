@@ -20,17 +20,17 @@ const TYPE_CFG: TypeConfig = {
 };
 
 function row(over: Record<string, unknown>) {
-  return { id: "x", name: "X", description: null, type: null, notionProps: null, ...over };
+  return { id: "x", name: "X", description: null, type: null, sourceProps: null, ...over };
 }
 
 describe("normalizeRow", () => {
-  it("parses notionProps JSON into props", () => {
-    const item = normalizeRow(row({ id: "a", name: "Emon", type: "city", notionProps: JSON.stringify([{ label: "Region", value: "Tal'Dorei" }]) }));
+  it("parses sourceProps JSON into props", () => {
+    const item = normalizeRow(row({ id: "a", name: "Emon", type: "city", sourceProps: JSON.stringify([{ label: "Region", value: "Tal'Dorei" }]) }));
     expect(item).toEqual({ id: "a", name: "Emon", description: null, type: "city", props: [{ label: "Region", value: "Tal'Dorei" }] });
   });
-  it("treats null/malformed notionProps as empty props", () => {
-    expect(normalizeRow(row({ notionProps: null })).props).toEqual([]);
-    expect(normalizeRow(row({ notionProps: "not json" })).props).toEqual([]);
+  it("treats null/malformed sourceProps as empty props", () => {
+    expect(normalizeRow(row({ sourceProps: null })).props).toEqual([]);
+    expect(normalizeRow(row({ sourceProps: "not json" })).props).toEqual([]);
   });
 });
 
@@ -61,9 +61,9 @@ describe("deriveFilterFields", () => {
     const fields = deriveFilterFields(items, TYPE_CFG);
     // structured type field keeps label "Type"
     expect(fields.find((f) => f.key === FIELD_TYPE)!.label).toBe("Type");
-    // the colliding Notion property keeps key "Type" but displays "Type (Notion)"
+    // the colliding note property keeps key "Type" but displays "Type (from note)"
     const prop = fields.find((f) => f.key === "Type")!;
-    expect(prop.label).toBe("Type (Notion)");
+    expect(prop.label).toBe("Type (from note)");
     expect(prop.values.map((v) => v.value)).toEqual(["Metropolis"]);
   });
 });

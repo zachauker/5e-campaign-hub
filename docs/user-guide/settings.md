@@ -6,8 +6,8 @@ you.
 Reach it from the gear at the right of the top bar.
 
 Most sections save as you go. The **Save Settings** button at the bottom covers the
-campaign name and the D&D Beyond list; everything else — the Notion token, sync
-sources, assistant key, reference library — writes immediately.
+campaign name and the D&D Beyond list; everything else — the vault folder, sync
+settings, assistant key, reference library — writes immediately.
 
 ---
 
@@ -37,17 +37,6 @@ Characters don't need to be public, only shared.
 
 Saved characters then appear under the **D&D Beyond** tab when adding combatants.
 See [Encounters](encounters.md#dd-beyond-characters).
-
----
-
-## Notion Integration
-
-The integration secret from
-[notion.so/my-integrations](https://www.notion.so/my-integrations). On its own it
-renders linked Notion page bodies on detail pages; combined with **Notion Sync**
-below, it pulls your databases in wholesale.
-
-Full walkthrough: [Notion sync](notion-sync.md).
 
 ---
 
@@ -86,12 +75,13 @@ campaign is not free.
 
 ---
 
-## Notion Sync
+## Obsidian Vault
 
-Where you point the hub at your five Notion databases, sync on demand, and turn on
-automatic background syncing at 5, 15, 30, or 60 minute intervals.
+Where you point the hub at this campaign's folder in your vault, name the vault for
+**Open in Obsidian** links, sync on demand, and turn on automatic background
+syncing at 5, 15, 30, or 60 minute intervals. The vault is read-only to the hub.
 
-Full walkthrough: [Notion sync](notion-sync.md).
+Full walkthrough: [Vault sync](vault-sync.md).
 
 ---
 

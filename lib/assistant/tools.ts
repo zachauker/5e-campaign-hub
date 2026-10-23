@@ -2,7 +2,7 @@ import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
 import type { AppDb, EntityKind } from "./read-tools";
 import { searchEntities, listEntities, getEntity, getRelationships, listMonsters, getMapContext } from "./read-tools";
-import { buildEncounterProposal, buildEntityProposal, buildMarkerProposal, buildNotionSyncProposal } from "./proposals";
+import { buildEncounterProposal, buildEntityProposal, buildMarkerProposal, buildVaultSyncProposal } from "./proposals";
 import { searchReference } from "@/lib/reference/retrieve";
 import { embed, EMBED_DIMS } from "@/lib/reference/embed";
 import { listThreads } from "@/lib/state/threads";
@@ -28,7 +28,7 @@ export function buildTools(db: AppDb, campaignId: string) {
     }),
     betaZodTool({
       name: "get_entity",
-      description: "Get the full record for one entity by kind + id, including description and Notion properties. Call after search_entities to answer detail questions.",
+      description: "Get the full record for one entity by kind + id, including description and note properties. Call after search_entities to answer detail questions.",
       inputSchema: z.object({ kind: kindEnum, id: z.string() }),
       run: async ({ kind, id }) => j(getEntity(db, campaignId, { kind: kind as EntityKind, id })),
     }),
@@ -80,7 +80,7 @@ export function buildTools(db: AppDb, campaignId: string) {
     }),
     betaZodTool({
       name: "propose_entity",
-      description: "Propose creating (omit id) or updating (include id) a character/location/item/faction. Only hub-authored fields are accepted; Notion-synced fields are rejected. Returns a proposal to confirm.",
+      description: "Propose creating (omit id) or updating (include id) a character/location/item/faction. Only hub-authored fields are accepted; Vault-synced fields are rejected. Returns a proposal to confirm.",
       inputSchema: z.object({ kind: kindEnum, id: z.string().optional(), fields: z.record(z.string(), z.unknown()) }),
       run: async ({ kind, id, fields }) => j({ proposal: buildEntityProposal(campaignId, { kind: kind as EntityKind, id, fields: fields as Record<string, unknown> }) }),
     }),
@@ -91,10 +91,10 @@ export function buildTools(db: AppDb, campaignId: string) {
       run: async (input) => j({ proposal: buildMarkerProposal(input) }),
     }),
     betaZodTool({
-      name: "propose_notion_sync",
-      description: "Propose running a Notion → hub sync for this campaign. Returns a proposal to confirm.",
+      name: "propose_vault_sync",
+      description: "Propose re-reading the Obsidian vault into the hub for this campaign. Returns a proposal to confirm.",
       inputSchema: z.object({}),
-      run: async () => j({ proposal: buildNotionSyncProposal(campaignId) }),
+      run: async () => j({ proposal: buildVaultSyncProposal(campaignId) }),
     }),
   ];
 }

@@ -45,7 +45,6 @@ export async function POST(req: Request) {
       id: generateId(),
       campaignId: body.campaignId,
       name: body.name.trim(),
-      notionUrl: body.notionUrl ?? null,
       description: body.description ?? null,
       createdAt: now,
       updatedAt: now,

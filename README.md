@@ -21,13 +21,13 @@ explicitly configure.
 | --- | --- |
 | **Dashboard** (`/`) | Campaign at a glance: live encounter, entity counts, recent fights |
 | **Encounters** (`/encounters`) | The initiative tracker — HP, conditions, stat blocks, D&D Beyond PCs |
-| **Characters / Locations / Items / Factions** | The campaign glossary: filterable, sortable lists in list/gallery/table views, with detail pages and Notion page bodies |
-| **Sessions** (`/sessions`) | Session notes synced from Notion, linked to locations and pinned to maps |
+| **Characters / Locations / Items / Factions** | The campaign glossary: filterable, sortable lists in list/gallery/table views, with detail pages that render the linked vault note |
+| **Sessions** (`/sessions`) | Session notes read from your Obsidian vault, linked to locations and pinned to maps |
 | **Chronicle** (`/chronicle`) | In-world calendar, open threads, progress clocks, timeline, AI session review |
 | **World** (`/world`) | A vector map of Exandria (Wildemount + Tal'Dorei) with campaign markers |
 | **Maps** (`/maps`) | Your own uploaded maps — standard or deep-zoom tiled — with nestable sub-maps and fully styleable pins |
 | **Run** (`/run`) | At-the-table mode: keyboard-driven lookup, AI briefing cards, one-key moment flagging |
-| **Settings** (`/settings`) | D&D Beyond sheets, Notion sync, search index, briefing builds, assistant, reference library |
+| **Settings** (`/settings`) | D&D Beyond sheets, vault sync, search index, briefing builds, assistant, reference library |
 | **Command palette** (`⌘K` / `Ctrl+K`) | Jump to anything, or hand the query to the assistant |
 
 Two AI surfaces sit on top of all of it, both optional and both requiring your own
@@ -94,15 +94,16 @@ step — the database file is created on first boot if it doesn't exist.
    until you do).
 3. Set the in-world date on **Chronicle** if you want threads, clocks, and the
    timeline.
-4. Optionally add your D&D Beyond character URLs, a Notion integration token, and
-   an Anthropic API key — each unlocks its own section and none is required.
+4. Optionally add your D&D Beyond character URLs, the campaign's folder in your
+   Obsidian vault, and an Anthropic API key — each unlocks its own section and none
+   is required.
 
 ---
 
 ## Configuration
 
-All runtime configuration is environment variables; secrets (Notion token,
-Anthropic key) are entered in **Settings** and stored in the database, not in env.
+All runtime configuration is environment variables; the secret (the
+Anthropic key) is entered in **Settings** and stored in the database, not in env.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
@@ -117,7 +118,7 @@ Anthropic key) are entered in **Settings** and stored in the database, not in en
 | Service | Used for | Required? |
 | --- | --- | --- |
 | **D&D Beyond** | Pulling live PC sheets from public share URLs | Optional |
-| **Notion** | Syncing characters, items, factions, locations, and session notes | Optional |
+| **Obsidian vault** | Characters, items, factions, locations, and session notes, read from a read-only mount ([vault sync](docs/user-guide/vault-sync.md)) | Optional |
 | **Anthropic API** | Assistant, briefings, session review | Optional |
 | **Open5e** | Monster stat-block search (results are cached locally) | Optional |
 
@@ -134,11 +135,11 @@ lib/            Server + shared logic
   db/             Drizzle schema, migrations, sqlite-vec loader
   ddb/            D&D Beyond character parsing
   maps/           Image storage and tile generation
-  notion/         Sync engine, mappers, reconciliation, scheduler
   reference/      Chunking, embedding, ingestion, retrieval, briefings
   run/            At-the-table search index, briefings, marks, runs
   state/          Threads, clocks, timeline, date advance, session review
   store/          Zustand stores
+  vault/          Vault scan, note mapping, reconciliation, sync, scheduler
 world-data/     Exandria vector-map build pipeline output
 reference-data/  Bundled SRD 5.1 markdown
 scripts/        World-map and reference-data build/import scripts

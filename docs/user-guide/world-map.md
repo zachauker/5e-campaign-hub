@@ -22,7 +22,7 @@ safe to run: it matches on name, so it won't duplicate places you've already
 created, and the button disappears once the map has any pins on it.
 
 Imported places are ordinary [location entries](entities.md) from that point on.
-Edit them, link them, hang threads off them, write Notion pages for them.
+Edit them, link them, hang threads off them, write vault notes for them.
 
 ---
 

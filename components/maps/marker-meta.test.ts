@@ -11,7 +11,7 @@ const marker = (over: Partial<ResolvedMarker>): ResolvedMarker => ({
 });
 
 describe("markerVisual", () => {
-  it("uses the Notion Type for an event marker", () => {
+  it("uses the note Type for an event marker", () => {
     const v = markerVisual(marker({ type: "event", entitySubtype: "Combat Encounter" }));
     expect(v.icon).toBe(Swords);
     expect(v.label).toBe("Combat Encounter");

@@ -60,9 +60,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     linkedSessionNotes: linkedSessionNotes
       .filter((n) => !n.archived)
       .map((n) => ({ id: n.id, name: n.name, noteType: n.noteType, date: n.date })),
-    notionProps: row.notionProps
-      ? (JSON.parse(row.notionProps) as Array<{ label: string; value: string }>)
-      : [],
     // The raw column is a JSON string; the page reads the decoded list.
     sourceProps: parseSourceProps(row.sourceProps),
   });
@@ -83,7 +80,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     .update(locations)
     .set({
       name: body.name ?? existing.name,
-      notionUrl: body.notionUrl ?? existing.notionUrl,
       description: body.description ?? existing.description,
       type: body.type ?? existing.type,
       updatedAt: new Date(),

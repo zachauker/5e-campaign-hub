@@ -94,9 +94,9 @@ this entity. `→` walks to them, `←` comes back.
   The card still works; it's just describing a slightly older version. Refresh it
   with either build in **Settings → Briefing builds** — both rebuild anything
   that has fallen behind, and skip everything that hasn't.
-- **Built without the page body** — the briefing was written without the Notion
-  page, either because Notion was unreachable or the page was empty. It's
-  thinner than it should be.
+- **Built without the note body** — the briefing was written without the vault
+  note, either because the note couldn't be read or it was empty. It's thinner
+  than it should be.
 
 ### When there's no briefing yet
 
@@ -159,7 +159,7 @@ Not yet, from the app. The card is read-only wherever it appears, and there is
 currently no screen for editing a field by hand — see **Known limits** below.
 
 What you *can* do is change the source and rebuild: the briefing is written from
-the entity's description, its Notion page body, and its open threads, so fixing
+the entity's description, its vault note, and its open threads, so fixing
 those and re-running a build in **Settings → Briefing builds** is the way to
 correct a card that has someone wrong.
 

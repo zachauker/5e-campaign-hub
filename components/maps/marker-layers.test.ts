@@ -10,7 +10,7 @@ const marker = (over: Partial<ResolvedMarker>): ResolvedMarker => ({
 });
 
 describe("event layers", () => {
-  it("keys an event marker on its Notion Type", () => {
+  it("keys an event marker on its note Type", () => {
     expect(layerKeyOf(marker({ type: "event", entitySubtype: "Combat Encounter" }))).toBe("event:Combat Encounter");
     expect(layerKeyOf(marker({ type: "event", entitySubtype: null }))).toBe("event:other");
   });

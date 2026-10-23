@@ -88,7 +88,6 @@ export async function POST(req: Request) {
         id: locId,
         campaignId,
         name: r.name,
-        notionUrl: null,
         description: r.description,
         type: r.type,
         createdAt: now,

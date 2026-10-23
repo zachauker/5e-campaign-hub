@@ -79,7 +79,7 @@ async function streamReview(
   }
 }
 
-/** The hash of the Notion page as it stands right now, or null if unknowable. */
+/** The hash of the vault note as it stands right now, or null if unknowable. */
 async function fetchCurrentHash(campaignId: string, sessionNoteId: string): Promise<string | null> {
   const res = await fetch(
     `/api/campaigns/${campaignId}/state/review/status?sessionNoteId=${encodeURIComponent(sessionNoteId)}`,
@@ -90,8 +90,8 @@ async function fetchCurrentHash(campaignId: string, sessionNoteId: string): Prom
 }
 
 /**
- * The post-session review surface. A Claude pass reads the session's Notion
- * page and proposes state changes; nothing is written until the DM approves an
+ * The post-session review surface. A Claude pass reads the session's vault
+ * note and proposes state changes; nothing is written until the DM approves an
  * individual proposal here. Each proposal renders under the verbatim passage it
  * was derived from — that quote is the only check on the model's grounding, so
  * it is displayed, never summarised.
@@ -151,7 +151,7 @@ export function ReviewSlideOver({
   }, [campaignId, sessionNoteId]);
 
   /**
-   * The background sync may have rewritten the Notion page while this review was
+   * The background sync may have rewritten the vault note while this review was
    * open. Applying then would be applying against text the DM never read, so the
    * first attempt warns instead; a second attempt proceeds. Returns true when the
    * caller should abort.
@@ -262,7 +262,7 @@ export function ReviewSlideOver({
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-none" aria-hidden="true" />
             <span>
               <span className="sr-only">Warning: </span>
-              This Notion page changed since the review ran, so these proposals were derived from
+              This vault note changed since the review ran, so these proposals were derived from
               older text. Re-run the review, or click Approve again to apply anyway.
             </span>
           </p>

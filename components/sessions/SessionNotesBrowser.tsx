@@ -51,8 +51,8 @@ export function SessionNotesBrowser() {
 
       {notes.length === 0 && (
         <p className="text-muted-foreground text-sm">
-          No session notes yet. Configure the Session Timeline database in{" "}
-          <Link href="/settings" className="text-primary hover:underline">Settings</Link> and sync.
+          No session notes yet. Set the campaign folder in{" "}
+          <Link href="/settings" className="text-primary hover:underline">Settings</Link> and sync the vault.
         </p>
       )}
 

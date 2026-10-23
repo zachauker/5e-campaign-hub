@@ -10,7 +10,7 @@ teaches you the others:
 | **Items** | Loot, artifacts, the letter someone won't stop asking about |
 | **Factions** | Organizations, guilds, cults, courts |
 
-Entries can be typed in by hand or [synced from Notion](notion-sync.md). Once
+Entries can be typed in by hand or [synced from your Obsidian vault](vault-sync.md). Once
 they're here they feed everything else — map pins, thread links, clock owners,
 Run mode lookups, the assistant's answers.
 
@@ -31,7 +31,7 @@ The toolbar's three icons switch views, and your choice sticks per section:
 - **Table** — a spreadsheet, with columns you choose. The one to use when you want
   to compare rather than read.
 
-In **table** view, the toolbar grows a **Columns** control listing every Notion
+In **table** view, the toolbar grows a **Columns** control listing every note
 property found across your entries. Turn on the two or three that actually matter
 for what you're doing — a table of NPCs by *Status* and *Faction* answers a
 different question than one by *Location*.
@@ -40,7 +40,7 @@ different question than one by *Location*.
 
 - **Search** matches names and descriptions as you type.
 - **Filter** builds on whatever your data actually contains: the built-in type
-  (PC/NPC for characters; city/town/POI/region for locations) plus every Notion
+  (PC/NPC for characters; city/town/POI/region for locations) plus every note
   property on your entries, each offering the values that are really in use. Pick
   as many values per field as you like; active filters appear as chips you can
   clear individually.
@@ -50,7 +50,7 @@ Filters and search combine — narrow to `Faction: Myriad`, then type `captain`.
 
 ### Archived entries
 
-An entry that disappeared from its Notion database isn't deleted; it's archived, so
+An entry whose note disappeared from the vault isn't deleted; it's archived, so
 history and links survive. If a section has any, a **Show archived (N)** button
 appears in the header to bring them back into view.
 
@@ -76,7 +76,7 @@ Clicking an entry opens its page, which has two tabs.
 ### Overview
 
 - **Description** and type.
-- **Notion properties**, rendered as a table, when the entry came from Notion.
+- **Properties**, rendered as a table, when the entry came from a vault note.
 - **On the map** — every marker pointing at this entry, each a link straight to
   that spot on that map.
 - **Linked characters** — for a location, faction, or item, everyone connected to
@@ -84,27 +84,28 @@ Clicking an entry opens its page, which has two tabs.
 - **Events here** — for locations, the session notes that happened there.
 - **Open threads** involving this entry, with their stakes.
 
-### Notion notes
+### Vault Note
 
-The full body of the linked Notion page, rendered in place: headings, lists,
-callouts, toggles, tables. This is where your actual prose lives — you write it in
-Notion, you read it here, next to everything the app knows about the same subject.
+The full body of the linked vault note, rendered in place: headings, lists,
+callouts, tables, images, and `[[wikilinks]]` that open the hub page they name. This
+is where your actual prose lives — you write it in Obsidian, you read it here, next
+to everything the app knows about the same subject. **Open in Obsidian** jumps to
+the note when you want to edit it.
 
-If nothing's linked, the tab says so and points you at **Edit** to paste a URL.
+If the entry isn't linked to a note (you created it by hand), the tab says so.
 
 ---
 
 ## Creating and editing
 
-**New …** opens a form with a name, description, type, and an optional Notion page
-URL. The row's edit button opens the same form for an existing entry.
+**New …** opens a form with a name, description, and type. The row's edit button opens the same form for an existing entry.
 
 Characters get a little more: their PC/NPC type, and links to factions, locations,
 and items.
 
-**One caution if you sync with Notion.** Fields that Notion owns get overwritten on
-the next sync. Hand-editing a synced entry's name or description is fine for a
-one-off correction, but the durable place to change it is Notion. Fields the hub
+**One caution if you sync with the vault.** Fields that the vault owns get
+overwritten on the next sync. Hand-editing a synced entry's name or description is
+fine for a one-off correction, but the durable place to change it is the note. Fields the hub
 owns — links you've drawn, the entry's briefing — are never touched by a sync.
 
 ---
@@ -116,7 +117,7 @@ Opening a character, location, item, or faction page quietly builds that entry's
 prepping is also, invisibly, preparing the card you'll want at the table.
 
 The card is read-only here — it's a preview of what Run mode will hand you, not an
-editor. If it has someone wrong, fix the description or the Notion page it was
+editor. If it has someone wrong, fix the description or the vault note it was
 written from and rebuild.
 
 Building costs one Anthropic API call per entry, and only happens when a briefing

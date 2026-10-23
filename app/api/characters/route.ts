@@ -47,7 +47,6 @@ export async function POST(req: Request) {
       name: body.name.trim(),
       type: body.type ?? "npc",
       ddbCharacterId: body.ddbCharacterId ?? null,
-      notionUrl: body.notionUrl ?? null,
       description: body.description ?? null,
       createdAt: now,
       updatedAt: now,

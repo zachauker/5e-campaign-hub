@@ -121,16 +121,15 @@ export function resolveEmbed(
       // labels they keep. content-here is an explicit allow-list on purpose, so
       // Session Notes, Story Outline (arcs) and NULL note_type all stay out.
       //
-      // The NULL gap: session_notes is dual-fed (the vault sync and the Notion
-      // sync), and the Notion sync can leave note_type blank or unrecognised.
-      // A deny-list ("anything but Session Notes / Story Outline") would admit
-      // every such Notion row linked to a location as "content", which is far
-      // likelier and plainly wrong. The accepted cost is the converse: an R20
-      // encounter whose encounter_type did not map to a label has a NULL
-      // note_type and is omitted. The proper fix, if that ever bites, is a
-      // source discriminator on the row, not a looser note_type filter. Once
-      // the Notion sync is removed the table becomes vault-only and this
-      // trade should be revisited.
+      // The NULL gap: a session_notes row can have a blank or unrecognised
+      // note_type (rows left over from before the vault sync, or a vault note
+      // whose type maps to no label). A deny-list ("anything but Session Notes
+      // / Story Outline") would admit every such row linked to a location as
+      // "content", which is far likelier and plainly wrong. The accepted cost
+      // is the converse: an R20 encounter whose encounter_type did not map to
+      // a label has a NULL note_type and is omitted. The proper fix, if that
+      // ever bites, is a source discriminator on the row, not a looser
+      // note_type filter.
       const typeFilter = view === "sessions-here"
         ? eq(sessionNotes.noteType, "Session Notes")
         : inArray(sessionNotes.noteType, CONTENT_NOTE_TYPES);

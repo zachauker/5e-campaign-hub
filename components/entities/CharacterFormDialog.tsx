@@ -19,7 +19,6 @@ export type CharacterWithLinks = Omit<Character, "sourceProps"> & {
   locationIds: string[];
   itemIds: string[];
   mapMarkers: { mapId: string; mapName: string; markerId: string; renderMode: "static" | "tiled" | "world" }[];
-  notionProps?: { label: string; value: string }[];
   sourceProps?: { label: string; value: string }[];
 };
 
@@ -66,7 +65,6 @@ export function CharacterFormDialog({
   const [name, setName] = useState(character?.name ?? "");
   const [type, setType] = useState<"pc" | "npc">(character?.type ?? "npc");
   const [description, setDescription] = useState(character?.description ?? "");
-  const [notionUrl, setNotionUrl] = useState(character?.notionUrl ?? "");
   const [ddbCharacterId, setDdbCharacterId] = useState(character?.ddbCharacterId ?? "");
   const [factions, setFactions] = useState<Faction[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
@@ -107,7 +105,6 @@ export function CharacterFormDialog({
         name: name.trim(),
         type,
         description: description.trim() || null,
-        notionUrl: notionUrl.trim() || null,
         ddbCharacterId: ddbCharacterId.trim() || null,
       };
 
@@ -192,11 +189,6 @@ export function CharacterFormDialog({
             className="w-full rounded-md border border-border bg-muted px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           />
 
-          <Input
-            placeholder="Notion page URL (optional)"
-            value={notionUrl}
-            onChange={(e) => setNotionUrl(e.target.value)}
-          />
           <Input
             placeholder="D&D Beyond character ID (optional)"
             value={ddbCharacterId}

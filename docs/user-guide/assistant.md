@@ -41,7 +41,7 @@ finds your Bright Queen rather than reciting published lore at you.
 ## What it won't do
 
 **It never writes anything by itself.** When a question implies an action — build
-this encounter, create this NPC, put a pin here, run a Notion sync — it produces a
+this encounter, create this NPC, put a pin here, run a vault sync — it produces a
 **proposal**: a card in the panel describing exactly what would happen, with
 **Confirm** and **Dismiss**.
 
@@ -54,11 +54,11 @@ The proposals it can make:
 - **Build an encounter** — named, with combatants, ready to open in the tracker
 - **Create or update an entity**
 - **Place a marker** on a map
-- **Run a Notion sync**
+- **Run a vault sync**
 
 There's a second, quieter limit worth knowing: proposals can only touch fields the
 hub owns. It can't propose overwriting a location's type or an item's description
-when those come from Notion, because the next sync would revert it anyway and
+when those come from your vault, because the next sync would revert it anyway and
 you'd be left wondering why your change didn't stick.
 
 ---

@@ -1,8 +1,9 @@
 // lib/entities/entity-list-view.ts
+import { parseSourceProps } from "@/lib/vault/props";
 
 export type EntityView = "list" | "gallery" | "table";
 
-/** Sentinel keys so a Notion property literally named "Type"/"Name" can't collide
+/** Sentinel keys so a note property literally named "Type"/"Name" can't collide
  *  with the structured type field or the name sort. */
 export const FIELD_TYPE = "__type__";
 export const SORT_NAME = "__name__";
@@ -58,23 +59,11 @@ export interface RawEntityRow {
   name: string;
   description?: string | null;
   type?: string | null;
-  notionProps?: string | null;
+  sourceProps?: string | null;
 }
 
 export function normalizeRow(row: RawEntityRow): EntityListItem {
-  let props: EntityProp[] = [];
-  if (row.notionProps) {
-    try {
-      const parsed = JSON.parse(row.notionProps);
-      if (Array.isArray(parsed)) {
-        props = parsed.filter(
-          (p): p is EntityProp => p && typeof p.label === "string" && typeof p.value === "string",
-        );
-      }
-    } catch {
-      props = [];
-    }
-  }
+  const props: EntityProp[] = parseSourceProps(row.sourceProps);
   return {
     id: row.id,
     name: row.name,
@@ -121,7 +110,7 @@ export function deriveFilterFields(items: EntityListItem[], typeConfig: TypeConf
   for (const label of labelOrder) {
     fields.push({
       key: label,
-      label: label === typeLabel ? `${label} (Notion)` : label,
+      label: label === typeLabel ? `${label} (from note)` : label,
       values: distinct([...byLabel.get(label)!]).map((v) => ({ value: v, label: v })),
     });
   }

@@ -9,7 +9,6 @@ export interface SimpleEntity {
   id: string;
   name: string;
   description: string | null;
-  notionUrl: string | null;
   type?: string | null;
 }
 
@@ -34,7 +33,6 @@ export function SimpleEntityFormDialog({
 }: SimpleEntityFormDialogProps) {
   const [name, setName] = useState(entity?.name ?? "");
   const [description, setDescription] = useState(entity?.description ?? "");
-  const [notionUrl, setNotionUrl] = useState(entity?.notionUrl ?? "");
   const [type, setType] = useState(entity?.type ?? "other");
   const [saving, setSaving] = useState(false);
 
@@ -46,7 +44,6 @@ export function SimpleEntityFormDialog({
         campaignId,
         name: name.trim(),
         description: description.trim() || null,
-        notionUrl: notionUrl.trim() || null,
         ...(resourcePath === "locations" ? { type } : {}),
       };
       if (entity) {
@@ -99,11 +96,6 @@ export function SimpleEntityFormDialog({
               <option value="other">Other</option>
             </select>
           )}
-          <Input
-            placeholder="Notion page URL (optional)"
-            value={notionUrl}
-            onChange={(e) => setNotionUrl(e.target.value)}
-          />
           <Button className="w-full" onClick={save} disabled={saving || !name.trim()}>
             {saving ? "Saving..." : entity ? "Save Changes" : "Create"}
           </Button>

@@ -55,6 +55,20 @@ describe("getEntity + getRelationships", () => {
     expect(rels.characters.map((c) => c.id)).toEqual(["c1"]);
   });
 
+  it("decodes sourceProps into a list and never returns the raw column", () => {
+    const { db, campaignId } = createTestDb();
+    seedChar(db, campaignId, {
+      id: "c1", name: "Fjord", sourceProps: JSON.stringify([{ label: "Race", value: "Half-orc" }]),
+    });
+    seedChar(db, campaignId, { id: "c2", name: "Jester", sourceProps: "not json" });
+    seedChar(db, campaignId, { id: "c3", name: "Beau" });
+
+    const fjord = getEntity(db, campaignId, { kind: "character", id: "c1" }) as Record<string, unknown>;
+    expect(fjord.sourceProps).toEqual([{ label: "Race", value: "Half-orc" }]);
+    expect(getEntity(db, campaignId, { kind: "character", id: "c2" })).toMatchObject({ sourceProps: [] });
+    expect(getEntity(db, campaignId, { kind: "character", id: "c3" })).toMatchObject({ sourceProps: [] });
+  });
+
   it("resolves reverse membership for location and item branches", () => {
     const { db, campaignId } = createTestDb();
     seedChar(db, campaignId, { id: "c1", name: "Fjord" });

@@ -162,10 +162,10 @@ export const sessionNotes = sqliteTable("session_notes", {
   notionUrl: text("notion_url"),
   notionPageId: text("notion_page_id"),
   notionProps: text("notion_props"),
-  noteType: text("note_type"),          // Notion "Type" select
-  status: text("status"),                // Notion "Status" select
+  noteType: text("note_type"),          // derived from the vault `type:` (see lib/vault/map.ts)
+  status: text("status"),                // frontmatter `status`
   date: text("date"),                    // ISO date string "2026-07-19" — text, not a timestamp
-  arc: text("arc"),                      // Notion "Arc" select
+  arc: text("arc"),                      // frontmatter `arc` (wikilink name)
   archived: integer("archived", { mode: "boolean" }).notNull().default(false),
   notionSyncedAt: integer("notion_synced_at", { mode: "timestamp" }),
   sourceKey: text("source_key"),
@@ -187,6 +187,8 @@ export const sessionNoteLocations = sqliteTable(
   (t) => [primaryKey({ columns: [t.sessionNoteId, t.locationId] })]
 );
 
+// Dead since the move to the Obsidian vault: nothing reads or writes this table.
+// Kept (like the notion_* columns) because migrations are additive-only.
 export const notionSources = sqliteTable(
   "notion_sources",
   {
@@ -382,8 +384,8 @@ export const entityBriefings = sqliteTable("entity_briefings", {
   sourceHash: text("source_hash").notNull(),
   // JSON array of field names the DM edited by hand; a rebuild leaves these alone.
   manualFields: text("manual_fields").notNull().default("[]"),
-  // True when built without the Notion page body — either the fetch failed or
-  // the page had no readable content. Not specifically "Notion was unreachable".
+  // True when built without the vault note body — either the read failed or
+  // the note had no readable content. Not specifically "the vault was unreachable".
   partial: integer("partial", { mode: "boolean" }).notNull().default(false),
   builtAt: integer("built_at", { mode: "timestamp" }).notNull(),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),

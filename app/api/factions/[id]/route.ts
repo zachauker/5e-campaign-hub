@@ -39,9 +39,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     ...row,
     linkedCharacters: linkedCharacters.map((c) => ({ id: c.id, name: c.name, type: c.type })),
     mapMarkers: resolvedMapMarkers,
-    notionProps: row.notionProps
-      ? (JSON.parse(row.notionProps) as Array<{ label: string; value: string }>)
-      : [],
     // The raw column is a JSON string; the page reads the decoded list.
     sourceProps: parseSourceProps(row.sourceProps),
   });
@@ -57,7 +54,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     .update(factions)
     .set({
       name: body.name ?? existing.name,
-      notionUrl: body.notionUrl ?? existing.notionUrl,
       description: body.description ?? existing.description,
       updatedAt: new Date(),
     })

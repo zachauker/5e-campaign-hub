@@ -9,13 +9,13 @@ export interface Proposal {
   citation?: string;
 }
 
-// Only these fields may be written per entity kind. Notion-synced columns
-// (type on locations, description on items, notionProps, etc.) are deliberately absent.
+// Only these fields may be written per entity kind. Columns the vault sync owns
+// (type on locations, description on items, sourceProps, etc.) are deliberately absent.
 export const HUB_AUTHORED: Record<EntityKind, string[]> = {
-  character: ["name", "description", "notionUrl"], // NOT `type`/`ddbCharacterId` — sync-managed via mapCharacterRow extra
-  location: ["name", "description", "notionUrl"], // NOT `type` — world-derived, drives map layering
-  item: ["name", "notionUrl"],                    // NOT `description` — synced from Notion
-  faction: ["name", "description", "notionUrl"],
+  character: ["name", "description"], // NOT `type`/`ddbCharacterId` — sync-managed via mapCharacterRow extra
+  location: ["name", "description"],  // NOT `type` — world-derived, drives map layering
+  item: ["name"],                      // NOT `description` — synced from the vault
+  faction: ["name", "description"],
 };
 
 export function assertHubAuthored(kind: EntityKind, fields: Record<string, unknown>): void {
@@ -49,8 +49,8 @@ export function buildMarkerProposal(input: { mapId: string; x: number; y: number
   return { summary: `Place a ${input.type} marker${input.title ? ` "${input.title}"` : ""} on map ${mapId}.`, targetRoute: `/api/maps/${mapId}/markers`, method: "POST", payload };
 }
 
-export function buildNotionSyncProposal(campaignId: string): Proposal {
-  return { summary: "Run a Notion → hub sync for this campaign.", targetRoute: "/api/notion/sync", method: "POST", payload: { campaignId } };
+export function buildVaultSyncProposal(campaignId: string): Proposal {
+  return { summary: "Sync the Obsidian vault into the hub for this campaign.", targetRoute: "/api/vault/sync", method: "POST", payload: { campaignId } };
 }
 
 const MIN_CITATION_WORDS = 4;
@@ -105,7 +105,7 @@ export function normalizeForCitation(s: string): string {
  * A review-pass proposal must quote the source verbatim. Paraphrase is rejected:
  * the failure mode we want is "fewer proposals offered", not "plausible wrong
  * state silently applied". Matching is tolerant of case, punctuation, and line
- * wrapping so that a correct quote copied out of Notion still passes.
+ * wrapping so that a correct quote copied out of the vault note still passes.
  *
  * Only tokens containing at least two letters count toward the word minimum —
  * bare ids, timestamps, and numbers can't satisfy the gate on their own.

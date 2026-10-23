@@ -385,7 +385,7 @@ async function indexEntity(
   try {
     // `db` here is typed loosely (Record<string, unknown> schema) to stay
     // agnostic of the concrete schema shape; index-sync needs the fully typed
-    // StateDb. Same cast pattern as lib/notion/run-sync.ts.
+    // StateDb. Same cast pattern as lib/vault/run-sync.ts.
     await syncEntityToIndex(db as unknown as StateDb, campaignId, kind, id);
   } catch (err) {
     // A failed index write must never fail the sync that caused it — the index

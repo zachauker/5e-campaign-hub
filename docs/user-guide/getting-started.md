@@ -91,7 +91,7 @@ None of these are required, and each one only affects its own part of the app.
 | Add | In | Unlocks |
 | --- | --- | --- |
 | **D&D Beyond character URLs** | Settings → D&D Beyond Characters | Live PC sheets in the encounter tracker |
-| **A Notion integration token** | Settings → Notion Integration | Page bodies on detail pages, then [full sync](notion-sync.md) |
+| **Your Obsidian vault's campaign folder** | Settings → Obsidian Vault | Your notes as entries and session notes, with their text on detail pages: [vault sync](vault-sync.md) |
 | **An Anthropic API key** | Settings → Campaign Assistant | The [assistant](assistant.md), [briefings](run-mode.md), and [session review](chronicle.md) |
 | **PDFs or notes** | Settings → Reference Library | Grounded, cited rules and lore answers |
 
@@ -113,5 +113,5 @@ locally.
 
 - Running a fight tonight → [Encounters](encounters.md)
 - Running a whole session tonight → [Run mode](run-mode.md)
-- Getting your campaign into the app → [Notion sync](notion-sync.md) or
+- Getting your campaign into the app → [Vault sync](vault-sync.md) or
   [the glossary](entities.md)

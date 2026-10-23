@@ -19,7 +19,7 @@ minutes, read [Run mode](run-mode.md) and nothing else.
 - **[Characters, locations, items & factions](entities.md)** — the campaign
   glossary. Filtering, the three view modes, quick-view popovers, and what lives on
   a detail page.
-- **[Sessions](sessions.md)** — session notes pulled from Notion, linked to the
+- **[Sessions](sessions.md)** — session notes read from your vault, linked to the
   places they happened in and pinned to the maps they happened on.
 - **[Chronicle](chronicle.md)** — the in-world calendar, open threads, progress
   clocks, the timeline, and the session review that keeps them all current.
@@ -44,8 +44,8 @@ minutes, read [Run mode](run-mode.md) and nothing else.
 
 ## Connections & configuration
 
-- **[Notion sync](notion-sync.md)** — pointing the hub at your Notion databases
-  and keeping them in step.
+- **[Vault sync](vault-sync.md)** — pointing the hub at your Obsidian vault and
+  keeping the two in step.
 - **[Settings](settings.md)** — a tour of every switch on the settings page and
   what turning it on gets you.
 

@@ -50,9 +50,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     relatedLocations: relatedLocations.map((l) => ({ id: l.id, name: l.name })),
     relatedItems: relatedItems.map((i) => ({ id: i.id, name: i.name })),
     mapMarkers: resolvedMapMarkers,
-    notionProps: row.notionProps
-      ? (JSON.parse(row.notionProps) as Array<{ label: string; value: string }>)
-      : [],
     // The raw column is a JSON string; the page reads the decoded list.
     sourceProps: parseSourceProps(row.sourceProps),
   });
@@ -71,7 +68,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       name: body.name ?? existing.name,
       type: body.type ?? existing.type,
       ddbCharacterId: body.ddbCharacterId ?? existing.ddbCharacterId,
-      notionUrl: body.notionUrl ?? existing.notionUrl,
       description: body.description ?? existing.description,
       updatedAt: new Date(),
     })

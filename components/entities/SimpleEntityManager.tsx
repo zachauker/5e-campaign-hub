@@ -105,7 +105,7 @@ export function SimpleEntityManager({ resourcePath, label, icon: Icon }: SimpleE
         items={entities}
         emptyHint={`No ${label.toLowerCase()} yet.`}
         onEdit={(entity: EntityDetailResponse) =>
-          setEditEntity({ id: entity.id, name: entity.name, description: entity.description ?? null, notionUrl: entity.notionUrl ?? null, type: entity.type ?? null })
+          setEditEntity({ id: entity.id, name: entity.name, description: entity.description ?? null, type: entity.type ?? null })
         }
         onDelete={remove}
       />

@@ -26,8 +26,6 @@ interface SimpleEntityDetailData {
   description: string | null;
   type?: string | null;
   sourcePath: string | null;
-  /** Only the edit form reads this; the page shows `sourcePath`. */
-  notionUrl: string | null;
   linkedCharacters: { id: string; name: string; type: string }[];
   mapMarkers?: { mapId: string; mapName: string; markerId: string; renderMode: "static" | "tiled" | "world" }[];
   sourceProps?: PropEntry[];

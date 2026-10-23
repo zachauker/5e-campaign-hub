@@ -86,7 +86,7 @@ isn't indexed, or it's indexed and disabled.
 abilities, published setting lore, your own house rules.
 
 **Not this:** your campaign's own notes. Those belong in
-[Notion](notion-sync.md) and reach the assistant through entities and session
+your [Obsidian vault](vault-sync.md) and reach the assistant through entities and session
 notes, which it reads directly. The reference library is for published material
 that doesn't change.
 

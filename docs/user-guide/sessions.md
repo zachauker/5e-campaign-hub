@@ -1,45 +1,51 @@
 # Sessions
 
-Your session notes, pulled from Notion and wired into the rest of the campaign —
+Your session notes, read from your Obsidian vault and wired into the rest of the campaign —
 the places they happened, the pins on the maps, and the threads and clocks they
 moved.
 
 Open **Sessions** in the nav.
 
-This section is entirely fed by [Notion sync](notion-sync.md). Point the
-**Session Timeline** database at it and sync; until you do, the page will tell you
-so and nothing else.
+This section is entirely fed by [vault sync](vault-sync.md). Set the campaign folder
+in Settings and sync; until you do, the page will tell you so and nothing else.
+Notes of type `session`, `arc`, `encounter`, and `scene` land here.
 
 ---
 
 ## The list
 
-Notes are grouped by their Notion **Type**, in the order they're usually useful:
+Notes are grouped by their **type**, in the order they're usually useful:
 
 **Story Outline** · **Session Notes** · **Character Event** · **Combat Encounter**
-· **RP Encounter**
+· **RP Encounter** · **Exploration Encounter**
+
+The type comes from the note's `type:` — `arc` is a Story Outline, `session` is
+Session Notes, `scene` is a Character Event, and `encounter` is a Combat, RP, or
+Exploration Encounter by its `encounter_type`.
 
 Anything with a type you don't use, or none at all, collects under
 **Uncategorized**. Each row shows the note's status and date.
 
-Notes that vanished from Notion are archived rather than deleted — the count sits
+Notes that vanished from the vault are archived rather than deleted — the count sits
 at the top right — so a pin or a thread pointing at one never breaks.
 
 ---
 
 ## A note's page
 
-**The Notion page body**, rendered in full: headings, lists, callouts, toggles,
-tables. This is your actual prose, in the app, next to everything else.
+**The note body**, rendered in full: headings, lists, callouts, tables, images, and
+`[[wikilinks]]` that open the hub page they name. This is your actual prose, in the
+app, next to everything else.
 
-**Settings** — the locations this note is linked to, each a link through. Matched
-from the note's *Setting* property in Notion against your location names.
+**Settings** — the locations this note is linked to, each a link through. Taken
+from the note's `locations:` links, or, if it has none, matched from its `settings:`
+names against your location names.
 
 **Pinned on** — every map carrying a pin for this note, each jumping straight to
 that pin. See [event pins](maps.md#session-notes-on-the-map).
 
-**Notion properties** as a table, and a link back to the original page for when
-you want to edit rather than read.
+**Properties** from the note's frontmatter as a table, and an **Open in Obsidian**
+link for when you want to edit rather than read.
 
 ---
 
@@ -59,7 +65,7 @@ Full details in [Maps → Session notes on the map](maps.md#session-notes-on-the
 
 ## Session review
 
-The **Review session** button appears on any note with a linked Notion page. It
+The **Review session** button appears on any note with a linked vault note. It
 reads what you wrote and proposes updates to your campaign state:
 
 - **Open a thread** the session raised, already linked to the characters,
@@ -85,5 +91,5 @@ full walkthrough is in [Chronicle → Session review](chronicle.md#session-revie
 
 ## Editing
 
-Session notes are read-only here. They're Notion's, and the next sync would
-overwrite anything you changed. Write in Notion; read, link, pin, and review here.
+Session notes are read-only here. They're the vault's, and the next sync would
+overwrite anything you changed. Write in Obsidian; read, link, pin, and review here.

@@ -1,33 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { blocksToPlainText, hashContent } from "./content-hash";
-import type { NotionBlockData } from "@/lib/notion/client";
-
-const block = (type: string, text: string): NotionBlockData => ({
-  id: `${type}-${text.slice(0, 4)}`,
-  type,
-  richText: [{ text }],
-});
-
-describe("blocksToPlainText", () => {
-  it("joins block text with newlines", () => {
-    const out = blocksToPlainText([block("heading_1", "The Pentamarket"), block("paragraph", "Ovid ran.")]);
-    expect(out).toBe("The Pentamarket\nOvid ran.");
-  });
-
-  it("concatenates rich-text runs within one block", () => {
-    const out = blocksToPlainText([{ id: "b", type: "paragraph", richText: [{ text: "He " }, { text: "admitted it." }] }]);
-    expect(out).toBe("He admitted it.");
-  });
-
-  it("skips blocks with no text", () => {
-    const out = blocksToPlainText([block("paragraph", "kept"), { id: "d", type: "divider" }, { id: "i", type: "image", imageUrl: "x" }]);
-    expect(out).toBe("kept");
-  });
-
-  it("returns an empty string for no blocks", () => {
-    expect(blocksToPlainText([])).toBe("");
-  });
-});
+import { hashContent } from "./content-hash";
 
 describe("hashContent", () => {
   it("is stable for identical text", () => {

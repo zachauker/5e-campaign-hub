@@ -98,7 +98,7 @@ back on the default rather than freezing its current appearance.
 A busy map is worse than a sparse one. Three controls thin it out:
 
 **Layers** groups every pin on the map by what it is — locations split by city,
-town, POI, and region; events split by their Notion type; then characters,
+town, POI, and region; events split by their note type; then characters,
 factions, sub-maps, and notes — each with a count and a toggle. Only groups that
 actually have pins appear.
 

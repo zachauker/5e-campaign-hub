@@ -3,7 +3,7 @@ import {
   buildEncounterProposal,
   buildEntityProposal,
   buildMarkerProposal,
-  buildNotionSyncProposal,
+  buildVaultSyncProposal,
   assertHubAuthored,
   HUB_AUTHORED,
   assertCitation,
@@ -15,7 +15,7 @@ import {
 } from "./proposals";
 
 describe("assertHubAuthored", () => {
-  it("rejects Notion-synced fields", () => {
+  it("rejects vault-synced fields", () => {
     expect(() => assertHubAuthored("location", { name: "X", type: "city" })).toThrow(/not hub-authored: type/);
     expect(() => assertHubAuthored("item", { description: "shiny" })).toThrow(/not hub-authored: description/);
   });
@@ -52,24 +52,24 @@ describe("buildEntityProposal", () => {
 
 describe("HUB_AUTHORED allowlist", () => {
   it("never exposes sync-managed columns", () => {
-    expect(HUB_AUTHORED.character).not.toEqual(expect.arrayContaining(["type", "ddbCharacterId", "notionProps", "archived"]));
+    expect(HUB_AUTHORED.character).not.toEqual(expect.arrayContaining(["type", "ddbCharacterId", "sourceProps", "archived"]));
     expect(HUB_AUTHORED.location).not.toContain("type");
     expect(HUB_AUTHORED.item).not.toContain("description");
     for (const kind of ["character", "location", "item", "faction"] as const) {
-      expect(HUB_AUTHORED[kind]).not.toEqual(expect.arrayContaining(["notionProps", "notionPageId", "notionSyncedAt", "archived"]));
+      expect(HUB_AUTHORED[kind]).not.toEqual(expect.arrayContaining(["sourceProps", "sourceKey", "sourceSyncedAt", "archived"]));
     }
   });
 });
 
-describe("buildMarkerProposal + buildNotionSyncProposal", () => {
+describe("buildMarkerProposal + buildVaultSyncProposal", () => {
   it("marker -> POST /api/maps/{mapId}/markers", () => {
     const p = buildMarkerProposal({ mapId: "m1", x: 1, y: 2, type: "location", title: "Hideout" });
     expect(p).toMatchObject({ targetRoute: "/api/maps/m1/markers", method: "POST" });
     expect(p.payload).toMatchObject({ x: 1, y: 2, type: "location" });
   });
-  it("sync -> POST /api/notion/sync", () => {
-    const p = buildNotionSyncProposal("camp1");
-    expect(p).toMatchObject({ targetRoute: "/api/notion/sync", method: "POST", payload: { campaignId: "camp1" } });
+  it("sync -> POST /api/vault/sync", () => {
+    const p = buildVaultSyncProposal("camp1");
+    expect(p).toMatchObject({ targetRoute: "/api/vault/sync", method: "POST", payload: { campaignId: "camp1" } });
   });
 });
 

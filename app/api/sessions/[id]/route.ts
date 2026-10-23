@@ -36,9 +36,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     ...row,
     linkedLocations: linkedLocations.map((l) => ({ id: l.id, name: l.name, type: l.type })),
     mapMarkers: mapMarkersResolved,
-    notionProps: row.notionProps
-      ? (JSON.parse(row.notionProps) as Array<{ label: string; value: string }>)
-      : [],
     // The raw column is a JSON string; the page reads the decoded list.
     sourceProps: parseSourceProps(row.sourceProps),
   });
