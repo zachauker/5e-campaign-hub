@@ -73,6 +73,15 @@ describe("embedViewFor", () => {
     expect(embedViewFor("")).toBeNull();
     expect(embedViewFor("   ")).toBeNull();
   });
+
+  it.each(["constructor", "__proto__", "toString", "hasOwnProperty", " Constructor "])(
+    "does not resolve the Object.prototype key %j", (h) => { expect(embedViewFor(h)).toBeNull(); }
+  );
+  it("a prototype-key heading is safe to pass straight through to the renderer's null check", () => {
+    // The renderer calls resolveEmbed only for a non-null view; null means draw nothing.
+    expect(embedViewFor("constructor")).toBeNull();
+    expect(embedViewFor("__proto__")).toBeNull();
+  });
 });
 
 describe("resolveEmbed", () => {
@@ -238,12 +247,37 @@ describe("resolveEmbed", () => {
     ]);
   });
 
-  it("is scoped to the campaign", () => {
+  it("is scoped to the campaign: no view returns another campaign's rows", () => {
     const { db, campaignId } = createTestDb();
-    const loc = addLocation(db, campaignId, "Rexxentrum");
-    const npc = addCharacter(db, campaignId, "Vex", "npc");
+    // A second campaign in the same database, as a second vault folder would be.
+    const other = crypto.randomUUID();
+    db.$client.prepare("INSERT INTO campaigns (id, name, created_at) VALUES (?, ?, ?)")
+      .run(other, "Other Campaign", Math.floor(Date.now() / 1000));
+
+    // Host entities are shared by id; every listed row belongs to the OTHER campaign.
+    const loc = addLocation(db, campaignId, "Host Location");
+    const faction = addFaction(db, campaignId, "Host Faction");
+    const holder = addCharacter(db, campaignId, "Host Holder", "pc");
+
+    const npc = addCharacter(db, other, "Foreign NPC", "npc");
     db.insert(characterLocations).values({ characterId: npc, locationId: loc }).run();
-    expect(resolveEmbed(db, "some-other-campaign", "npcs-here", "location", loc).items).toEqual([]);
+    db.insert(characterFactions).values({ characterId: npc, factionId: faction }).run();
+    const item = addItem(db, other, "Foreign Item");
+    db.insert(characterItems).values({ characterId: holder, itemId: item }).run();
+    const session = addNote(db, other, "Foreign Session", "Session Notes", { date: "2026-01-01" });
+    const fight = addNote(db, other, "Foreign Fight", "Combat Encounter");
+    db.insert(sessionNoteLocations).values([session, fight].map((n) => ({ sessionNoteId: n, locationId: loc }))).run();
+    addLocation(db, other, "Foreign Child", { parent: loc });
+
+    const hosts: Array<[EmbedView, string, string]> = [
+      ["npcs-here", "location", loc], ["members", "faction", faction], ["items-held", "character", holder],
+      ["sessions-here", "location", loc], ["content-here", "location", loc], ["places-within", "location", loc],
+    ];
+    for (const [view, kind, host] of hosts) {
+      // Positive control: asked as the owning campaign, the row IS there.
+      expect(resolveEmbed(db, other, view, kind, host).items.length, `${view} as owner`).toBe(1);
+      expect(resolveEmbed(db, campaignId, view, kind, host).items, `${view} leaks`).toEqual([]);
+    }
   });
 
   it("returns an empty items array rather than throwing when nothing matches", () => {

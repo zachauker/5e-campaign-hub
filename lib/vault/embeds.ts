@@ -15,10 +15,13 @@ type Db = BetterSQLite3Database<Record<string, unknown>>;
 export type EmbedView =
   | "npcs-here" | "members" | "items-held" | "sessions-here" | "content-here" | "places-within";
 
+/** What a result row links to. Encounters and scenes are session_notes rows, so they are "session". */
+export type EmbedItemKind = "character" | "item" | "session" | "location";
+
 export interface EmbedResult {
   /** The list's heading: the canonical view name, regardless of how the DM typed it. */
   title: string;
-  items: Array<{ kind: string; id: string; name: string }>;
+  items: Array<{ kind: EmbedItemKind; id: string; name: string }>;
 }
 
 /** Heading (lowercased) -> view. Only the six answerable views appear here. */
@@ -39,7 +42,11 @@ const VIEW_BY_HEADING: Record<string, EmbedView> = {
  * null means "the renderer draws nothing", same as an unrecognised heading.
  */
 export function embedViewFor(heading: string): EmbedView | null {
-  return VIEW_BY_HEADING[heading.trim().toLowerCase()] ?? null;
+  // hasOwn, not a bare index: hand-typed headings like "constructor" or
+  // "__proto__" must not resolve through Object.prototype (same guard as
+  // tableForType in map.ts). A throw here would break the whole page render.
+  const key = heading.trim().toLowerCase();
+  return Object.hasOwn(VIEW_BY_HEADING, key) ? VIEW_BY_HEADING[key] : null;
 }
 
 /** Canonical heading and the one host kind each view is asked of. */
@@ -111,8 +118,19 @@ export function resolveEmbed(
     case "sessions-here":
     case "content-here": {
       // Both read session_note_locations; they differ only in which note_type
-      // labels they keep. content-here is an explicit allow-list, so a Session
-      // Notes row, a Story Outline (arc) row and an untyped row all stay out.
+      // labels they keep. content-here is an explicit allow-list on purpose, so
+      // Session Notes, Story Outline (arcs) and NULL note_type all stay out.
+      //
+      // The NULL gap: session_notes is dual-fed (the vault sync and the Notion
+      // sync), and the Notion sync can leave note_type blank or unrecognised.
+      // A deny-list ("anything but Session Notes / Story Outline") would admit
+      // every such Notion row linked to a location as "content", which is far
+      // likelier and plainly wrong. The accepted cost is the converse: an R20
+      // encounter whose encounter_type did not map to a label has a NULL
+      // note_type and is omitted. The proper fix, if that ever bites, is a
+      // source discriminator on the row, not a looser note_type filter. Once
+      // the Notion sync is removed the table becomes vault-only and this
+      // trade should be revisited.
       const typeFilter = view === "sessions-here"
         ? eq(sessionNotes.noteType, "Session Notes")
         : inArray(sessionNotes.noteType, CONTENT_NOTE_TYPES);
