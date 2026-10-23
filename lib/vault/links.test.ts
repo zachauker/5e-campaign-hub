@@ -51,6 +51,21 @@ describe("parseWikilink", () => {
     });
   });
 
+  it("resolves a path-qualified target on its last segment", () => {
+    expect(parseWikilink("[[Locations/Blackvein Quarry]]")).toEqual({
+      target: "Blackvein Quarry",
+      label: null,
+      heading: null,
+    });
+    expect(parseWikilink("[[D&D/Locations/Blackvein Quarry#Hooks|the quarry]]")).toEqual({
+      target: "Blackvein Quarry",
+      label: "the quarry",
+      heading: "Hooks",
+    });
+    expect(parseWikilink("[[Rexxentrum|a/b]]")?.target).toBe("Rexxentrum");
+    expect(parseWikilink("[[Locations/]]")).toBeNull();
+  });
+
   it("accepts a bare name", () => {
     expect(parseWikilink("Rexxentrum")).toEqual({
       target: "Rexxentrum",
@@ -263,17 +278,29 @@ describe("buildLinkIndex", () => {
     expect(buildLinkIndex([late, early]).resolve("Nym")).toBe(early);
   });
 
-  it("breaks a basename-versus-alias collision by sorted path, whichever claim it is", () => {
-    // Both claim "Bartlebee": one as its basename, one as an alias.
-    const aliasFirst = note("a/Bartlebee Aldermane.md", { aliases: ["Bartlebee"] });
-    const basenameLater = note("b/Bartlebee.md");
-    expect(buildLinkIndex([aliasFirst, basenameLater]).resolve("Bartlebee")).toBe(aliasFirst);
-    expect(buildLinkIndex([basenameLater, aliasFirst]).resolve("Bartlebee")).toBe(aliasFirst);
+  it("lets a real basename beat another note's alias, whatever the paths", () => {
+    // "z/X" is the real X; "a/Other" aliases X and sorts first by path.
+    const real = note("z/X.md");
+    const aliasing = note("a/Other.md", { aliases: ["X"] });
+    expect(buildLinkIndex([real, aliasing]).resolve("X")).toBe(real);
+    expect(buildLinkIndex([aliasing, real]).resolve("x")).toBe(real);
+  });
 
-    const basenameFirst = note("a/Bartlebee.md");
-    const aliasLater = note("b/Bartlebee Aldermane.md", { aliases: ["Bartlebee"] });
-    expect(buildLinkIndex([aliasLater, basenameFirst]).resolve("Bartlebee")).toBe(basenameFirst);
-    expect(buildLinkIndex([basenameFirst, aliasLater]).resolve("Bartlebee")).toBe(basenameFirst);
+  it("still resolves an alias when no basename claims the key", () => {
+    const real = note("z/X.md");
+    const aliasing = note("a/Other.md", { aliases: ["X", "Y"] });
+    const index = buildLinkIndex([real, aliasing]);
+    expect(index.resolve("Y")).toBe(aliasing);
+    expect(index.resolve("Other")).toBe(aliasing);
+  });
+
+  it("keeps the sorted-path tie-break among duplicate basenames even when an alias also claims the key", () => {
+    const first = note("a/X.md");
+    const second = note("b/X.md");
+    const aliasing = note("0/Other.md", { aliases: ["X"] });
+    for (const order of [[first, second, aliasing], [aliasing, second, first]]) {
+      expect(buildLinkIndex(order).resolve("X")).toBe(first);
+    }
   });
 
   it("indexes a note once under a key it claims twice", () => {

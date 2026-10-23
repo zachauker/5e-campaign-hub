@@ -14,7 +14,8 @@ export interface LinkIndex {
 /**
  * Parse one wikilink: `[[Name]]`, `[[Name|label]]`, `[[Name#heading]]`,
  * `[[Name#heading|label]]`, or the same without brackets (frontmatter often
- * omits them). Returns `null` when there is no target to link to.
+ * omits them). A path-qualified target keeps only its last segment. Returns
+ * `null` when there is no target to link to.
  *
  * The first `|` splits off the label, then the first `#` of what remains splits
  * the heading from the target, so a `#` inside a label stays part of the label.
@@ -38,7 +39,9 @@ export function parseWikilink(raw: string): ParsedWikilink | null {
     inner = inner.slice(0, hash);
   }
 
-  const target = inner.trim();
+  // A path-qualified link (`Locations/Blackvein Quarry`) resolves on its last
+  // segment, as Obsidian does in a vault with unique basenames.
+  const target = inner.slice(inner.lastIndexOf("/") + 1).trim();
   return target === "" ? null : { target, label, heading };
 }
 
@@ -70,20 +73,21 @@ function aliasesOf(note: VaultNote): string[] {
 }
 
 /**
- * Index notes by lowercased basename and by every alias. When several notes
- * claim the same key (duplicate basenames, a shared alias, or a basename that is
- * another note's alias) the note with the sorted-first `path` wins. Notes are
- * sorted by path before indexing, so the winner never depends on input order.
+ * Index notes by lowercased basename and by every alias. A basename always
+ * beats another note's alias (Obsidian's own precedence). Within each kind,
+ * when several notes claim the same key (duplicate basenames, or a shared
+ * alias) the note with the sorted-first `path` wins. Notes are sorted by path
+ * before indexing, so the winner never depends on input order.
  */
 export function buildLinkIndex(notes: VaultNote[]): LinkIndex {
   const sorted = [...notes].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   const byKey = new Map<string, VaultNote>();
-  for (const note of sorted) {
-    for (const name of [note.basename, ...aliasesOf(note)]) {
-      const k = key(name);
-      if (k !== "" && !byKey.has(k)) byKey.set(k, note);
-    }
-  }
+  const claim = (name: string, note: VaultNote): void => {
+    const k = key(name);
+    if (k !== "" && !byKey.has(k)) byKey.set(k, note);
+  };
+  for (const note of sorted) claim(note.basename, note);
+  for (const note of sorted) for (const alias of aliasesOf(note)) claim(alias, note);
   return {
     resolve(target: string): VaultNote | undefined {
       return byKey.get(key(target));
