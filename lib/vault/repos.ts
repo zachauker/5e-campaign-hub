@@ -54,12 +54,20 @@ function differs(row: Record<string, unknown>, m: MappedEntity): boolean {
   return false;
 }
 
+/**
+ * Build the repo for one table. LIFETIME: one repo per sync run. It owns the
+ * run's `claims` map (which note wrote each row), so create it inside the run
+ * function and drop it afterwards; never keep one at module scope or reuse it
+ * across ticks, or a note whose path sorts higher than before is mistaken for a
+ * collision with its own earlier write and its edits are silently dropped.
+ */
 export function makeEntityRepo(db: Db, table: SyncTable, campaignId: string): EntityRepo {
   const t = table as unknown as typeof characters; // shared columns; safe for base ops
   const toRow = (r: typeof characters.$inferSelect): EntityRow =>
     ({ id: r.id, name: r.name, sourceKey: r.sourceKey, archived: Boolean(r.archived) });
 
   return {
+    claims: new Map<string, string>(),
     findByKey(key: string): EntityRow | undefined {
       // Ordered so a (never expected) duplicate key resolves the same way every run.
       const r = db.select().from(t)

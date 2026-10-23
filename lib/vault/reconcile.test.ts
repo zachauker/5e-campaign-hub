@@ -61,8 +61,9 @@ describe("reconcileEntity", () => {
   });
 
   it("updates a row whose key matches and whose fields changed", () => {
-    const first = reconcileEntity(repo, mapped("Veldros", "k1"), ["k1"]);
-    const r = reconcileEntity(repo, mapped("Veldros the Honest", "k1"), ["k1"]);
+    // The same note (same path) renamed in place, so this is an edit, not a collision.
+    const first = reconcileEntity(repo, mapped("Veldros", "k1", { sourcePath: "Campaign/Veldros.md" }), ["k1"]);
+    const r = reconcileEntity(repo, mapped("Veldros the Honest", "k1", { sourcePath: "Campaign/Veldros.md" }), ["k1"]);
     expect(r).toEqual({ action: "updated", id: first.id });
     expect(repo.rows).toHaveLength(1);
     expect(repo.rows[0].name).toBe("Veldros the Honest");
@@ -123,8 +124,7 @@ describe("reconcileEntity", () => {
     expect(repo.rows.find((x) => x.id === "low")!.sourceKey).toBe("Quarry");
   });
 
-  it("does not adopt by name once candidates have missed but a linked row owns the name", () => {
-    // Nothing matches any candidate and the same-named row is unlinked: name adoption still works.
+  it("falls back to name adoption of an unlinked row when no candidate key matches", () => {
     repo.rows.push({ id: "legacy", name: "Quarry", sourceKey: null, archived: false, sourcePath: null, sourceHash: null });
     const r = reconcileEntity(repo, mapped("Quarry", "abc"), ["abc", "Quarry"]);
     expect(r).toEqual({ action: "adopted", id: "legacy" });
@@ -159,6 +159,31 @@ describe("reconcileEntity", () => {
       expect(ab[0]).toMatchObject({ id: "existing", name: "Alpha" });
     });
 
+    it("flags the collision exactly once, whichever order the notes arrive in", () => {
+      const results = (order: MappedEntity[]) => {
+        const r = fakeRepo();
+        return order.map((m) => reconcileEntity(r, m, [m.sourceKey]));
+      };
+      // Winner first: the loser is skipped and flagged.
+      const [w1, l1] = results([a, b]);
+      expect(w1.collision).toBeUndefined();
+      expect(l1).toMatchObject({ action: "unchanged", collision: true });
+      expect(l1.id).toBe(w1.id);
+      // Loser first: the winner displaces it and is the one flagged.
+      const [l2, w2] = results([b, a]);
+      expect(l2.collision).toBeUndefined();
+      expect(w2).toMatchObject({ action: "updated", collision: true });
+      expect(w2.id).toBe(l2.id);
+    });
+
+    it("does not flag an ordinary re-sync of one note", () => {
+      const r = fakeRepo();
+      reconcileEntity(r, a, ["K"]);
+      const again = reconcileEntity(r, a, ["K"]);
+      expect(again).toEqual({ action: "unchanged", id: again.id });
+      expect(again.collision).toBeUndefined();
+    });
+
     it("lets a note that was renamed to a higher path update its own row on a later run", () => {
       // The claim scope is one repo instance (one sync run); a fresh repo is a fresh run.
       const next = fakeRepo();
@@ -177,6 +202,34 @@ describe("reconcileEntity", () => {
       expect(second.action).toBe("created");
       expect(second.id).not.toBe(first.id);
       expect(r.rows.map((x) => x.sourceKey).sort()).toEqual(["Quarry", "hub1"]);
+    });
+
+    it("promoter first: a hub_id note adopts the legacy row, then the basename note gets its own row", () => {
+      const r = fakeRepo();
+      r.rows.push({ id: "legacy", name: "Quarry", sourceKey: "Quarry", archived: false, sourcePath: null, sourceHash: null });
+      const hubNote = mapped("Quarry", "hub1", { sourcePath: "a/Quarry.md" });
+      const basenameNote = mapped("Quarry", "Quarry", { sourcePath: "b/Quarry.md" });
+
+      expect(reconcileEntity(r, hubNote, ["hub1", "Quarry"])).toEqual({ action: "adopted", id: "legacy" });
+      const second = reconcileEntity(r, basenameNote, ["Quarry"]);
+      expect(second.action).toBe("created");
+      expect(second.id).not.toBe("legacy");
+      expect(r.rows.find((x) => x.id === "legacy")!.sourceKey).toBe("hub1");
+      expect(r.rows.map((x) => x.sourceKey).sort()).toEqual(["Quarry", "hub1"]);
+    });
+
+    it("two promoters competing for one legacy row: the second skips it and creates", () => {
+      const r = fakeRepo();
+      r.rows.push({ id: "legacy", name: "Quarry", sourceKey: "Quarry", archived: false, sourcePath: null, sourceHash: null });
+      const p1 = mapped("Quarry", "hub1", { sourcePath: "a/Quarry.md" });
+      const p2 = mapped("Quarry", "hub2", { sourcePath: "b/Quarry.md" });
+
+      expect(reconcileEntity(r, p1, ["hub1", "Quarry"])).toEqual({ action: "adopted", id: "legacy" });
+      const second = reconcileEntity(r, p2, ["hub2", "Quarry"]);
+      expect(second.action).toBe("created");
+      expect(second.id).not.toBe("legacy");
+      expect(r.rows.find((x) => x.id === "legacy")!.sourceKey).toBe("hub1"); // not re-pointed to hub2
+      expect(r.rows.map((x) => x.sourceKey).sort()).toEqual(["hub1", "hub2"]);
     });
   });
 });

@@ -7,11 +7,21 @@ export interface EntityRow {
   archived: boolean;
 }
 
+/**
+ * LIFETIME: a repo belongs to exactly one sync run. Build a fresh one per run
+ * (inside the run function, never at module scope). It carries `claims`, the
+ * record of which note wrote each row this run; `reconcileEntity` uses it to
+ * settle two notes resolving to the same key by path. A repo reused across
+ * runs would read a note whose path now sorts higher as colliding with its own
+ * earlier write, and silently drop every edit to that note from then on.
+ */
 export interface EntityRepo {
   findByKey(key: string): EntityRow | undefined;
   findByNameUnlinked(name: string): EntityRow | undefined;
   insert(m: MappedEntity): string;             // returns new id
   update(id: string, m: MappedEntity): boolean; // returns whether a synced field changed; rewrites source_key to m.sourceKey
+  /** Row id -> source path of the note that wrote it this run. Created on first use if absent. */
+  claims?: Map<string, string>;
 }
 
 export type ReconcileAction = "created" | "adopted" | "updated" | "unchanged";
@@ -19,25 +29,12 @@ export type ReconcileAction = "created" | "adopted" | "updated" | "unchanged";
 export interface ReconcileResult {
   action: ReconcileAction;
   id: string;
-}
-
-/**
- * Which note (by path) has written each row through a given repo. A repo is
- * built once per sync run, so this is the "already written this run" record
- * that lets two notes resolving to the same key be settled by path instead of
- * by arrival order. Keyed on the repo so it dies with the run's repo: callers
- * must build a fresh repo per sync run, or a note moved to a higher path would
- * be mistaken for a collision with its own earlier write.
- */
-const claimsByRepo = new WeakMap<EntityRepo, Map<string, string>>();
-
-function claimsFor(repo: EntityRepo): Map<string, string> {
-  let claims = claimsByRepo.get(repo);
-  if (!claims) {
-    claims = new Map();
-    claimsByRepo.set(repo, claims);
-  }
-  return claims;
+  /**
+   * Set when this note and another resolved to the same `source_key` this run.
+   * The lowest path owns the row (whichever order they arrive in), so the caller
+   * should warn once that the loser's content is not being synced.
+   */
+  collision?: true;
 }
 
 /**
@@ -55,11 +52,11 @@ function claimsFor(repo: EntityRepo): Map<string, string> {
  *
  * Two notes resolving to the same key are settled by source path — the lowest
  * path wins and the other leaves the row alone — so the surviving row does not
- * depend on which note was processed first. A promotion never takes a row that
+ * depend on which note was processed first. The result is flagged `collision`. A promotion never takes a row that
  * another note has already written this run.
  */
 export function reconcileEntity(repo: EntityRepo, m: MappedEntity, candidates: string[]): ReconcileResult {
-  const claims = claimsFor(repo);
+  const claims = (repo.claims ??= new Map<string, string>());
   const claimedByOther = (id: string) => {
     const holder = claims.get(id);
     return holder !== undefined && holder !== m.sourcePath;
@@ -67,13 +64,17 @@ export function reconcileEntity(repo: EntityRepo, m: MappedEntity, candidates: s
 
   const linked = repo.findByKey(m.sourceKey);
   if (linked) {
-    // Same-key collision: a lower path already wrote this row, so it keeps it.
-    if (claimedByOther(linked.id) && claims.get(linked.id)! < m.sourcePath) {
-      return { action: "unchanged", id: linked.id };
+    // Same-key collision: another note already wrote this row this run. The
+    // lowest path owns it, whichever arrives first; either way it is reported.
+    const collided = claimedByOther(linked.id);
+    if (collided && claims.get(linked.id)! < m.sourcePath) {
+      return { action: "unchanged", id: linked.id, collision: true };
     }
     claims.set(linked.id, m.sourcePath);
     const changed = repo.update(linked.id, m);
-    return { action: changed ? "updated" : "unchanged", id: linked.id };
+    return collided
+      ? { action: changed ? "updated" : "unchanged", id: linked.id, collision: true }
+      : { action: changed ? "updated" : "unchanged", id: linked.id };
   }
 
   for (const key of candidates) {

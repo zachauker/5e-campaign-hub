@@ -211,6 +211,20 @@ describe("makeEntityRepo", () => {
     expect(db.select().from(items).where(eq(items.id, r.id)).get()!.updatedAt.getTime()).toBeGreaterThan(old.getTime());
   });
 
+  it("owns its claim map: a repo carries its own, and the same-key loser is flagged against the real database", () => {
+    const { db, campaignId } = createTestDb();
+    const one = makeEntityRepo(db, locations, campaignId);
+    expect(one.claims).toBeInstanceOf(Map);
+    expect(makeEntityRepo(db, locations, campaignId).claims).not.toBe(one.claims);
+
+    const a = m({ name: "Alpha", sourceKey: "K", sourcePath: "a/Dup.md" });
+    const b = m({ name: "Beta", sourceKey: "K", sourcePath: "b/Dup.md" });
+    const first = reconcile(one, a);
+    const loser = reconcile(one, b);
+    expect(loser).toEqual({ action: "unchanged", id: first.id, collision: true });
+    expect(one.claims!.get(first.id)).toBe("a/Dup.md");
+  });
+
   it("is order-independent for two notes sharing a key, against the real database", () => {
     const a = m({ name: "Alpha", sourceKey: "K", sourcePath: "a/Dup.md", sourceHash: "ha" });
     const b = m({ name: "Beta", sourceKey: "K", sourcePath: "b/Dup.md", sourceHash: "hb" });
