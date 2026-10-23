@@ -11,6 +11,7 @@ import {
 } from "@/lib/db/schema";
 import { eq, inArray, and } from "drizzle-orm";
 import { syncEntityToIndex } from "@/lib/run/index-sync";
+import { parseSourceProps } from "@/lib/vault/props";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -62,6 +63,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     notionProps: row.notionProps
       ? (JSON.parse(row.notionProps) as Array<{ label: string; value: string }>)
       : [],
+    // The raw column is a JSON string; the page reads the decoded list.
+    sourceProps: parseSourceProps(row.sourceProps),
   });
 }
 

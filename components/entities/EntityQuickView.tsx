@@ -4,7 +4,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { Loader2, ArrowUpRight, Pencil, MapPin, Users, Package, Flag, type LucideIcon } from "lucide-react";
-import { NotionPropsTable } from "@/components/glossary/NotionPropsTable";
+import { PropsTable } from "@/components/glossary/PropsTable";
 import { RelatedCard } from "@/components/glossary/RelatedCard";
 import {
   buildEntityQuickView,
@@ -85,7 +85,7 @@ export function EntityQuickViewSections({ model }: { model: EntityQuickViewModel
 
       {model.props.length > 0 && (
         <div className="mt-3">
-          <NotionPropsTable props={model.props} />
+          <PropsTable props={model.props} />
         </div>
       )}
 

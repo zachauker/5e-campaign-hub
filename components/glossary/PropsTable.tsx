@@ -1,8 +1,10 @@
 import React from "react";
 
-export type NotionProp = { label: string; value: string };
+import type { PropEntry } from "@/lib/vault/map";
 
-export function NotionPropsTable({ props }: { props: NotionProp[] }) {
+export type { PropEntry };
+
+export function PropsTable({ props }: { props: PropEntry[] }) {
   if (!props || props.length === 0) return null;
   return (
     <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1.5 text-sm">

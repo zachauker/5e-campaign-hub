@@ -8,7 +8,7 @@ describe("buildEntityQuickView", () => {
       name: "Emon",
       description: "Capital of Tal'Dorei.",
       type: "city",
-      notionProps: [{ label: "Region", value: "Tal'Dorei" }],
+      sourceProps: [{ label: "Region", value: "Tal'Dorei" }],
       linkedCharacters: [{ id: "c1", name: "Vex", type: "pc" }],
     });
     expect(m.name).toBe("Emon");
@@ -47,7 +47,7 @@ describe("buildEntityQuickView", () => {
 
   it("caps props at PROP_LIMIT", () => {
     const props = Array.from({ length: PROP_LIMIT + 3 }, (_, i) => ({ label: `L${i}`, value: `V${i}` }));
-    const m = buildEntityQuickView("items", { id: "i1", name: "Cloak", notionProps: props });
+    const m = buildEntityQuickView("items", { id: "i1", name: "Cloak", sourceProps: props });
     expect(m.props).toHaveLength(PROP_LIMIT);
     expect(m.props[0]).toEqual({ label: "L0", value: "V0" });
   });

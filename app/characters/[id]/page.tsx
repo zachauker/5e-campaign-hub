@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ArrowLeft, Pencil, Trash2, Loader2, Map as MapIcon, UserRound } from "lucide-react";
-import { NotionBlocks } from "@/components/glossary/NotionBlocks";
-import { NotionPropsTable } from "@/components/glossary/NotionPropsTable";
+import { MarkdownBlocks } from "@/components/glossary/MarkdownBlocks";
+import { PropsTable } from "@/components/glossary/PropsTable";
 import { RelatedCard } from "@/components/glossary/RelatedCard";
 import { StatBlock } from "@/components/tracker/StatBlock";
 import { CharacterFormDialog, type CharacterWithLinks } from "@/components/entities/CharacterFormDialog";
@@ -19,7 +19,9 @@ import { useCampaignStore } from "@/lib/store/campaign-store";
 import { useRunStore } from "@/lib/store/run-store";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ddbCharacterToStatBlock } from "@/lib/ddb/client";
-import type { NotionBlockData } from "@/lib/notion/client";
+import { useVaultName } from "@/lib/hooks/useVaultName";
+import { useVaultPage } from "@/lib/hooks/useVaultPage";
+import { obsidianUri } from "@/lib/vault/paths";
 import type { StatBlock as StatBlockType, DDBCharacter } from "@/lib/types";
 
 interface RelatedEntity {
@@ -41,9 +43,8 @@ export default function CharacterDetailPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [hasThreadContent, setHasThreadContent] = useState(false);
 
-  const [notionBlocks, setNotionBlocks] = useState<NotionBlockData[] | null>(null);
-  const [notionError, setNotionError] = useState<string | null>(null);
-  const [notionLoading, setNotionLoading] = useState(false);
+  const vaultName = useVaultName();
+  const { page, error: pageError, loading: pageLoading } = useVaultPage(character?.sourcePath);
 
   const [ddbCharacter, setDdbCharacter] = useState<DDBCharacter | null>(null);
   const [ddbError, setDdbError] = useState<string | null>(null);
@@ -141,31 +142,6 @@ export default function CharacterDetailPage() {
       cancelled = true;
     };
   }, [id]);
-
-  useEffect(() => {
-    if (!character?.notionUrl) return;
-    let cancelled = false;
-    async function run(url: string) {
-      setNotionLoading(true);
-      setNotionError(null);
-      setNotionBlocks(null);
-      try {
-        const r = await fetch(`/api/notion/page?url=${encodeURIComponent(url)}`);
-        const data = await r.json();
-        if (cancelled) return;
-        if (data.error) setNotionError(data.error);
-        else setNotionBlocks(data.blocks);
-      } catch {
-        if (!cancelled) setNotionError("Failed to fetch Notion page");
-      } finally {
-        if (!cancelled) setNotionLoading(false);
-      }
-    }
-    run(character.notionUrl);
-    return () => {
-      cancelled = true;
-    };
-  }, [character?.notionUrl]);
 
   useEffect(() => {
     if (!character?.ddbCharacterId) return;
@@ -321,7 +297,7 @@ export default function CharacterDetailPage() {
       <Tabs defaultValue="overview" className="mt-6">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="notion">Notion Notes</TabsTrigger>
+          <TabsTrigger value="note">Vault Note</TabsTrigger>
           <TabsTrigger value="ddb">D&D Beyond</TabsTrigger>
         </TabsList>
 
@@ -350,10 +326,10 @@ export default function CharacterDetailPage() {
             </p>
           )}
 
-          {character.notionProps && character.notionProps.length > 0 && (
+          {character.sourceProps && character.sourceProps.length > 0 && (
             <div className="space-y-2">
-              <h3 className="font-display text-lg">Notion properties</h3>
-              <NotionPropsTable props={character.notionProps} />
+              <h3 className="font-display text-lg">Properties</h3>
+              <PropsTable props={character.sourceProps} />
             </div>
           )}
 
@@ -409,27 +385,25 @@ export default function CharacterDetailPage() {
             )}
         </TabsContent>
 
-        <TabsContent value="notion" className="pt-4">
-          {!character.notionUrl && (
-            <p className="text-sm text-muted-foreground">No Notion page linked. Add one via Edit.</p>
+        <TabsContent value="note" className="pt-4">
+          {!character.sourcePath && (
+            <p className="text-sm text-muted-foreground">No vault note linked.</p>
           )}
-          {character.notionUrl && notionLoading && (
+          {character.sourcePath && pageLoading && (
             <div className="flex items-center gap-2 text-muted-foreground text-sm">
-              <Loader2 className="w-4 h-4 animate-spin" /> Loading Notion page...
+              <Loader2 className="w-4 h-4 animate-spin" /> Loading note...
             </div>
           )}
-          {character.notionUrl && notionError && <p className="text-sm text-destructive">{notionError}</p>}
-          {character.notionUrl && notionBlocks && (
+          {character.sourcePath && pageError && <p className="text-sm text-destructive">{pageError}</p>}
+          {character.sourcePath && page && (
             <div className="space-y-3">
               <a
-                href={character.notionUrl}
-                target="_blank"
-                rel="noreferrer"
+                href={obsidianUri(vaultName, character.sourcePath)}
                 className="text-xs text-primary hover:underline"
               >
-                View in Notion ↗
+                Open in Obsidian ↗
               </a>
-              <NotionBlocks blocks={notionBlocks} />
+              <MarkdownBlocks blocks={page.blocks} embeds={page.embeds} />
             </div>
           )}
         </TabsContent>

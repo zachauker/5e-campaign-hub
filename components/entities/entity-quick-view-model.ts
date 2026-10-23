@@ -1,6 +1,6 @@
 export type EntityResourcePath = "characters" | "locations" | "items" | "factions";
 
-/** Max number of Notion props exposed in the quick-view model before truncation. */
+/** Max number of note properties exposed in the quick-view model before truncation. */
 export const PROP_LIMIT = 4;
 
 export interface RelatedItem {
@@ -32,7 +32,7 @@ export interface EntityDetailResponse {
   description?: string | null;
   type?: string | null;
   notionUrl?: string | null;
-  notionProps?: { label: string; value: string }[];
+  sourceProps?: { label: string; value: string }[];
   // Simple entities (locations/items/factions):
   linkedCharacters?: { id: string; name: string; type: string }[];
   // Characters:
@@ -102,7 +102,7 @@ export function buildEntityQuickView(
     name: raw.name,
     typeLabel: resolveTypeLabel(resourcePath, raw.type),
     description: raw.description ?? null,
-    props: (raw.notionProps ?? []).slice(0, PROP_LIMIT),
+    props: (raw.sourceProps ?? []).slice(0, PROP_LIMIT),
     related: buildRelated(resourcePath, raw),
     fullHref: `/${resourcePath}/${raw.id}`,
   };

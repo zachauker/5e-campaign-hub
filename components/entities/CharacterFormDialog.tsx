@@ -13,12 +13,14 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import type { Character, Faction, Location, Item } from "@/lib/db/schema";
 
-export type CharacterWithLinks = Character & {
+// The detail route returns `sourceProps` decoded, not as the raw JSON column.
+export type CharacterWithLinks = Omit<Character, "sourceProps"> & {
   factionIds: string[];
   locationIds: string[];
   itemIds: string[];
   mapMarkers: { mapId: string; mapName: string; markerId: string; renderMode: "static" | "tiled" | "world" }[];
   notionProps?: { label: string; value: string }[];
+  sourceProps?: { label: string; value: string }[];
 };
 
 interface CharacterFormDialogProps {

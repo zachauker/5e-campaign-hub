@@ -4,57 +4,53 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { Loader2, ExternalLink } from "lucide-react";
-import { NotionBlocks } from "@/components/glossary/NotionBlocks";
+import { MarkdownBlocks } from "@/components/glossary/MarkdownBlocks";
 import type { ResolvedMarker } from "@/components/maps/map-types";
-import type { NotionBlockData } from "@/lib/notion/client";
+import { useVaultName } from "@/lib/hooks/useVaultName";
+import { useVaultPage } from "@/lib/hooks/useVaultPage";
+import { obsidianUri } from "@/lib/vault/paths";
 
 interface NoteDetail {
   id: string;
   name: string;
-  notionUrl: string | null;
+  sourcePath: string | null;
   linkedLocations: { id: string; name: string }[];
-  notionProps: { label: string; value: string }[];
 }
 
-/** Body for an event (session-note) pin: linked settings, the Notion page body,
- *  and a "View in Notion" link. Fetched on open. Rendered inside MarkerSlideOver. */
+/** Body for an event (session-note) pin: linked settings, the vault note body,
+ *  and an "Open in Obsidian" link. Fetched on open. Rendered inside MarkerSlideOver. */
 export function EventNoteBody({ marker }: { marker: ResolvedMarker }) {
   const [detail, setDetail] = useState<NoteDetail | null>(null);
-  const [blocks, setBlocks] = useState<NotionBlockData[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [detailLoading, setDetailLoading] = useState(true);
+  const vaultName = useVaultName();
+  const { page, error: pageError, loading: pageLoading } = useVaultPage(detail?.sourcePath);
+  const error = detailError ?? pageError;
+  const loading = detailLoading || pageLoading;
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       if (!marker.entityId) {
         if (!cancelled) {
-          setLoading(false);
-          setError("Session note not found.");
+          setDetailLoading(false);
+          setDetailError("Session note not found.");
         }
         return;
       }
-      setLoading(true);
-      setError(null);
-      setBlocks(null);
+      setDetailLoading(true);
+      setDetailError(null);
+      setDetail(null);
       try {
         const res = await fetch(`/api/sessions/${marker.entityId}`);
         if (!res.ok) {
-          if (!cancelled) setError("Session note not found.");
+          if (!cancelled) setDetailError("Session note not found.");
           return;
         }
         const d: NoteDetail = await res.json();
-        if (cancelled) return;
-        setDetail(d);
-        if (d.notionUrl) {
-          const pageRes = await fetch(`/api/notion/page?url=${encodeURIComponent(d.notionUrl)}`);
-          const pageData = await pageRes.json();
-          if (cancelled) return;
-          if (pageRes.ok) setBlocks(pageData.blocks);
-          else setError(pageData.error ?? null);
-        }
+        if (!cancelled) setDetail(d);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setDetailLoading(false);
       }
     })();
     return () => {
@@ -77,21 +73,19 @@ export function EventNoteBody({ marker }: { marker: ResolvedMarker }) {
           ))}
         </div>
       )}
-      {detail?.notionUrl && (
+      {detail?.sourcePath && (
         <a
-          href={detail.notionUrl}
-          target="_blank"
-          rel="noreferrer"
+          href={obsidianUri(vaultName, detail.sourcePath)}
           className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
         >
-          View in Notion <ExternalLink className="w-3 h-3" />
+          Open in Obsidian <ExternalLink className="w-3 h-3" />
         </a>
       )}
       {loading && <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />}
       {error && <p className="text-sm text-muted-foreground">{error}</p>}
-      {blocks && <NotionBlocks blocks={blocks} />}
-      {!loading && !error && !blocks && detail && !detail.notionUrl && (
-        <p className="text-sm text-muted-foreground">No Notion page linked.</p>
+      {page && <MarkdownBlocks blocks={page.blocks} embeds={page.embeds} />}
+      {!loading && !error && !page && detail && !detail.sourcePath && (
+        <p className="text-sm text-muted-foreground">No vault note linked.</p>
       )}
     </div>
   );

@@ -21,7 +21,7 @@ export interface BriefingCardData {
 interface BriefingCardProps {
   name: string;
   briefing: BriefingCardData | null;
-  /** Shown when there is no briefing: description, notionProps summary, thread titles. */
+  /** Shown when there is no briefing: description, sourceProps summary, thread titles. */
   fallback: { description: string | null; threads: string[] };
   stale: boolean;
   pinned: boolean;
