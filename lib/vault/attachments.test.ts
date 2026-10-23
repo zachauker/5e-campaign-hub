@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -8,6 +8,8 @@ import {
   AttachmentPathError,
   AttachmentWidthError,
   MAX_ATTACHMENT_WIDTH,
+  MAX_CONCURRENT_RESIZES,
+  MIN_ATTACHMENT_WIDTH,
   assertInsideVault,
   locateAttachment,
   parseWidth,
@@ -74,7 +76,12 @@ describe("resolveAttachment", () => {
   });
 
   it("returns null when the vault root itself does not exist", () => {
-    expect(resolveAttachment(path.join(tmpDir(), "gone"), "a.png")).toBeNull();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      expect(resolveAttachment(path.join(tmpDir(), "gone"), "a.png")).toBeNull();
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it("returns null for a disallowed extension even when the file exists", () => {
@@ -165,6 +172,20 @@ describe("resolveAttachment", () => {
       expect(resolveAttachment(root, "._Hero.png")).toBeNull();
     });
 
+    it("warns, and keeps searching, when a directory cannot be read", () => {
+      if (process.getuid?.() === 0) return; // root ignores mode bits
+      const root = vault({ "open/Found.png": "x", "locked/inner.png": "x" });
+      fs.chmodSync(path.join(root, "locked"), 0o000);
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        expect(resolveAttachment(root, "Found.png")).not.toBeNull();
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining("locked"));
+      } finally {
+        warn.mockRestore();
+        fs.chmodSync(path.join(root, "locked"), 0o755);
+      }
+    });
+
     it("does not descend into a symlinked directory", () => {
       const outer = tmpDir();
       const elsewhere = path.join(outer, "elsewhere");
@@ -244,7 +265,7 @@ describe("assertInsideVault", () => {
     expect(() => assertInsideVault(root, path.join(sibling, "a.png"))).toThrow(AttachmentPathError);
   });
 
-  it("accepts a file whose name merely begins with two dots", () => {
+  it("accepts a file whose name merely begins with two dots (called directly; the resolver never yields one)", () => {
     const root = vault({ "..weird.png": "x" });
     expect(() => assertInsideVault(root, path.join(root, "..weird.png"))).not.toThrow();
   });
@@ -310,6 +331,21 @@ describe("locateAttachment", () => {
     expect(locateAttachment(vault({ "a.png": "x" }), "nope.png")).toBeNull();
   });
 
+  it("returns null for an in-vault symlink whose name is an image but whose real file is not", () => {
+    // `x.png -> Notes/secret.md` is genuinely inside the vault, so containment
+    // passes; the content-type lookup on the post-realpath extension is the
+    // only thing that stops a note being served as image/png.
+    const root = vault({ "Notes/secret.md": "# not an image", "Notes/data.json": "{}" });
+    fs.mkdirSync(path.join(root, "_Attachments"));
+    fs.symlinkSync(path.join(root, "Notes/secret.md"), path.join(root, "_Attachments/x.png"));
+    fs.symlinkSync(path.join(root, "Notes/data.json"), path.join(root, "_Attachments/y.svg"));
+
+    expect(resolveAttachment(root, "x.png")).toBe(fs.realpathSync(path.join(root, "Notes/secret.md")));
+    expect(() => assertInsideVault(root, resolveAttachment(root, "x.png")!)).not.toThrow();
+    expect(locateAttachment(root, "x.png")).toBeNull();
+    expect(locateAttachment(root, "y.svg")).toBeNull();
+  });
+
   it("throws AttachmentPathError when the only match is a symlink out of the vault", () => {
     const outer = tmpDir();
     const secret = path.join(outer, "secret.png");
@@ -333,8 +369,8 @@ describe("parseWidth", () => {
 
   it("clamps an oversized width to the maximum and a tiny one to the minimum", () => {
     expect(parseWidth("99999999")).toBe(MAX_ATTACHMENT_WIDTH);
-    expect(parseWidth("1")).toBeGreaterThan(1);
-    expect(parseWidth("1")).toBeLessThanOrEqual(64);
+    expect(parseWidth("1")).toBe(MIN_ATTACHMENT_WIDTH);
+    expect(MIN_ATTACHMENT_WIDTH).toBe(16);
   });
 
   it("rejects values that are not a plain positive integer", () => {
@@ -361,6 +397,32 @@ describe("renderResized", () => {
     const meta = await sharp(out).metadata();
     expect(meta.format).toBe("gif");
     expect(meta.width).toBe(100);
+  });
+
+  it("refuses a source larger than the input pixel limit", async () => {
+    const root = vault({});
+    fs.writeFileSync(path.join(root, "big.png"), await png(300, 300)); // 90,000 px
+    await expect(renderResized(path.join(root, "big.png"), 100, 10_000)).rejects.toThrow(/pixel/i);
+    await expect(renderResized(path.join(root, "big.png"), 100, 90_000)).resolves.toBeInstanceOf(Buffer);
+  });
+
+  it("completes many simultaneous resizes while holding to the concurrency bound", async () => {
+    const root = vault({});
+    fs.writeFileSync(path.join(root, "a.png"), await png(800));
+    const jobs = Array.from({ length: MAX_CONCURRENT_RESIZES * 4 }, () => renderResized(path.join(root, "a.png"), 100));
+    const outs = await Promise.all(jobs);
+    expect(outs).toHaveLength(MAX_CONCURRENT_RESIZES * 4);
+    for (const out of outs) expect((await sharp(out).metadata()).width).toBe(100);
+  });
+
+  it("a failed resize releases its slot", async () => {
+    const root = vault({ "bad.png": "not a png" });
+    const bad = Array.from({ length: MAX_CONCURRENT_RESIZES * 2 }, () =>
+      renderResized(path.join(root, "bad.png"), 100).catch(() => "failed"),
+    );
+    expect(await Promise.all(bad)).toEqual(Array(MAX_CONCURRENT_RESIZES * 2).fill("failed"));
+    fs.writeFileSync(path.join(root, "ok.png"), await png(300));
+    await expect(renderResized(path.join(root, "ok.png"), 100)).resolves.toBeInstanceOf(Buffer);
   });
 
   it("never upscales past the source width", async () => {

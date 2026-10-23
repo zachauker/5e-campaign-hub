@@ -20,13 +20,34 @@ const CONTENT_TYPES: Record<string, string> = {
 };
 
 /**
- * Resize bounds for `?w=`. The vault's attachments are character art and
- * screenshots up to tens of MB, so an unclamped, caller-chosen width is a free
- * CPU and memory dial even on a LAN-only app. 2048 covers a full-width view on
- * a hi-dpi laptop; `withoutEnlargement` means a smaller source is never scaled up.
+ * Resize bounds for `?w=`. The clamp bounds the *output* only: it stops a caller
+ * asking for an enormous encode, but every request still decodes the source at
+ * full resolution before shrinking it (`?w=16` on the biggest PNG pays the same
+ * decode as `?w=2048`). The decode is bounded separately, by
+ * `MAX_INPUT_PIXELS` per image and `MAX_CONCURRENT_RESIZES` at once. 2048
+ * covers a full-width view on a hi-dpi laptop; `withoutEnlargement` means a
+ * smaller source is never scaled up.
  */
 export const MAX_ATTACHMENT_WIDTH = 2048;
 export const MIN_ATTACHMENT_WIDTH = 16;
+
+/**
+ * Largest source image (width x height) the resizer will decode. The real
+ * vault is 22 files / 64 MB of character art and screenshots, so the largest
+ * is on the order of 10-20 MB of PNG, i.e. well under 50 megapixels; 100 MP
+ * (10000x10000) leaves roughly 2x headroom while capping a single decode near
+ * 400 MB of RGBA instead of sharp's ~268 MP / ~1 GB default. Raise it if the DM
+ * adds genuinely larger art.
+ */
+export const MAX_INPUT_PIXELS = 100_000_000;
+
+/**
+ * Resizes allowed to decode at once. Each can hold hundreds of MB, and a page
+ * full of embeds fires them in parallel; a small fixed bound keeps the peak at
+ * a few images. Done here rather than with `sharp.concurrency()`, which is
+ * process-global and would also throttle map tiling.
+ */
+export const MAX_CONCURRENT_RESIZES = 2;
 
 export class AttachmentPathError extends Error {
   constructor(message: string) {
@@ -95,8 +116,11 @@ export function resolveAttachment(vaultRoot: string, target: string): string | n
     let entries: fs.Dirent[];
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
-    } catch {
-      return; // an unreadable directory just contributes no candidates
+    } catch (err) {
+      // An unreadable directory just contributes no candidates, but say so:
+      // otherwise a permissions problem on the share looks like a missing image.
+      console.warn(`[vault] attachment search skipped ${dir}: ${err instanceof Error ? err.message : String(err)}`);
+      return;
     }
     for (const entry of entries) {
       const full = path.join(dir, entry.name);
@@ -161,8 +185,10 @@ export function assertInsideVault(vaultRoot: string, absPath: string): void {
     throw new AttachmentPathError(`Cannot resolve attachment path: ${reason}`);
   }
   const rel = path.relative(realRoot, realPath);
-  // Compare whole segments: a file legitimately named `..notes.png` must not be
-  // mistaken for a parent traversal, nor `/vault-evil` for being under `/vault`.
+  // Compare whole segments, not string prefixes: the sibling `/vault-evil` is
+  // not under `/vault` even though its path starts with the same characters,
+  // and a segment test (`..` or `../...`) is what path.relative actually emits
+  // for an escape.
   const escapes = rel === ".." || rel.startsWith(".." + path.sep);
   if (rel === "" || escapes || path.isAbsolute(rel)) {
     throw new AttachmentPathError("Attachment path is outside the vault");
@@ -180,6 +206,12 @@ export function locateAttachment(vaultRoot: string, target: string): LocatedAtta
   const found = resolveAttachment(vaultRoot, target);
   if (!found) return null;
   assertInsideVault(vaultRoot, found);
+  // Deliberately the extension of the *real path*, not of `target`. The
+  // resolver only vetted the name it matched, but `found` is where that name
+  // pointed: an in-vault symlink `x.png -> Notes/secret.md` passes containment
+  // (it really is inside the vault) and must still not be served as an image.
+  // Looking the type up post-realpath is what stops it. Do not "simplify" this
+  // to derive the type from `target`.
   const contentType = CONTENT_TYPES[path.extname(found).toLowerCase()];
   return contentType ? { path: found, contentType } : null;
 }
@@ -191,15 +223,48 @@ export function locateAttachment(vaultRoot: string, target: string): LocatedAtta
  */
 export function parseWidth(raw: string | null): number | null {
   if (raw === null || raw === "") return null;
-  if (!/^[1-9][0-9]{0,8}$/.test(raw)) throw new AttachmentWidthError(`Invalid width: ${raw.slice(0, 32)}`);
+  // Fixed message: the raw value is attacker-controlled and must not be echoed.
+  if (!/^[1-9][0-9]{0,8}$/.test(raw)) throw new AttachmentWidthError("w must be a positive integer");
   return Math.min(MAX_ATTACHMENT_WIDTH, Math.max(MIN_ATTACHMENT_WIDTH, Number(raw)));
 }
 
-/** Downscale a raster image to `width` (never up), keeping its format. Not for SVG. */
-export async function renderResized(absPath: string, width: number): Promise<Buffer> {
+let activeResizes = 0;
+const resizeQueue: Array<() => void> = [];
+
+async function withResizeSlot<T>(task: () => Promise<T>): Promise<T> {
+  if (activeResizes >= MAX_CONCURRENT_RESIZES) {
+    await new Promise<void>((resolve) => resizeQueue.push(resolve));
+  } else {
+    activeResizes++;
+  }
+  try {
+    return await task();
+  } finally {
+    // Hand the slot straight to the next waiter, or free it.
+    const next = resizeQueue.shift();
+    if (next) next();
+    else activeResizes--;
+  }
+}
+
+/**
+ * Downscale a raster image to `width` (never up), keeping its format. Not for
+ * SVG. A source over `limitInputPixels` is refused (sharp throws) before it is
+ * decoded; at most `MAX_CONCURRENT_RESIZES` run at a time.
+ */
+export function renderResized(
+  absPath: string,
+  width: number,
+  limitInputPixels: number = MAX_INPUT_PIXELS,
+): Promise<Buffer> {
   const ext = path.extname(absPath).toLowerCase();
-  return sharp(absPath, { animated: ext === ".gif" || ext === ".webp", sequentialRead: true })
-    .rotate() // apply EXIF orientation before the metadata is dropped
-    .resize({ width, withoutEnlargement: true })
-    .toBuffer();
+  return withResizeSlot(() =>
+    sharp(absPath, { animated: ext === ".gif" || ext === ".webp", sequentialRead: true, limitInputPixels })
+      // Auto-orient from EXIF before the metadata is dropped. sharp runs this
+      // ahead of the resize whatever the call order; measured on an 8000x6000
+      // JPEG it costs nothing against omitting it, so shrink-on-load is intact.
+      .rotate()
+      .resize({ width, withoutEnlargement: true })
+      .toBuffer(),
+  );
 }

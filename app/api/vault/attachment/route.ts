@@ -17,18 +17,21 @@ const HEADERS = {
   "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
 };
 
-const notFound = () => NextResponse.json({ error: "Not found" }, { status: 404 });
+// Error bodies are JSON, but still get nosniff; they are never cached as immutable.
+const ERROR_HEADERS = { "X-Content-Type-Options": "nosniff" };
+const fail = (error: string, status: number) => NextResponse.json({ error }, { status, headers: ERROR_HEADERS });
+const notFound = () => fail("Not found", 404);
 
 export async function GET(req: Request) {
   const params = new URL(req.url).searchParams;
   const target = params.get("target");
-  if (!target) return NextResponse.json({ error: "target required" }, { status: 400 });
+  if (!target) return fail("target required", 400);
 
   let width: number | null;
   try {
     width = parseWidth(params.get("w"));
   } catch (err) {
-    if (err instanceof AttachmentWidthError) return NextResponse.json({ error: err.message }, { status: 400 });
+    if (err instanceof AttachmentWidthError) return fail(err.message, 400);
     throw err;
   }
 
@@ -37,8 +40,9 @@ export async function GET(req: Request) {
     found = locateAttachment(vaultRoot(), target);
   } catch (err) {
     if (err instanceof AttachmentPathError) {
-      console.warn(`[vault] attachment refused for target "${target}": ${err.message}`);
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      // target is attacker-controlled: quote and truncate so it cannot forge log lines.
+      console.warn(`[vault] attachment refused for target ${JSON.stringify(target.slice(0, 120))}: ${err.message}`);
+      return fail("Forbidden", 403);
     }
     throw err;
   }
@@ -54,8 +58,10 @@ export async function GET(req: Request) {
       });
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === "ENOENT") return notFound();
-      console.warn(`[vault] could not resize attachment "${target}": ${err instanceof Error ? err.message : err}`);
-      return NextResponse.json({ error: "Unreadable image" }, { status: 422 });
+      console.warn(
+        `[vault] could not resize attachment ${JSON.stringify(target.slice(0, 120))}: ${err instanceof Error ? err.message : err}`,
+      );
+      return fail("Unreadable image", 422);
     }
   }
 
