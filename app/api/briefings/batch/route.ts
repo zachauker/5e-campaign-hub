@@ -5,8 +5,6 @@ import { settings } from "@/lib/db/schema";
 import { selectBuildTargets, type BuildScope } from "@/lib/run/briefing-batch";
 import { buildBriefing } from "@/lib/run/briefing-build";
 import { generateBriefing } from "@/lib/run/briefing-agent";
-import { blocksToPlainText } from "@/lib/state/content-hash";
-import { extractNotionPageId, fetchNotionPageBlocks } from "@/lib/notion/client";
 import { toClientErrorMessage } from "@/lib/state/errors";
 import type { StateDb } from "@/lib/state/types";
 
@@ -14,15 +12,6 @@ const sdb: StateDb = db;
 
 /** Bounds one request. A large campaign is built by calling again until `remaining` is 0. */
 const MAX_PER_REQUEST = 25;
-
-async function fetchNotionBody(notionUrl: string): Promise<string | null> {
-  const row = await db.query.settings.findFirst({ where: eq(settings.key, "notion_token") });
-  const token = row?.value?.trim();
-  if (!token) return null;
-  const pageId = extractNotionPageId(notionUrl);
-  if (!pageId) return null;
-  return blocksToPlainText(await fetchNotionPageBlocks(pageId, token));
-}
 
 export async function POST(req: Request) {
   const body = await req.json();
@@ -54,7 +43,6 @@ export async function POST(req: Request) {
           targetKind: target.targetKind,
           targetId: target.targetId,
           generate: (inputs) => generateBriefing(inputs, { apiKey }),
-          fetchNotionBody,
         });
         built++;
       } catch (err) {

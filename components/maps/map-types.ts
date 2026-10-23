@@ -23,7 +23,7 @@ export interface MarkerData {
 export interface ResolvedMarker extends MarkerData {
   resolvedTitle: string;
   resolvedSubtitle: string | null;
-  entitySubtype?: string | null; // location: loc.type; event: note's Notion Type
+  entitySubtype?: string | null; // location: loc.type; event: the note's note_type
   eventDate?: string | null;     // event markers only: the note's Date (ISO), for filtering
 }
 

@@ -13,11 +13,12 @@ const inputs: BriefingInputs = {
   targetId: "c1",
   name: "Garrick Veldros",
   description: "A broker of favours.",
-  notionProps: '{"Role":"Fixer"}',
-  notionUrl: null,
+  sourceProps: '{"Role":"Fixer"}',
+  sourcePath: "NPCs/Garrick.md",
+  sourceHash: "hash-1",
   threads: [{ title: "Who forged the writ?", stakes: "The party stays hunted.", status: "open", role: "subject" }],
   timeline: [{ day: 100, kind: "thread_opened", title: "Writ questioned", body: "The seal was wrong." }],
-  notionBody: "Garrick keeps a mask on his belt at all times.",
+  sourceBody: "Garrick keeps a mask on his belt at all times.",
 };
 
 describe("BRIEFING_SCHEMA", () => {
@@ -30,7 +31,7 @@ describe("BRIEFING_SCHEMA", () => {
 });
 
 describe("buildPrompt", () => {
-  it("includes the name, description, threads, timeline, and Notion body", () => {
+  it("includes the name, description, threads, timeline, and note body", () => {
     const prompt = buildPrompt(inputs);
     expect(prompt).toContain("Garrick Veldros");
     expect(prompt).toContain("A broker of favours.");
@@ -39,9 +40,18 @@ describe("buildPrompt", () => {
     expect(prompt).toContain("mask on his belt");
   });
 
-  it("says the page body was unavailable when it is null", () => {
-    const prompt = buildPrompt({ ...inputs, notionBody: null });
-    expect(prompt).toMatch(/page body (was )?not available/i);
+  it("says the note body was unavailable when it is null", () => {
+    const prompt = buildPrompt({ ...inputs, sourceBody: null });
+    expect(prompt).toMatch(/note body (was )?not available/i);
+  });
+
+  it("hands the model the raw body, [!dm] callouts and all", () => {
+    const prompt = buildPrompt({
+      ...inputs,
+      sourceBody: "Garrick keeps a mask.\n\n> [!dm] Behind the screen\n> He informs for the Assembly.",
+    });
+    expect(prompt).toContain("> [!dm] Behind the screen");
+    expect(prompt).toContain("He informs for the Assembly.");
   });
 
   it("only asks for a voice line on characters", () => {
@@ -92,6 +102,12 @@ describe("parseBriefingResponse", () => {
 });
 
 describe("BRIEFING_SYSTEM", () => {
+  it("explains that [!dm] callouts feed secret and never partyKnows", () => {
+    expect(BRIEFING_SYSTEM).toContain("[!dm]");
+    expect(BRIEFING_SYSTEM).toMatch(/secret/);
+    expect(BRIEFING_SYSTEM).toMatch(/never be put in partyKnows/);
+  });
+
   it("tells the model not to invent facts", () => {
     expect(BRIEFING_SYSTEM).toMatch(/null/);
     expect(BRIEFING_SYSTEM.length).toBeGreaterThan(100);
@@ -131,6 +147,20 @@ describe("generateBriefing request shape", () => {
     expect(req.output_config.format.type).toBe("json_schema");
     expect(req.output_config.format.schema.additionalProperties).toBe(false);
     expect(req.system).toBe(BRIEFING_SYSTEM);
+  });
+
+  it("sends the [!dm] content of the note to the model", async () => {
+    createMock.mockReset();
+    createMock.mockResolvedValue(ok);
+    const { generateBriefing } = await import("./briefing-agent");
+
+    await generateBriefing(
+      { ...inputs, sourceBody: "> [!dm] Plans\n> The mask hides a branded cheek." },
+      { apiKey: "test-key" },
+    );
+
+    const content = createMock.mock.calls[0][0].messages[0].content as string;
+    expect(content).toContain("The mask hides a branded cheek.");
   });
 
   it("surfaces a refusal rather than returning an empty briefing", async () => {

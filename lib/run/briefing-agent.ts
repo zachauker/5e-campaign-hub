@@ -28,6 +28,8 @@ Write only what the supplied notes support. If the notes do not establish a fiel
 
 "partyKnows" is what the player characters have actually learned. "secret" is something true that they have not. Keeping them apart is the point of the card; do not put a secret in partyKnows.
 
+The note body is the DM's own markdown. A callout opened with "> [!dm]" is behind the screen: the party has not learned it. It is the raw material for "secret" and must never be put in partyKnows.
+
 "voice" is how to sound like this person again three sessions later — speech rhythm, register, verbal habits. Not backstory. Leave it null for anything that is not a person.
 
 "aliases" are the names the DM might actually type when searching: nicknames, titles, and how the party refers to them in play.`;
@@ -49,11 +51,11 @@ export function buildPrompt(inputs: BriefingInputs): string {
     "Description:",
     inputs.description?.trim() || "(none recorded)",
     "",
-    "Notion properties:",
-    inputs.notionProps?.trim() || "(none recorded)",
+    "Note properties:",
+    inputs.sourceProps?.trim() || "(none recorded)",
     "",
-    "Notion page body:",
-    inputs.notionBody?.trim() || "(the page body was not available for this build)",
+    "Note body (raw markdown from the DM's vault, including any [!dm] callouts):",
+    inputs.sourceBody?.trim() || "(the note body was not available for this build)",
     "",
     "Linked open threads:",
     inputs.threads.length

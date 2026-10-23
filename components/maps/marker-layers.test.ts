@@ -25,4 +25,14 @@ describe("event layers", () => {
     expect(events.count).toBe(3);
     expect(events.leaves.find((l) => l.key === "event:Combat Encounter")!.count).toBe(2);
   });
+
+  it("gives an Exploration Encounter its own layer leaf instead of dropping it", () => {
+    const groups = deriveLayerGroups([
+      marker({ type: "event", entitySubtype: "Exploration Encounter" }),
+      marker({ type: "event", entitySubtype: "Combat Encounter" }),
+    ]);
+    const events = groups.find((g) => g.key === "event")!;
+    expect(events.leaves.map((l) => l.label)).toEqual(["Combat", "Exploration"]);
+    expect(events.leaves.find((l) => l.key === "event:Exploration Encounter")!.count).toBe(1);
+  });
 });

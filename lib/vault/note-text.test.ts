@@ -5,8 +5,12 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AttachmentPathError } from "./attachments";
 import { VaultUnreadableError } from "./config";
 import { FrontmatterError } from "./frontmatter";
-import { readNoteText, reviewSourceFailure } from "./note-text";
+import { digestBody } from "./body";
+import { hashContent } from "@/lib/state/content-hash";
+import { readNoteBody, readNoteForReview, readNoteText, reviewSourceFailure } from "./note-text";
 import { VaultPathError } from "./paths";
+import { mapNote } from "./map";
+import { scanVault } from "./scan";
 import { createTestVault } from "./test-helpers";
 
 describe("readNoteText", () => {
@@ -134,6 +138,83 @@ describe("readNoteText", () => {
   it("propagates malformed frontmatter as a FrontmatterError", async () => {
     useVault({ "Sessions/Bad.md": "---\nkey: [unclosed\n---\nbody\n" });
     await expect(readNoteText("Sessions/Bad.md")).rejects.toBeInstanceOf(FrontmatterError);
+  });
+});
+
+describe("readNoteBody", () => {
+  const originalVaultPath = process.env.VAULT_PATH;
+  afterEach(() => {
+    if (originalVaultPath === undefined) delete process.env.VAULT_PATH;
+    else process.env.VAULT_PATH = originalVaultPath;
+  });
+
+  const NOTE = [
+    "---",
+    "type: npc",
+    "---",
+    "Garrick keeps a mask on his belt.",
+    "",
+    "> [!dm] Behind the screen",
+    "> He informs for the Assembly.",
+    "",
+  ].join("\n");
+
+  it("returns the raw body, [!dm] callouts included, with frontmatter removed", async () => {
+    process.env.VAULT_PATH = createTestVault({ "NPCs/Garrick.md": NOTE });
+    const body = await readNoteBody("NPCs/Garrick.md");
+    expect(body).toContain("Garrick keeps a mask on his belt.");
+    expect(body).toContain("[!dm] Behind the screen");
+    expect(body).toContain("He informs for the Assembly.");
+    expect(body).not.toContain("type: npc");
+  });
+
+  it("is the text readNoteText strips, so the two cannot drift apart", async () => {
+    process.env.VAULT_PATH = createTestVault({ "NPCs/Garrick.md": NOTE });
+    expect(await readNoteText("NPCs/Garrick.md")).not.toContain("informs for the Assembly");
+    expect(await readNoteBody("NPCs/Garrick.md")).toContain("informs for the Assembly");
+  });
+
+  it("digests to the source_hash the sync stores for the same file", async () => {
+    const root = createTestVault({ "NPCs/Garrick.md": NOTE });
+    process.env.VAULT_PATH = root;
+    // A briefing is stale when source_hash moves. The builder reads the body from
+    // disk but hashes from the row, so the two must describe the same bytes.
+    const scanned = scanVault(root, root).notes[0];
+    const stored = mapNote(scanned, "characters").sourceHash;
+    expect(digestBody(await readNoteBody("NPCs/Garrick.md")).hash).toBe(stored);
+  });
+
+  it("throws VaultUnreadableError for a missing file", async () => {
+    process.env.VAULT_PATH = createTestVault({});
+    await expect(readNoteBody("NPCs/Nope.md")).rejects.toBeInstanceOf(VaultUnreadableError);
+  });
+
+  it("rejects a path that escapes the vault", async () => {
+    process.env.VAULT_PATH = createTestVault({});
+    await expect(readNoteBody("../outside.md")).rejects.toBeInstanceOf(VaultPathError);
+  });
+});
+
+describe("readNoteForReview", () => {
+  const originalVaultPath = process.env.VAULT_PATH;
+  afterEach(() => {
+    if (originalVaultPath === undefined) delete process.env.VAULT_PATH;
+    else process.env.VAULT_PATH = originalVaultPath;
+  });
+
+  it("hashes exactly the text it returns", async () => {
+    process.env.VAULT_PATH = createTestVault({ "Sessions/S1.md": "---\ntype: session\n---\nThey fought a wolf.\n" });
+    const { text, hash } = await readNoteForReview("Sessions/S1.md");
+    expect(text).toBe(await readNoteText("Sessions/S1.md"));
+    expect(hash).toBe(hashContent(text));
+  });
+
+  it("does not change when only a [!dm] callout is edited", async () => {
+    process.env.VAULT_PATH = createTestVault({
+      "Sessions/A.md": "They fought a wolf.\n\n> [!dm] Plan\n> It is a werewolf.\n",
+      "Sessions/B.md": "They fought a wolf.\n\n> [!dm] Plan\n> It is a plain wolf.\n",
+    });
+    expect((await readNoteForReview("Sessions/A.md")).hash).toBe((await readNoteForReview("Sessions/B.md")).hash);
   });
 });
 

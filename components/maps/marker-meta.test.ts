@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { Swords, StickyNote } from "lucide-react";
+import { Compass, ScrollText, StickyNote, Swords } from "lucide-react";
 import { markerVisual } from "./marker-meta";
 import type { ResolvedMarker } from "./map-types";
 
@@ -15,6 +15,13 @@ describe("markerVisual", () => {
     const v = markerVisual(marker({ type: "event", entitySubtype: "Combat Encounter" }));
     expect(v.icon).toBe(Swords);
     expect(v.label).toBe("Combat Encounter");
+  });
+
+  it("gives an Exploration Encounter its own icon rather than the generic event pin", () => {
+    const v = markerVisual(marker({ type: "event", entitySubtype: "Exploration Encounter" }));
+    expect(v.label).toBe("Exploration Encounter");
+    expect(v.icon).toBe(Compass);
+    expect(v.icon).not.toBe(ScrollText);
   });
 
   it("falls back to a generic event visual for an unknown Type", () => {

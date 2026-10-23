@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { ScrollText } from "lucide-react";
 import { useCampaignStore } from "@/lib/store/campaign-store";
+import { SESSION_NOTE_TYPE_ORDER as TYPE_ORDER } from "./session-note-types";
 
 interface SessionNote {
   id: string;
@@ -13,8 +14,6 @@ interface SessionNote {
   date: string | null;
 }
 
-// Display order for the Type groups.
-const TYPE_ORDER = ["Story Outline", "Session Notes", "Character Event", "Combat Encounter", "RP Encounter"];
 
 export function SessionNotesBrowser() {
   const { activeCampaignId } = useCampaignStore();

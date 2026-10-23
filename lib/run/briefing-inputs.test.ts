@@ -5,8 +5,8 @@ import { NotFoundError } from "@/lib/state/errors";
 import { gatherInputs, hashInputs } from "./briefing-inputs";
 
 function seed(db: ReturnType<typeof createTestDb>["db"], campaignId: string) {
-  db.run(sql`INSERT INTO characters (id, campaign_id, name, type, description, notion_props, archived, created_at, updated_at)
-    VALUES ('c1', ${campaignId}, 'Garrick Veldros', 'npc', 'A broker of favours.', '{"Role":"Fixer"}', 0, 1, 1)`);
+  db.run(sql`INSERT INTO characters (id, campaign_id, name, type, description, source_props, source_path, source_hash, archived, created_at, updated_at)
+    VALUES ('c1', ${campaignId}, 'Garrick Veldros', 'npc', 'A broker of favours.', '{"Role":"Fixer"}', 'NPCs/Garrick.md', 'hash-1', 0, 1, 1)`);
   db.run(sql`INSERT INTO threads (id, campaign_id, title, stakes, status, archived, created_at, updated_at)
     VALUES ('t1', ${campaignId}, 'Who forged the writ?', 'The party stays hunted.', 'open', 0, 1, 1)`);
   db.run(sql`INSERT INTO thread_links (id, thread_id, target_kind, target_id, role)
@@ -24,14 +24,17 @@ describe("gatherInputs", () => {
 
     expect(inputs.name).toBe("Garrick Veldros");
     expect(inputs.description).toBe("A broker of favours.");
-    expect(inputs.notionProps).toBe('{"Role":"Fixer"}');
+    expect(inputs.sourceProps).toBe('{"Role":"Fixer"}');
+    expect(inputs.sourcePath).toBe("NPCs/Garrick.md");
+    expect(inputs.sourceHash).toBe("hash-1");
     expect(inputs.threads).toEqual([
       { title: "Who forged the writ?", stakes: "The party stays hunted.", status: "open", role: "subject" },
     ]);
     expect(inputs.timeline).toEqual([
       { day: 100, kind: "thread_opened", title: "Writ questioned", body: "The party found the seal was wrong." },
     ]);
-    expect(inputs.notionBody).toBeNull();
+    // The body is read from the vault by the builder, never by this SQLite-only step.
+    expect(inputs.sourceBody).toBeNull();
   });
 
   it("throws when the target does not exist", async () => {
@@ -84,12 +87,27 @@ describe("hashInputs", () => {
     expect(after).not.toBe(before);
   });
 
-  it("is sensitive to the Notion body, which is why callers null it out", async () => {
+  it("changes when only the note's source_hash changes, so an edited note marks its briefing stale", async () => {
+    const { db, campaignId } = createTestDb();
+    seed(db, campaignId);
+    const before = hashInputs(await gatherInputs(db, campaignId, "character", "c1"));
+    db.run(sql`UPDATE characters SET source_hash = 'hash-2' WHERE id = 'c1'`);
+    const after = hashInputs(await gatherInputs(db, campaignId, "character", "c1"));
+    expect(after).not.toBe(before);
+  });
+
+  it("changes when the note's properties change", async () => {
+    const { db, campaignId } = createTestDb();
+    seed(db, campaignId);
+    const before = hashInputs(await gatherInputs(db, campaignId, "character", "c1"));
+    db.run(sql`UPDATE characters SET source_props = '{"Role":"Spy"}' WHERE id = 'c1'`);
+    expect(hashInputs(await gatherInputs(db, campaignId, "character", "c1"))).not.toBe(before);
+  });
+
+  it("does not depend on the body text, so staleness never needs the vault mounted", async () => {
     const { db, campaignId } = createTestDb();
     seed(db, campaignId);
     const inputs = await gatherInputs(db, campaignId, "character", "c1");
-    const withoutBody = hashInputs(inputs);
-    const withBody = hashInputs({ ...inputs, notionBody: "A long page of prose." });
-    expect(withBody).not.toBe(withoutBody);
+    expect(hashInputs({ ...inputs, sourceBody: "A long page of prose." })).toBe(hashInputs(inputs));
   });
 });

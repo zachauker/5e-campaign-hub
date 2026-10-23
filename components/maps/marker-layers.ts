@@ -16,10 +16,11 @@ const LOCATION_SUBTYPE_LABELS: Record<string, string> = {
   region: "Regions",
   other: "Other",
 };
-const EVENT_TYPE_ORDER = ["Combat Encounter", "RP Encounter", "Character Event", "Story Outline", "Session Notes", "other"] as const;
+const EVENT_TYPE_ORDER = ["Combat Encounter", "RP Encounter", "Exploration Encounter", "Character Event", "Story Outline", "Session Notes", "other"] as const;
 const EVENT_TYPE_LABELS: Record<string, string> = {
   "Combat Encounter": "Combat",
   "RP Encounter": "RP",
+  "Exploration Encounter": "Exploration",
   "Character Event": "Character",
   "Story Outline": "Story",
   "Session Notes": "Session",

@@ -1,47 +1,55 @@
 import type { StateDb } from "@/lib/state/types";
+import { readNoteBody } from "@/lib/vault/note-text";
 import { gatherInputs, hashInputs, type BriefingInputs } from "./briefing-inputs";
 import { upsertBriefing, type Briefing, type BriefingTargetKind } from "./briefings";
 import type { BriefingResult } from "./briefing-agent";
 
 export type GenerateFn = (inputs: BriefingInputs) => Promise<BriefingResult>;
-export type FetchNotionBodyFn = (notionUrl: string) => Promise<string | null>;
 
 export interface BuildOptions {
   campaignId: string;
   targetKind: BriefingTargetKind;
   targetId: string;
   generate: GenerateFn;
-  fetchNotionBody: FetchNotionBodyFn;
 }
 
 /**
  * Build one briefing. Prep-time only.
  *
- * The Notion fetch is allowed to fail: a build that refuses to proceed without
- * the page body would leave the DM with no card at all, which is strictly worse
- * than a card built from local data and labelled `partial`.
+ * The model is given the note's RAW body from the vault file, `[!dm]` callouts
+ * included, not the `source_text` column. `source_text` is stripped of
+ * behind-the-screen content so it can be indexed; the briefing's `secret` field
+ * is the DM-only counterpart of that and can only be written from the material
+ * the stripped text leaves out.
+ *
+ * A note that cannot be read is allowed to fail: refusing to build would leave
+ * the DM with no card at all, which is strictly worse than a card built from
+ * the row's own data and labelled `partial`.
  */
 export async function buildBriefing(db: StateDb, opts: BuildOptions): Promise<Briefing> {
   const inputs = await gatherInputs(db, opts.campaignId, opts.targetKind, opts.targetId);
 
   let partial = false;
-  if (inputs.notionUrl) {
+  if (inputs.sourcePath) {
     try {
-      inputs.notionBody = await opts.fetchNotionBody(inputs.notionUrl);
-      // A page that exists but returned nothing is not the same as a failure,
-      // but the briefing is equally uninformed by it either way.
-      if (inputs.notionBody === null) partial = true;
+      inputs.sourceBody = await readNoteBody(inputs.sourcePath);
+      // A note with frontmatter and no prose is readable but tells the model
+      // nothing, so the card is equally uninformed by it.
+      if (!inputs.sourceBody.trim()) {
+        inputs.sourceBody = null;
+        partial = true;
+      }
     } catch (err) {
-      // Logged, not just swallowed. A revoked or misconfigured Notion token
-      // fails identically on every entity, so without this the DM sees the same
-      // "built without the page body" badge on every card and cannot tell a
-      // systemic misconfiguration from one page having a bad day. Matches the
-      // log-and-continue convention in lib/notion/scheduler.ts.
+      // Logged, not just swallowed. An unmounted vault fails identically on
+      // every entity, so without this the DM sees the same "built without the
+      // note" badge on every card and cannot tell a systemic misconfiguration
+      // from one bad file. Matches the log-and-continue convention in
+      // lib/vault/scheduler.ts.
       console.warn(
-        `[briefing-build] Notion fetch failed for ${opts.targetKind} ${opts.targetId}:`,
+        `[briefing-build] Could not read the vault note for ${opts.targetKind} ${opts.targetId}:`,
         (err as Error).message,
       );
-      inputs.notionBody = null;
+      inputs.sourceBody = null;
       partial = true;
     }
   }
@@ -58,10 +66,7 @@ export async function buildBriefing(db: StateDb, opts: BuildOptions): Promise<Br
     secret: result.secret,
     voice: result.voice,
     aliases: result.aliases,
-    // Hashed without the Notion body so staleness stays answerable from local
-    // SQLite. isStale() cannot re-fetch the page without a network round-trip
-    // per card, and a hash the checker can never reproduce is always stale.
-    sourceHash: hashInputs({ ...inputs, notionBody: null }),
+    sourceHash: hashInputs(inputs),
     partial,
   });
 }
@@ -70,14 +75,14 @@ export async function buildBriefing(db: StateDb, opts: BuildOptions): Promise<Br
  * Whether the briefing is behind its inputs. Never blocks a read — the card is
  * still served, with a stale pip. A deleted entity counts as stale rather than
  * an error: the card should say it is behind, not fail to render.
+ *
+ * The note is represented by the `source_hash` column, so this reads only local
+ * SQLite; no file is opened and it does not depend on the vault being mounted.
  */
 export async function isStale(db: StateDb, briefing: Briefing): Promise<boolean> {
   try {
     const inputs = await gatherInputs(db, briefing.campaignId, briefing.targetKind, briefing.targetId);
-    // The Notion body is not re-fetched here — staleness must be answerable
-    // from local SQLite alone, or checking it would cost a network round-trip
-    // on every card.
-    return hashInputs({ ...inputs, notionBody: null }) !== briefing.sourceHash;
+    return hashInputs(inputs) !== briefing.sourceHash;
   } catch {
     return true;
   }

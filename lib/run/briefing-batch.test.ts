@@ -44,7 +44,7 @@ describe("selectBuildTargets", () => {
     // A briefing whose hash matches nothing is stale, so seed one that matches.
     const { gatherInputs, hashInputs } = await import("./briefing-inputs");
     const inputs = await gatherInputs(db, campaignId, "character", "loose");
-    const hash = hashInputs({ ...inputs, notionBody: null });
+    const hash = hashInputs(inputs);
     db.run(sql`INSERT INTO entity_briefings (id, campaign_id, target_kind, target_id, source_hash, built_at, created_at, updated_at)
       VALUES ('b1', ${campaignId}, 'character', 'loose', ${hash}, 1, 1, 1)`);
 

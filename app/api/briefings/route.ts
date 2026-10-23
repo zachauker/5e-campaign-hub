@@ -5,8 +5,6 @@ import { settings } from "@/lib/db/schema";
 import { getBriefing, setManualFields, BRIEFING_TARGET_KINDS, type BriefingTargetKind } from "@/lib/run/briefings";
 import { buildBriefing, isStale } from "@/lib/run/briefing-build";
 import { generateBriefing } from "@/lib/run/briefing-agent";
-import { blocksToPlainText } from "@/lib/state/content-hash";
-import { extractNotionPageId, fetchNotionPageBlocks } from "@/lib/notion/client";
 import { toClientErrorMessage, NotFoundError } from "@/lib/state/errors";
 import type { StateDb } from "@/lib/state/types";
 
@@ -14,21 +12,6 @@ const sdb: StateDb = db;
 
 function readKind(raw: string | null): BriefingTargetKind | null {
   return raw && (BRIEFING_TARGET_KINDS as string[]).includes(raw) ? (raw as BriefingTargetKind) : null;
-}
-
-async function notionToken(): Promise<string | null> {
-  const row = await db.query.settings.findFirst({ where: eq(settings.key, "notion_token") });
-  return row?.value?.trim() || null;
-}
-
-/** Fetch and flatten a Notion page body. Returns null when there is no token or no page id. */
-async function fetchNotionBody(notionUrl: string): Promise<string | null> {
-  const token = await notionToken();
-  if (!token) return null;
-  const pageId = extractNotionPageId(notionUrl);
-  if (!pageId) return null;
-  const blocks = await fetchNotionPageBlocks(pageId, token);
-  return blocksToPlainText(blocks);
 }
 
 export async function GET(req: Request) {
@@ -76,7 +59,6 @@ export async function POST(req: Request) {
       targetKind,
       targetId: body.targetId,
       generate: (inputs) => generateBriefing(inputs, { apiKey }),
-      fetchNotionBody,
     });
     return NextResponse.json({ briefing, stale: false }, { status: 201 });
   } catch (err) {

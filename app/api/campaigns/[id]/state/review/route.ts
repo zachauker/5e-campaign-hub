@@ -1,8 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { settings, sessionNotes, sessionReviews } from "@/lib/db/schema";
-import { readNoteText, reviewSourceFailure } from "@/lib/vault/note-text";
-import { hashContent } from "@/lib/state/content-hash";
+import { readNoteForReview, reviewSourceFailure } from "@/lib/vault/note-text";
 import { getCampaignDay } from "@/lib/state/advance";
 import { runSessionReview, type ReviewEvent } from "@/lib/state/review-agent";
 import { toClientErrorMessage } from "@/lib/state/errors";
@@ -33,9 +32,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // rather than half a review. sourceText below is the verbatim, server-read note text with
   // every [!dm] callout already stripped (readNoteText) — nothing derived from the model ever
   // reaches this variable or the tools built from it.
+  // contentHash comes from the same call, so the status route compares like with like.
   let sourceText: string;
+  let contentHash: string;
   try {
-    sourceText = await readNoteText(note.sourcePath);
+    ({ text: sourceText, hash: contentHash } = await readNoteForReview(note.sourcePath));
   } catch (err) {
     const failure = reviewSourceFailure(err);
     if (!failure) throw err;
@@ -43,7 +44,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
   if (!sourceText.trim()) return fail("The linked vault note has no readable text", 400);
 
-  const contentHash = hashContent(sourceText);
   const currentDay = await getCampaignDay(sdb, campaignId);
 
   const encoder = new TextEncoder();

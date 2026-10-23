@@ -12,12 +12,23 @@ export interface BriefingInputs {
   targetId: string;
   name: string;
   description: string | null;
-  notionProps: string | null;
-  notionUrl: string | null;
+  /** Frontmatter-derived properties, as stored on the row. */
+  sourceProps: string | null;
+  /** Vault-relative path of the entity's note. Null for an entity with no note. */
+  sourcePath: string | null;
+  /** Hash of the note's raw body, as stored by the vault sync. Drives staleness. */
+  sourceHash: string | null;
   threads: { title: string; stakes: string | null; status: string; role: string }[];
   timeline: { day: number; kind: string; title: string; body: string | null }[];
-  /** Fetched at build time, not stored on the entity. Null when unavailable. */
-  notionBody: string | null;
+  /**
+   * The note's RAW body, `[!dm]` callouts included. Read from the file at build
+   * time, not stored on the entity, and null when there is no note or it could
+   * not be read. It is deliberately not `source_text`, which has `[!dm]`
+   * stripped: the model that writes `entity_briefings.secret` has to see the
+   * behind-the-screen material that field exists to hold. Never part of the
+   * staleness hash (that is `sourceHash`).
+   */
+  sourceBody: string | null;
 }
 
 const TABLE_FOR_KIND: Record<BriefingTargetKind, string> = {
@@ -34,9 +45,10 @@ function assertKind(kind: string): asserts kind is BriefingTargetKind {
 }
 
 /**
- * Read everything a briefing is built from. The Notion page body is fetched
- * separately by the caller and attached to the returned object — this function
- * touches only local SQLite.
+ * Read everything a briefing is built from. The note body is read from the
+ * vault separately by the caller and attached to the returned object — this
+ * function touches only local SQLite, which is what lets `isStale` answer
+ * without reading any files.
  */
 export async function gatherInputs(
   db: StateDb,
@@ -49,8 +61,14 @@ export async function gatherInputs(
   assertKind(targetKind);
   const table = TABLE_FOR_KIND[targetKind];
 
-  const entity = db.all<{ name: string; description: string | null; notionProps: string | null; notionUrl: string | null }>(sql`
-    SELECT name, description, notion_props AS notionProps, notion_url AS notionUrl
+  const entity = db.all<{
+    name: string;
+    description: string | null;
+    sourceProps: string | null;
+    sourcePath: string | null;
+    sourceHash: string | null;
+  }>(sql`
+    SELECT name, description, source_props AS sourceProps, source_path AS sourcePath, source_hash AS sourceHash
     FROM ${sql.raw(table)}
     WHERE id = ${targetId} AND campaign_id = ${campaignId}
   `)[0];
@@ -111,11 +129,12 @@ export async function gatherInputs(
     targetId,
     name: entity.name,
     description: entity.description,
-    notionProps: entity.notionProps,
-    notionUrl: entity.notionUrl,
+    sourceProps: entity.sourceProps,
+    sourcePath: entity.sourcePath,
+    sourceHash: entity.sourceHash,
     threads,
     timeline,
-    notionBody: null,
+    sourceBody: null,
   };
 }
 
@@ -123,6 +142,12 @@ export async function gatherInputs(
  * Stable watermark over everything a build read. Fields are serialised in a
  * fixed order rather than via JSON.stringify of the whole object, so key
  * ordering can never churn the hash and mark every briefing stale.
+ *
+ * The note enters through `sourceHash`, a column the vault sync already
+ * maintains over the raw body, so an edited note marks its briefing stale
+ * without any file being read. `sourceBody` is deliberately not hashed: it is
+ * the same content by another route, and hashing it would make staleness
+ * depend on the vault being mounted.
  */
 export function hashInputs(inputs: BriefingInputs): string {
   const parts = [
@@ -130,8 +155,8 @@ export function hashInputs(inputs: BriefingInputs): string {
     inputs.targetId,
     inputs.name,
     inputs.description ?? "",
-    inputs.notionProps ?? "",
-    inputs.notionBody ?? "",
+    inputs.sourceProps ?? "",
+    inputs.sourceHash ?? "",
     ...inputs.threads.map((t) => `${t.role}|${t.status}|${t.title}|${t.stakes ?? ""}`),
     ...inputs.timeline.map((e) => `${e.day}|${e.kind}|${e.title}|${e.body ?? ""}`),
   ];

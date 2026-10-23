@@ -1,6 +1,6 @@
 import {
   MapPin, Flag, UserRound, Layers, StickyNote,
-  Swords, MessagesSquare, Drama, ScrollText, type LucideIcon,
+  Swords, MessagesSquare, Compass, Drama, ScrollText, type LucideIcon,
 } from "lucide-react";
 import type { MarkerType, ResolvedMarker } from "@/components/maps/map-types";
 
@@ -25,18 +25,20 @@ export const MARKER_TYPE_META: Record<MarkerType, MarkerTypeMeta> = {
 // Display order for pickers.
 export const MARKER_TYPES: MarkerType[] = ["location", "faction", "character", "submap", "note", "event"];
 
-// Per-Notion-"Type" visuals for event markers. Keys match the Session Timeline
-// "Type" select. Falls back to the generic event visual for unknown values.
+// Per-note-type visuals for event markers. Keys match the `note_type` the vault
+// sync writes (see noteTypeFor in lib/vault/map.ts). Falls back to the generic
+// event visual for unknown values.
 const EVENT_TYPE_META: Record<string, MarkerTypeMeta> = {
   "Combat Encounter": { label: "Combat Encounter", color: "var(--marker-event)", icon: Swords },
   "RP Encounter": { label: "RP Encounter", color: "var(--marker-event)", icon: MessagesSquare },
+  "Exploration Encounter": { label: "Exploration Encounter", color: "var(--marker-event)", icon: Compass },
   "Character Event": { label: "Character Event", color: "var(--marker-event)", icon: Drama },
   "Story Outline": { label: "Story Outline", color: "var(--marker-event)", icon: ScrollText },
   "Session Notes": { label: "Session Notes", color: "var(--marker-event)", icon: ScrollText },
 };
 
 // Core resolver: the icon+color+label for a marker type and optional subtype.
-// Event markers vary by the note's Notion Type; every other type uses
+// Event markers vary by the note's `note_type`; every other type uses
 // MARKER_TYPE_META unchanged. Pure — safe under renderToStaticMarkup.
 export function visualForType(type: MarkerType, subtype?: string | null): MarkerTypeMeta {
   if (type === "event") {

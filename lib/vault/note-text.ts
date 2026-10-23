@@ -3,6 +3,7 @@ import path from "path";
 import { AttachmentPathError, assertInsideVault } from "./attachments";
 import { digestBody } from "./body";
 import { VaultUnreadableError, vaultRoot } from "./config";
+import { hashContent } from "@/lib/state/content-hash";
 import { FrontmatterError, parseFrontmatter } from "./frontmatter";
 import { assertVaultRelative, VaultPathError } from "./paths";
 
@@ -10,8 +11,8 @@ import { assertVaultRelative, VaultPathError } from "./paths";
  * The plain text of a vault note, for session review.
  *
  * The text is `digestBody(...).text`, not the raw file, on purpose: that strips
- * every `[!dm]` callout, the same rule the search index and
- * `entity_briefings.secret` follow. Session review hands this string to a model
+ * every `[!dm]` callout, the same rule the search index follows. (Briefings are
+ * the one deliberate exception; see `readNoteBody`.) Session review hands this string to a model
  * whose proposals the DM then reads, so behind-the-screen content must not
  * reach it. One rule, one implementation. Frontmatter is dropped first because
  * it is metadata, not narrative.
@@ -27,6 +28,37 @@ import { assertVaultRelative, VaultPathError } from "./paths";
  * result (a frontmatter-only note); the caller decides what that means.
  */
 export async function readNoteText(sourcePath: string): Promise<string> {
+  return digestBody((await readNoteBody(sourcePath))).text;
+}
+
+/**
+ * A note's text together with the watermark a session review is keyed on.
+ *
+ * Both the review route (which stores the hash) and the review status route
+ * (which compares against it) go through here, so the two sides can never hash
+ * different things. Hashing a different projection on each side would make
+ * `needsReview` permanently wrong.
+ */
+export async function readNoteForReview(sourcePath: string): Promise<{ text: string; hash: string }> {
+  const text = await readNoteText(sourcePath);
+  return { text, hash: hashContent(text) };
+}
+
+/**
+ * The note's RAW body: frontmatter removed, everything else verbatim, `[!dm]`
+ * callouts included.
+ *
+ * This is deliberately not `readNoteText`. It exists for the briefing builder,
+ * whose model writes `entity_briefings.secret`, the DM-only field that is
+ * never indexed and never rendered on the default card. That field can only be
+ * written from material the DM keeps behind the screen, so the model has to see
+ * it. Do not hand this to anything that proposes changes the DM reads as
+ * campaign fact (session review) or that lands in the search index: those take
+ * the stripped text from `readNoteText`.
+ *
+ * Same guards and errors as `readNoteText`.
+ */
+export async function readNoteBody(sourcePath: string): Promise<string> {
   assertVaultRelative(sourcePath);
 
   const root = vaultRoot();
@@ -46,7 +78,7 @@ export async function readNoteText(sourcePath: string): Promise<string> {
     throw new VaultUnreadableError(`The vault note could not be read: ${sourcePath} (${reason})`);
   }
 
-  return digestBody(parseFrontmatter(raw).body).text;
+  return parseFrontmatter(raw).body;
 }
 
 /**
