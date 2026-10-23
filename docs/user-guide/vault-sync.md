@@ -232,8 +232,10 @@ done:
 - **"…" had no hub_id or notion_id, so it was created from the file name in the same
   pass that archived "…"** — almost always a note whose identity didn't carry over:
   the old entry (with its pins, links and briefing) is archived and a blank one
-  replaced it. Put the archived entry's `notion_id` on the note and the next sync
-  re-adopts it. See the first-sync pre-flight in `DEPLOYMENT.md`.
+  replaced it. Put the archived entry's key on the note (its `notion_id`, or for an
+  entry made from a file name, a `hub_id` set to that old name) and the next sync
+  re-adopts it. See "A name changed and now there are two entries" below and the
+  first-sync pre-flight in `DEPLOYMENT.md`.
 - **Skipped *path*: … symlink** — the vault holds a symlink the sync doesn't follow.
   It counts as a part of the folder that couldn't be read, so nothing is archived
   until the link is replaced with the real folder or note.
@@ -275,8 +277,16 @@ not under `_Templates` or a dot-directory, and the report's warnings for its pat
 save — press **Sync now**, or wait for the next automatic pass.
 
 **A name changed and now there are two entries.** A note recognised only by its file
-name was renamed. Delete the archived stray, and add a `hub_id` to the note so it
-doesn't happen again.
+name was renamed, so the sync archived the old entry and created a blank one. **Don't
+delete the archived entry**: its map pins, thread links and briefing are still on it.
+Instead, give the renamed note a `hub_id:` set to the old file name, exactly as it was
+spelled and without the `.md` (the archived entry's name in the sync warning "Archived
+N entries no longer in the vault"). The next sync re-adopts the archived entry and
+un-archives it, with everything still attached, and archives the blank one. The note
+is now keyed on its `hub_id`, so a later rename can't do this again. (An entry that
+came across from Notion keeps its `notion_page_id` instead: put that on the note as
+`notion_id:`. The first-sync pre-flight in `DEPLOYMENT.md` does this for the two
+id-less notes in the live vault.)
 
 ---
 

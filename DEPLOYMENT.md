@@ -201,6 +201,22 @@ row takes its map pins, thread links and briefing with it; the replacement has
 none of them. The app cannot undo this, and the vault is mounted read-only, so
 the fix is a one-time edit **in Obsidian, on the Mac**.
 
+**Hold the background sync off before you start.** Automatic sync is **on by
+default** and runs every 15 minutes, the first pass 30 seconds after the server
+starts, so "do not let it run" needs a mechanism. Use one of these, and do it
+before step 1:
+
+- **Leave `VAULT_HOST_PATH` unset until step 4 passes** (the most reliable). The
+  vault mount then falls back to the empty `./vault` directory, the campaign folder
+  does not exist inside it, and every sync, background or manual, answers `503`
+  and archives nothing. This is safe on the very first deploy of the new build,
+  when the scheduler fires before you can reach Settings. Set it in step 5.
+- **Turn automatic sync off** in **Settings → Obsidian Vault → Automatic
+  background sync**. This only helps if the setting is already off before the
+  server next starts, or if no campaign has a vault folder saved yet; on a fresh
+  deploy the first pass can beat you to the panel, so prefer the first option.
+  Turn it back on after step 5.
+
 **Why these two.** A note with neither `hub_id` nor `notion_id` is keyed on its
 file name. The first deploy backfills `source_key` from `notion_page_id` on every
 existing row, so the old row is keyed on its Notion id, the basename matches
@@ -220,13 +236,15 @@ note carried a `hub_id`. Re-run step 1 before relying on that.
 
   ```bash
   cd "D&D/Explorers of Exandria" && \
-    find . -name "*.md" -not -path "./_Templates/*" -not -path "*/.*" -print0 \
+    find . -name "*.md" -not -path "*/_Templates/*" -not -path "*/.*" -print0 \
     | xargs -0 grep -lE "^type: *[\"']?(npc|pc|location|item|faction|session|arc|encounter|scene)[\"']?[[:space:]]*$" \
     | while IFS= read -r f; do grep -qE "^(hub_id|notion_id):" "$f" || echo "NO ID: $f"; done
   ```
 
   Expected: the two notes above, or fewer. Any other path is a mirrored note that
-  needs the same treatment.
+  needs the same treatment. The `find` skips `_Templates` at any depth and every
+  dot-directory or dot-file, the same exclusions the sync applies, so it reports
+  only notes the sync would actually read.
 
 - [ ] **2. Read the matching ids from the production database.** On the Unraid
   host (the live database is `./data/encounter-tracker.db` under the deploy
@@ -243,9 +261,22 @@ note carried a `hub_id`. Re-run step 1 before relying on that.
 
   `notion_page_id` is the value to copy. If a query returns more than one row,
   pick the one whose `archived` is 0 and that actually carries the pins and
-  briefing. No `sqlite3` on the host: run the same two queries with
-  `docker exec -it encounter-tracker node -e` and `better-sqlite3`, or copy the
-  `.db` file off the host and query the copy.
+  briefing.
+
+  No `sqlite3` on the host: run the same two queries inside the container, where
+  the database is at `/data/encounter-tracker.db` (the `./data` host directory
+  mounted at `/data`; do not use the host path here). This opens it read-only:
+
+  ```bash
+  docker exec -i encounter-tracker node -e '
+    const Database = require("better-sqlite3");
+    const db = new Database("/data/encounter-tracker.db", { readonly: true });
+    console.table(db.prepare("SELECT ? AS tbl, id, name, notion_page_id, source_key, archived FROM characters WHERE name LIKE ?").all("characters", "Shale%"));
+    console.table(db.prepare("SELECT ? AS tbl, id, name, notion_page_id, source_key, archived FROM session_notes WHERE name LIKE ?").all("session_notes", "Dangerous Designs%"));
+  '
+  ```
+
+  Or copy the `.db` file off the host and query the copy.
 
 - [ ] **3. Put that id in the note's frontmatter** as `notion_id:`:
 
@@ -261,12 +292,17 @@ note carried a `hub_id`. Re-run step 1 before relying on that.
 - [ ] **4. Verify.** Re-run the command from step 1. **It must print nothing.**
   Every mirrored note now resolves as `hub_id` or `notion_id`, never the file name.
 
-- [ ] **5. Let the vault reach the server** (see the open prerequisite above), then
-  run the first sync. Afterwards open **Settings → Obsidian Vault** and read the
+- [ ] **5. Let the vault reach the server** (see the open prerequisite above): set
+  `VAULT_HOST_PATH` in `.env` and recreate the container (`docker compose up -d`),
+  and turn automatic sync back on if you turned it off. Then run the first sync by
+  hand. Afterwards open **Settings → Obsidian Vault** and read the
   warnings. A sync that archived anything lists the rows by name. If it also says
   a note "was created from the file name in the same pass" that archived an entry,
-  an identity did not carry over: put the archived entry's `notion_page_id` on that
-  note, and the next sync re-adopts the row and un-archives it.
+  an identity did not carry over: put the archived entry's key on that note
+  (`notion_id:` for a row that has a `notion_page_id`; otherwise `hub_id:` set to the
+  row's old file name, see "A name changed and now there are two entries" in
+  `docs/user-guide/vault-sync.md`), and the next sync re-adopts the row and
+  un-archives it.
 
 ## Manual deploy (fallback)
 
