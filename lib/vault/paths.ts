@@ -71,18 +71,27 @@ export function attachmentUrl(target: string, width?: number): string {
   return `/api/vault/attachment?${queryString(params)}`;
 }
 
+/** A kind of hub page a note can link to: the embed kinds plus factions. */
+export type HubKind = EmbedItemKind | "faction";
+
 /**
- * Where a relation-embed row links. `session` covers encounters and scenes too,
- * because they are all `session_notes` rows and share the session-note page.
- * The switch is exhaustive: a new `EmbedItemKind` fails the typecheck here.
+ * The hub page for a row. `session` covers encounters and scenes too, because
+ * they are all `session_notes` rows and share the session-note page. The switch
+ * is exhaustive: a new kind fails the typecheck here.
  */
-export function embedItemHref(kind: EmbedItemKind, id: string): string {
+export function hubHref(kind: HubKind, id: string): string {
   switch (kind) {
     case "character": return `/characters/${id}`;
     case "item": return `/items/${id}`;
     case "location": return `/locations/${id}`;
+    case "faction": return `/factions/${id}`;
     case "session": return `/sessions/${id}`;
   }
+}
+
+/** Where a relation-embed row links (a subset of `hubHref`'s kinds). */
+export function embedItemHref(kind: EmbedItemKind, id: string): string {
+  return hubHref(kind, id);
 }
 
 /**

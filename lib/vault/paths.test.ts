@@ -4,6 +4,7 @@ import {
   assertVaultRelative,
   attachmentUrl,
   embedItemHref,
+  hubHref,
   obsidianUri,
   safeExternalHref,
   vaultPageUrl,
@@ -180,5 +181,15 @@ describe("safeExternalHref", () => {
     expect(safeExternalHref("")).toBeNull();
     expect(safeExternalHref(null)).toBeNull();
     expect(safeExternalHref(undefined)).toBeNull();
+  });
+});
+
+describe("hubHref", () => {
+  it("routes all five kinds, factions included", () => {
+    expect(hubHref("character", "c")).toBe("/characters/c");
+    expect(hubHref("location", "l")).toBe("/locations/l");
+    expect(hubHref("item", "i")).toBe("/items/i");
+    expect(hubHref("faction", "f")).toBe("/factions/f");
+    expect(hubHref("session", "s")).toBe("/sessions/s");
   });
 });

@@ -382,7 +382,7 @@ export function SimpleEntityDetail({ resourcePath, label, icon: Icon }: SimpleEn
               >
                 Open in Obsidian ↗
               </a>
-              <MarkdownBlocks blocks={page.blocks} embeds={page.embeds} />
+              <MarkdownBlocks blocks={page.blocks} embeds={page.embeds} links={page.links} />
             </div>
           )}
         </TabsContent>

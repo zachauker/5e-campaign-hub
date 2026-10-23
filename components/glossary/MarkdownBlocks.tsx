@@ -1,17 +1,22 @@
 "use client";
 
-import React from "react";
+import React, { createContext, useContext } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import type { MdBlock, MdInline } from "@/lib/vault/markdown";
 import type { EmbedResult } from "@/lib/vault/embeds";
-import { attachmentUrl, embedItemHref, safeExternalHref } from "@/lib/vault/paths";
+import type { LinkTarget } from "@/lib/vault/page";
+import { attachmentUrl, embedItemHref, hubHref, safeExternalHref } from "@/lib/vault/paths";
 import { calloutLabel, calloutStyle } from "@/components/glossary/callout-styles";
 
 /** Width requested for an inline image: wide enough for a hi-dpi panel, well under the 2048 cap. */
 const IMAGE_WIDTH = 1280;
 
+/** Resolved `[[wikilink]]` targets, keyed by target (from `/api/vault/page`). Provided once by MarkdownBlocks. */
+const LinksContext = createContext<Record<string, LinkTarget | null>>({});
+
 function Inlines({ segments }: { segments: MdInline[] }) {
+  const links = useContext(LinksContext);
   return (
     <>
       {segments.map((s, i) => {
@@ -28,10 +33,15 @@ function Inlines({ segments }: { segments: MdInline[] }) {
             </a>
           );
         } else if (s.link) {
-          // A [[wikilink]]. Resolving it to a hub page is not done here; it
-          // reads as a link without pointing anywhere it cannot go.
-          content = (
-            <span className="text-primary underline decoration-dotted underline-offset-2" title={s.link.target}>
+          // A [[wikilink]]: an internal link when it names a mirrored note,
+          // otherwise (a skipped type, an alias, a missing note) styled text, not a dead link.
+          const hit = Object.hasOwn(links, s.link.target) ? links[s.link.target] : null;
+          content = hit ? (
+            <Link href={hubHref(hit.kind, hit.id)} className="text-primary underline">
+              {content}
+            </Link>
+          ) : (
+            <span className="text-primary/80 underline decoration-dotted underline-offset-2" title={s.link.target}>
               {content}
             </span>
           );
@@ -255,14 +265,19 @@ function Blocks({ blocks, embeds }: { blocks: MdBlock[]; embeds: Record<string, 
 export function MarkdownBlocks({
   blocks,
   embeds = {},
+  links = {},
 }: {
   blocks: MdBlock[];
   /** Resolved relation embeds, keyed by block id (from `/api/vault/page`). */
   embeds?: Record<string, EmbedResult>;
+  /** Resolved wikilinks, keyed by target (from `/api/vault/page`). */
+  links?: Record<string, LinkTarget | null>;
 }) {
   return (
-    <div className="space-y-3 text-sm">
-      <Blocks blocks={blocks} embeds={embeds} />
-    </div>
+    <LinksContext.Provider value={links}>
+      <div className="space-y-3 text-sm">
+        <Blocks blocks={blocks} embeds={embeds} />
+      </div>
+    </LinksContext.Provider>
   );
 }

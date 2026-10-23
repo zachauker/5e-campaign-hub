@@ -83,7 +83,7 @@ export function EventNoteBody({ marker }: { marker: ResolvedMarker }) {
       )}
       {loading && <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />}
       {error && <p className="text-sm text-muted-foreground">{error}</p>}
-      {page && <MarkdownBlocks blocks={page.blocks} embeds={page.embeds} />}
+      {page && <MarkdownBlocks blocks={page.blocks} embeds={page.embeds} links={page.links} />}
       {!loading && !error && !page && detail && !detail.sourcePath && (
         <p className="text-sm text-muted-foreground">No vault note linked.</p>
       )}

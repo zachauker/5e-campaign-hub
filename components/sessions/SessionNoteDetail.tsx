@@ -201,7 +201,7 @@ export function SessionNoteDetail() {
       <div className="mt-6 border-t border-border pt-6">
         {blocksLoading && <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />}
         {blocksError && <p className="text-sm text-muted-foreground">{blocksError}</p>}
-        {page && <MarkdownBlocks blocks={page.blocks} embeds={page.embeds} />}
+        {page && <MarkdownBlocks blocks={page.blocks} embeds={page.embeds} links={page.links} />}
       </div>
 
       {/* Mounted fresh per open: the slide-over runs exactly one review pass on
