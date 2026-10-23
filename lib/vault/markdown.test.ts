@@ -49,6 +49,40 @@ describe("parseMarkdown", () => {
     ]);
   });
 
+  it("carries task-list state: unchecked, checked, and no checkbox", () => {
+    const blocks = parseMarkdown("- [ ] open\n- [x] done\n- plain");
+    expect(blocks.map((b) => [textOf(b), b.checked])).toEqual([
+      ["open", false],
+      ["done", true],
+      ["plain", undefined],
+    ]);
+  });
+
+  it("carries checked state on a nested task and an ordered task", () => {
+    const [item, ordered] = parseMarkdown("- [ ] parent\n  - [x] child\n\n1. [x] first");
+    expect(item.checked).toBe(false);
+    expect(item.children?.[0]).toMatchObject({ type: "list_item", checked: true });
+    expect(ordered).toMatchObject({ ordered: true, checked: true });
+  });
+
+  it("carries strikethrough as a strike mark", () => {
+    const [p] = parseMarkdown("Keep ~~Is the vault retracted?~~ and **~~bold struck~~** end.");
+    expect(p.inlines).toEqual([
+      { text: "Keep " },
+      { text: "Is the vault retracted?", strike: true },
+      { text: " and " },
+      { text: "bold struck", bold: true, strike: true },
+      { text: " end." },
+    ]);
+  });
+
+  it("keeps a strike on a wikilink inside struck text", () => {
+    const [p] = parseMarkdown("~~[[Rexxentrum]]~~");
+    expect(p.inlines).toEqual([
+      { text: "Rexxentrum", strike: true, link: { target: "Rexxentrum", kind: "wikilink" } },
+    ]);
+  });
+
   it("nests a sub-list under its parent list item as children", () => {
     const [item] = parseMarkdown("- parent\n  - child\n  - other child");
     expect(textOf(item)).toBe("parent");

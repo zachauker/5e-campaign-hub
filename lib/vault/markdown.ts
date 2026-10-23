@@ -13,6 +13,8 @@ export interface MdInline {
   bold?: boolean;
   italic?: boolean;
   code?: boolean;
+  /** Struck through (`~~text~~`): a retracted line must not read as current text. */
+  strike?: boolean;
   href?: string | null;
   /** A `[[wikilink]]`. The renderer resolves `target` against the vault. */
   link?: { target: string; kind: "wikilink" };
@@ -35,6 +37,8 @@ export interface MdBlock {
   /** Heading level, 1 to 6. */
   depth?: number;
   ordered?: boolean;
+  /** Task-list state of a `list_item` (`- [ ]` false, `- [x]` true); absent for an ordinary item. */
+  checked?: boolean;
   inlines?: MdInline[];
   /** The callout type, lowercased. Unknown types are kept as written. */
   calloutType?: string;
@@ -64,6 +68,7 @@ type TableNode = Extract<FlowNode, { type: "table" }>;
 interface Marks {
   bold?: boolean;
   italic?: boolean;
+  strike?: boolean;
   href?: string;
 }
 
@@ -135,6 +140,7 @@ function listItems(list: ListNode): Draft[] {
       ordered: list.ordered === true,
       inlines: ownText ? first.inlines : [],
     };
+    if (typeof item.checked === "boolean") draft.checked = item.checked;
     if (children.length > 0) draft.children = children;
     return draft;
   });
@@ -298,6 +304,7 @@ function withMarks(text: string, marks: Marks, code = false): MdInline {
   const inline: MdInline = { text };
   if (marks.bold) inline.bold = true;
   if (marks.italic) inline.italic = true;
+  if (marks.strike) inline.strike = true;
   if (code) inline.code = true;
   if (marks.href) inline.href = marks.href;
   return inline;
@@ -315,6 +322,8 @@ function inlineOf(node: PhrasingNode, marks: Marks): MdInline[] {
       return node.children.flatMap((c) => inlineOf(c, { ...marks, bold: true }));
     case "emphasis":
       return node.children.flatMap((c) => inlineOf(c, { ...marks, italic: true }));
+    case "delete":
+      return node.children.flatMap((c) => inlineOf(c, { ...marks, strike: true }));
     case "link":
       return node.children.flatMap((c) => inlineOf(c, { ...marks, href: node.url }));
     case "inlineCode":
@@ -329,7 +338,7 @@ function inlineOf(node: PhrasingNode, marks: Marks): MdInline[] {
       return /^<br\s*\/?>$/i.test(value) ? [withMarks("\n", marks)] : [];
     }
     default:
-      // Strikethrough, link/image references, footnote references: keep the text, lose the wrapper.
+      // Link/image references, footnote references: keep the text, lose the wrapper.
       if ("children" in node) return node.children.flatMap((c) => inlineOf(c as PhrasingNode, marks));
       return "value" in node && typeof node.value === "string" ? [withMarks(node.value, marks)] : [];
   }
@@ -347,6 +356,7 @@ function mergeInlines(inlines: MdInline[]): MdInline[] {
       !inline.link &&
       prev.bold === inline.bold &&
       prev.italic === inline.italic &&
+      prev.strike === inline.strike &&
       prev.code === inline.code &&
       prev.href === inline.href
     ) {
