@@ -34,11 +34,24 @@ const QUOTE_PREFIX = /^\s*((?:>\s?)+)(.*)$/;
 const DM_MARKER = /^\[!dm(?:\|[^\]]*)?\][+-]?(?:\s|$)/i;
 
 /**
+ * A line that opens a new block construct. These interrupt a paragraph rather
+ * than continuing it, so they cannot be a lazy continuation: ATX heading,
+ * thematic break, code fence, or list item.
+ */
+const BLOCK_OPENER = /^\s{0,3}(?:#{1,6}(?:\s|$)|(?:[-*_])(?:\s*[-*_]){2,}\s*$|```|~~~|(?:[-*+]|\d{1,9}[.)])(?:\s|$))/;
+
+/**
  * Remove every `[!dm]` callout. A callout is a blockquote, so it runs from its
- * `[!dm]` line through every following line quoted at the same depth or deeper;
- * the first line quoted less deeply (a blank line, prose, or the enclosing
- * callout resuming) ends it. A nested `> > [!dm]` therefore drops only the
- * inner block and leaves the outer callout intact.
+ * `[!dm]` line through every following line quoted at the same depth or deeper.
+ *
+ * It also takes in lazy continuation lines: in CommonMark and Obsidian a
+ * non-blank, unquoted line directly after a quoted line continues that
+ * blockquote's paragraph, so Obsidian renders it inside the (possibly
+ * collapsed) `[!dm]` callout and the DM reasonably believes it is hidden.
+ * Indexing it would leak DM-only prose, so it is dropped too. A blank line, a
+ * line quoted less deeply than the callout, or a line opening a new block
+ * construct (see BLOCK_OPENER) ends the callout. A nested `> > [!dm]` therefore
+ * drops only the inner block and leaves the outer callout intact.
  */
 function stripDmCallouts(markdown: string): string {
   const kept: string[] = [];
@@ -47,7 +60,8 @@ function stripDmCallouts(markdown: string): string {
     const quote = QUOTE_PREFIX.exec(line);
     const depth = quote ? (quote[1].match(/>/g) as string[]).length : 0;
     if (skipDepth !== null) {
-      if (depth >= skipDepth) continue;
+      const lazyContinuation = depth === 0 && line.trim() !== "" && !BLOCK_OPENER.test(line);
+      if (depth >= skipDepth || lazyContinuation) continue;
       skipDepth = null;
     }
     if (quote && DM_MARKER.test(quote[2].trimStart())) {
@@ -66,8 +80,10 @@ const TABLE_SEPARATOR = /^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$/;
 
 /**
  * Reduce markdown to readable prose for a search index, not for display.
- * Comments (`%%…%%`, `<!--…-->`) are hidden in Obsidian's reading view, so they
- * are dropped rather than indexed. Output is one trimmed, single-spaced line per
+ * Comments (`%%…%%`, `<!--…-->`) are dropped deliberately, not by accident: both
+ * are hidden in Obsidian's reading view, so the DM does not consider them prose
+ * (the vault uses `<!-- Column 1 -->` as layout markers) and they should not be
+ * indexed. Output is one trimmed, single-spaced line per
  * non-empty source line; blank lines are removed.
  */
 function toPlainText(markdown: string): string {

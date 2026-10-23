@@ -100,8 +100,37 @@ describe("digestBody", () => {
       expect(text).toContain("Morning in the common room");
     });
 
-    it("does not over-strip: prose directly after the blockquote survives", () => {
-      expect(digestBody("> [!dm]\n> hidden\nstill prose?").text).toContain("still prose?");
+    it("strips a lazy continuation line, then resumes after the blank line", () => {
+      const text = digestBody("> [!dm]\n> hidden\nlazy secret\nmore lazy\n\nOrdinary prose.").text;
+      expect(text).not.toMatch(/hidden|lazy/);
+      expect(text).toBe("Ordinary prose.");
+    });
+
+    it("strips a lazy continuation at the very end of the note", () => {
+      expect(digestBody("shown\n\n> [!dm]\n> hidden\nlazy secret").text).toBe("shown");
+    });
+
+    it("keeps dropping when the blockquote resumes after a lazy line", () => {
+      expect(digestBody("> [!dm]\n> a\nlazy\n> b\n\nshown").text).toBe("shown");
+    });
+
+    it("stops at a heading directly after a dm block; the heading and what follows survive", () => {
+      const text = digestBody("> [!dm]\n> hidden\n## Next Section\nBody text.").text;
+      expect(text).not.toContain("hidden");
+      expect(text).toBe("Next Section\nBody text.");
+    });
+
+    it("stops at other block openers: list item, thematic break, code fence", () => {
+      expect(digestBody("> [!dm]\n> hidden\n- item one\n- item two").text).toBe("item one\nitem two");
+      expect(digestBody("> [!dm]\n> hidden\n1. first").text).toBe("first");
+      expect(digestBody("> [!dm]\n> hidden\n---\nafter").text).toBe("after");
+      expect(digestBody("> [!dm]\n> hidden\n```\ncode\n```").text).toBe("code");
+    });
+
+    it("keeps the lazy continuation of a non-dm callout", () => {
+      const text = digestBody("> [!read-aloud]\n> Morning in the common room.\nThe fire crackles.").text;
+      expect(text).toContain("Morning in the common room.");
+      expect(text).toContain("The fire crackles.");
     });
 
     it("strips a [!dm] callout that is nested inside another callout, but keeps the outer", () => {
