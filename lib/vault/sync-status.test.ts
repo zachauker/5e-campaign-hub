@@ -25,6 +25,18 @@ describe("dedupeWarnings", () => {
     expect(dedupeWarnings([[], []])).toEqual([]);
   });
 
+  it("keeps distinct warnings that name different tables", () => {
+    expect(dedupeWarnings([["Locations: could not be read"], ["Items: could not be read"]])).toEqual([
+      "Locations: could not be read",
+      "Items: could not be read",
+    ]);
+  });
+
+  it("collapses a table-specific warning carried by two tables", () => {
+    const w = "Locations: could not be read";
+    expect(dedupeWarnings([[w], ["Items: could not be read"], [w]])).toEqual([w, "Items: could not be read"]);
+  });
+
   it("does not merge strings that merely look alike", () => {
     expect(dedupeWarnings([["x was skipped"], ["x was skipped "]])).toHaveLength(2);
   });

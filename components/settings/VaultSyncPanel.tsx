@@ -53,6 +53,16 @@ export function VaultSyncPanel({ campaignId }: { campaignId: string | null }) {
     applySource((data.source as SourceRow | null) ?? null);
   }
 
+  /** Best-effort refresh after an action that already succeeded or failed on its
+   * own terms: a failed reload must not be reported as a failure of that action. */
+  async function reloadSourceQuietly() {
+    try {
+      await reloadSource();
+    } catch {
+      // The action's own result is already on screen.
+    }
+  }
+
   // Load on mount / campaign change with a cancellation guard so a stale
   // response can't set state after the effect is torn down.
   useEffect(() => {
@@ -106,6 +116,7 @@ export function VaultSyncPanel({ campaignId }: { campaignId: string | null }) {
     if (!campaignId) return;
     setSavingPath(true);
     setPathError(null);
+    setSyncError(null);
     try {
       const res = await fetch("/api/vault/source", {
         method: "PUT",
@@ -117,7 +128,11 @@ export function VaultSyncPanel({ campaignId }: { campaignId: string | null }) {
         setPathError(data.error ?? "Could not save the vault folder");
         return;
       }
-      await reloadSource();
+      await reloadSourceQuietly();
+      // The stored status describes the previous folder. The server keeps it
+      // until the next sync overwrites it, but showing it under the new path
+      // reads as "this folder synced fine", so fall back to "not synced yet".
+      setStatus({ kind: "never" });
     } catch {
       setPathError("Could not save the vault folder — check your connection and try again.");
     } finally {
@@ -140,6 +155,8 @@ export function VaultSyncPanel({ campaignId }: { campaignId: string | null }) {
       }
       setVaultName(next);
       setSavedVaultName(next);
+    } catch {
+      toast({ title: "Could not save the vault name — check your connection", variant: "error" });
     } finally {
       setSavingName(false);
     }
@@ -159,21 +176,24 @@ export function VaultSyncPanel({ campaignId }: { campaignId: string | null }) {
       if (!res.ok) {
         setSyncError(describeSyncFailure(res.status, data.error));
         // A 503 also wrote { error } to last_status; reload so it shows below.
-        await reloadSource();
+        await reloadSourceQuietly();
         return;
       }
       setStatus(parseSyncStatus(data.summary));
-      await reloadSource();
     } catch {
       setSyncError("Sync failed — check your connection and try again.");
+      return;
     } finally {
       setSyncing(false);
     }
+    // The sync itself succeeded; this only refreshes the "last synced" time.
+    await reloadSourceQuietly();
   }
 
   async function saveAutoSync(next: { enabled?: boolean; interval?: number }) {
     const enabled = next.enabled ?? autoEnabled;
     const interval = next.interval ?? intervalMinutes;
+    const previous = { enabled: autoEnabled, interval: intervalMinutes };
     setAutoEnabled(enabled);
     setIntervalMinutes(interval);
     setSavingAuto(true);
@@ -186,7 +206,12 @@ export function VaultSyncPanel({ campaignId }: { campaignId: string | null }) {
           vault_auto_sync_interval_minutes: String(interval),
         }),
       });
-      if (!res.ok) toast({ title: "Could not save auto-sync settings", variant: "error" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch {
+      // Roll back so the controls never show a setting the server doesn't have.
+      setAutoEnabled(previous.enabled);
+      setIntervalMinutes(previous.interval);
+      toast({ title: "Could not save auto-sync settings", variant: "error" });
     } finally {
       setSavingAuto(false);
     }
@@ -219,7 +244,7 @@ export function VaultSyncPanel({ campaignId }: { campaignId: string | null }) {
             id="vault-root-path"
             value={rootPath}
             placeholder="D&D/Explorers of Exandria"
-            onChange={(e) => { setRootPath(e.target.value); setPathError(null); }}
+            onChange={(e) => { setRootPath(e.target.value); setPathError(null); setSyncError(null); }}
             onKeyDown={(e) => e.key === "Enter" && pathDirty && saveRootPath()}
             className="flex-1"
           />
