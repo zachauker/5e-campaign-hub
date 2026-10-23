@@ -7,6 +7,10 @@ import { resolveCampaignFolder, VaultUnreadableError } from "./config";
 
 const NOTE = "---\ntype: npc\n---\n# Body\n";
 
+// File level, not per describe: a VAULT_PATH stub left behind by one describe
+// would otherwise decide what the next one reads.
+afterEach(() => vi.unstubAllEnvs());
+
 describe("scanVault", () => {
   it("returns one note per markdown file with a vault-relative path", () => {
     const vault = createTestVault({
@@ -57,6 +61,42 @@ describe("scanVault", () => {
     const { notes } = scanVault(path.join(vault, "camp"), vault);
     expect(notes.map((n) => n.basename)).toEqual(["Real"]);
   });
+
+  it("excludes dot-files, including AppleDouble sidecars", () => {
+    // The vault lives on a Mac and will be served from Unraid, so `._Foo.md`
+    // sidecars are a live possibility; they parse as frontmatter-less notes and
+    // would warn on every tick.
+    const vault = createTestVault({
+      "camp/Real.md": NOTE,
+      "camp/._Real.md": "\u0000AppleDouble junk",
+      "camp/NPCs/._Manner.md": "\u0000AppleDouble junk",
+      "camp/.hidden-draft.md": NOTE,
+    });
+    const { notes, warnings } = scanVault(path.join(vault, "camp"), vault);
+    expect(warnings).toEqual([]);
+    expect(notes.map((n) => n.path)).toEqual(["camp/Real.md"]);
+  });
+
+  // Skipped as root, which can read a 0o000 directory regardless of its mode.
+  it.skipIf(process.getuid?.() === 0)(
+    "warns and keeps scanning when a subdirectory cannot be read", () => {
+      const vault = createTestVault({
+        "camp/A/Fine.md": NOTE,
+        "camp/Locked/Hidden.md": NOTE,
+        "camp/Z/AlsoFine.md": NOTE,
+      });
+      const locked = path.join(vault, "camp", "Locked");
+      fs.chmodSync(locked, 0o000);
+      try {
+        const { notes, warnings } = scanVault(path.join(vault, "camp"), vault);
+        expect(notes.map((n) => n.basename)).toEqual(["Fine", "AlsoFine"]);
+        expect(warnings).toHaveLength(1);
+        expect(warnings[0]).toContain("camp/Locked");
+      } finally {
+        fs.chmodSync(locked, 0o755);
+      }
+    },
+  );
 
   it("ignores non-markdown files", () => {
     const vault = createTestVault({
@@ -115,8 +155,6 @@ describe("scanVault", () => {
 });
 
 describe("resolveCampaignFolder", () => {
-  afterEach(() => vi.unstubAllEnvs());
-
   it("joins VAULT_PATH with the relative root path", () => {
     const vault = createTestVault({ "D&D/Explorers of Exandria/NPCs/Manner.md": NOTE });
     vi.stubEnv("VAULT_PATH", vault);
