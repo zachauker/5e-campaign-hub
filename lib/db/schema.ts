@@ -187,21 +187,6 @@ export const sessionNoteLocations = sqliteTable(
   (t) => [primaryKey({ columns: [t.sessionNoteId, t.locationId] })]
 );
 
-// Dead since the move to the Obsidian vault: nothing reads or writes this table.
-// Kept (like the notion_* columns) because migrations are additive-only.
-export const notionSources = sqliteTable(
-  "notion_sources",
-  {
-    campaignId: text("campaign_id").notNull().references(() => campaigns.id, { onDelete: "cascade" }),
-    entityType: text("entity_type", { enum: ["characters", "items", "factions", "locations", "sessionNotes"] }).notNull(),
-    databaseUrl: text("database_url").notNull(),
-    dataSourceId: text("data_source_id"),
-    lastSyncedAt: integer("last_synced_at", { mode: "timestamp" }),
-    lastStatus: text("last_status"),
-  },
-  (t) => [primaryKey({ columns: [t.campaignId, t.entityType] })]
-);
-
 export const vaultSources = sqliteTable("vault_sources", {
   campaignId: text("campaign_id").primaryKey().references(() => campaigns.id, { onDelete: "cascade" }),
   rootPath: text("root_path").notNull(),
@@ -447,9 +432,6 @@ export type Faction = typeof factions.$inferSelect;
 export type NewFaction = typeof factions.$inferInsert;
 export type SessionNote = typeof sessionNotes.$inferSelect;
 export type NewSessionNote = typeof sessionNotes.$inferInsert;
-// Dead: see notionSources above. Nothing consumes these.
-export type NotionSource = typeof notionSources.$inferSelect;
-export type NewNotionSource = typeof notionSources.$inferInsert;
 export type VaultSource = typeof vaultSources.$inferSelect;
 export type NewVaultSource = typeof vaultSources.$inferInsert;
 export type MapRow = typeof maps.$inferSelect;
