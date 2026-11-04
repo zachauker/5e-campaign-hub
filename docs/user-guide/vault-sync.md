@@ -290,6 +290,14 @@ id-less notes in the live vault.)
 
 ---
 
+## Retiring the Notion ids
+
+Most notes are still recognised by the `notion_id:` they carried over from Notion. That
+works indefinitely, but it means the hub's identity for them is a Notion page id. To move
+them onto your own `hub_id:` instead, follow
+[Retiring the Notion identity layer](retiring-notion-ids.md) — it is optional, and the
+order of the edits matters.
+
 ## Not synced
 
 The vault is read-only from here. The hub never writes back — no properties, no note
