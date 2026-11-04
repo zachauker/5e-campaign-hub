@@ -171,10 +171,15 @@ mount falls back to an empty `./vault` directory and the container still starts.
 The campaign folder won't exist inside it, so every sync fails with a `503` and
 "the vault folder isn't reachable from the server" (see the third bullet below).
 
-- **`VAULT_PATH` is the vault root, not the campaign folder.** The folder holding
-  `.obsidian/`. The campaign's own folder is a vault-relative path (for example
+- **`VAULT_PATH` is the root the campaign path is relative to, not the campaign
+  folder.** The campaign's own folder is a vault-relative path (for example
   `D&D/Explorers of Exandria`) set per campaign in **Settings → Obsidian Vault**;
-  an absolute path or one containing `..` is refused.
+  an absolute path or one containing `..` is refused. It does **not** have to be
+  the folder holding `.obsidian/` — nothing in the hub reads `.obsidian/`, and the
+  recommended layout below deliberately mirrors only a subtree of the real vault.
+  What it must do is keep the same prefix the campaign path uses, because
+  `source_path` is stored relative to this root and `obsidian://` links are built
+  from it: mirror `D&D/` *into* the mounted directory, not *as* it.
 - **The mount is `:ro` deliberately.** The hub never writes to the vault, and a
   read-only mount makes that a property of the deployment rather than a promise
   about the code. Do not remove it to "fix" a permissions problem.
@@ -183,14 +188,84 @@ The campaign folder won't exist inside it, so every sync fails with a `503` and
   as the last sync status so a background pass that failed unattended is still
   visible. Nothing is archived or deleted when the folder can't be read: a sync
   that cannot see the vault never concludes that your notes are gone.
-- **Open prerequisite: nothing yet puts the vault on the server.** The vault is
-  edited on the DM's Mac (`~/Documents/Willowbrook-Remote/`); it is not a git
-  repository and carries no sync journal. Whether Nextcloud (installed on the Mac)
-  or anything else delivers those files to the Unraid host was never confirmed.
-  Until that is answered and `VAULT_HOST_PATH` points at a real directory
-  containing the vault, the deployed container has no notes to sync and the hub
-  stays empty. Development and tests run against the local vault via
-  `VAULT_PATH` in `.env.local`.
+- **Getting the vault onto the server: Syncthing, one way.** The vault is edited
+  on the Mac (`~/Documents/Willowbrook-Remote/`). It is not a git repository and
+  carries no sync journal, so something has to deliver the files. See
+  **Mirroring the vault with Syncthing** below. Development and tests run against
+  the local vault via `VAULT_PATH` in `.env.local` and need none of this.
+
+## Mirroring the vault with Syncthing
+
+Share **one folder, one way**: the Mac sends, the server receives, and the server
+never sends anything back. The hub's mount is `:ro` and the hub never writes, so
+there is nothing on the server for a two-way sync to carry home — and a one-way
+setup cannot produce `.sync-conflict` files in the notes.
+
+**Share the `D&D` folder, not the whole vault.** The vault root also holds
+`Personal`, `House Stuff`, `Day Planner` and `Software Projects`, and none of that
+belongs on a server. It matters beyond tidiness: the attachment route resolves an
+embedded image by **basename anywhere under `VAULT_PATH`** (image extensions only —
+notes and configs are never reachable), so an image under `Personal/` on the server
+would be servable by anyone who could reach the hub and guess its file name. Don't
+put it there.
+
+**The layout that matters.** Mirror `D&D/` *into* the mounted directory, so the
+mounted directory is the root and `D&D/` sits inside it:
+
+```
+/mnt/user/appdata/5ehub-vault/        <- VAULT_HOST_PATH, mounted at /vault
+└── D&D/                              <- the Syncthing folder
+    ├── Explorers of Exandria/
+    └── Planescape/
+```
+
+Then `VAULT_HOST_PATH=/mnt/user/appdata/5ehub-vault`, and the campaign folder in
+**Settings → Obsidian Vault** stays `D&D/Explorers of Exandria` — unchanged.
+
+Mirroring `D&D/` *as* the mounted directory instead (so `Explorers of Exandria`
+sits at the root) would also sync and scan correctly, and would break every
+**Open in Obsidian** link: `source_path` is stored relative to `VAULT_PATH`, the
+`D&D/` prefix would vanish from it, and Obsidian resolves `file=` against the real
+vault root, where `Explorers of Exandria/...` does not exist. Keep the prefix.
+
+**Setup.** Do steps 1-3 now; **steps 4 and 5 come after the pre-flight in the next
+section**, because leaving `VAULT_HOST_PATH` unset is exactly how that checklist holds
+the background sync off. Syncthing can mirror the files into place meanwhile — nothing
+reads them until the mount exists.
+
+1. On the Mac, add the folder `~/Documents/Willowbrook-Remote/D&D` and set its
+   folder type to **Send Only**.
+2. On Unraid, install Syncthing from Community Applications, accept the shared
+   folder, set its path to `/mnt/user/appdata/5ehub-vault/D&D`, and set its folder
+   type to **Receive Only**.
+3. Skip the dead weight. Roughly two thirds of `D&D/` is pre-migration backups the
+   hub already ignores as dot-directories — about 133 MB of the 198 MB, against a
+   real payload near 66 MB. Put this in `~/Documents/Willowbrook-Remote/D&D/.stignore`
+   on the Mac:
+
+   ```
+   .backup-*
+   .notion-import
+   .migration
+   .inbox
+   ```
+
+4. Set `VAULT_HOST_PATH` in the `.env` beside `docker-compose.yml` — but **not
+   until the pre-flight below passes.** Leaving it unset is how you hold the
+   background sync off, and the next section depends on that.
+5. Confirm the server can see it, as the container does:
+
+   ```bash
+   docker exec encounter-tracker ls "/vault/D&D/Explorers of Exandria" | head
+   ```
+
+**Cadence.** The hub's own automatic sync runs every 15 minutes, so Syncthing's
+default continuous watching is already finer-grained than the hub will notice. A
+note saved on the Mac shows up in the hub within one hub sync cycle.
+
+**One-way means one way.** If you ever edit a note on the server side, Receive Only
+will revert it on the next scan. That is the intended behaviour: the Mac is the
+source of truth, exactly as the read-only mount assumes.
 
 ## First-sync pre-flight (do this before the first sync)
 

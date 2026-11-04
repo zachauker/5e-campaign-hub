@@ -19,7 +19,11 @@ There is one setting, not five.
 
 The server reads the vault from a folder on its own disk, set by the `VAULT_PATH`
 environment variable (default `/vault`, which is where a container expects the
-mount). Point it at the **vault root**, not at a campaign folder inside it.
+mount). Point it at the folder your **campaign path is relative to**, not at the
+campaign folder itself — so if the campaign folder is `D&D/Explorers of Exandria`,
+the mounted directory is the one *containing* `D&D/`. It does not have to be your
+whole Obsidian vault, and on a server it should not be: see
+[Mirroring the vault with Syncthing](../../DEPLOYMENT.md#mirroring-the-vault-with-syncthing).
 
 On a server, mount the vault into the container **read-only**. That is on purpose:
 it makes "the hub never writes to your vault" a fact about the mount, not a promise

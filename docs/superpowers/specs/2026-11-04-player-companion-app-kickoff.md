@@ -120,7 +120,10 @@ Further invariants that bind any design here:
 ## Also outstanding on the hub side (context, not scope)
 
 Sub-project #20 is merged to local `main` but **not yet pushed or deployed**, and its
-first production sync has not run. Two prerequisites remain: a manual vault pre-flight
-(`DEPLOYMENT.md`), and an unresolved question of what actually syncs the vault onto
-Willowbrook. If a design here proposes git as the vault transport, it may solve that
-second problem too — worth noticing, not worth forcing.
+first production sync has not run. One prerequisite remains: the manual vault
+pre-flight in `DEPLOYMENT.md`.
+
+The vault transport is settled — one-way Syncthing, `D&D/` only, Mac to Unraid — so a
+design here does **not** need to solve it, and should not assume git is available as a
+vault transport. If this app wants git for its own storage, that is a free-standing
+choice to argue on its own merits.

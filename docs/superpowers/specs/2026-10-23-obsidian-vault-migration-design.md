@@ -488,6 +488,12 @@ The existing 925 lines of Notion tests are the template and most port directly.
 
 ## Prerequisite
 
+> **Resolved 2026-11-04:** one-way Syncthing, Send Only on the Mac to Receive Only
+> on Unraid, sharing the `D&D/` folder only and mirroring it *into* the mounted
+> directory so the campaign path keeps its prefix. See
+> [DEPLOYMENT.md](../../../DEPLOYMENT.md#mirroring-the-vault-with-syncthing). The
+> paragraph below is the original record of the open question.
+
 **What places the vault on Willowbrook is unresolved.** The vault lives at
 `~/Documents/Willowbrook-Remote/` on the DM's Mac; it is not a git repository and
 carries no sync journal. Nextcloud is installed on the Mac and the folder is
