@@ -7,7 +7,9 @@ import type { CombatantWithParsed, Condition } from "@/lib/types";
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: encounterId } = await params;
   const body = await req.json();
-  const combatantId = generateId();
+  // Honour the id the client minted: it is already in the tracker store, and
+  // every later save addresses the combatant by it.
+  const combatantId: string = typeof body.id === "string" && body.id ? body.id : generateId();
 
   const [row] = await db
     .insert(combatants)

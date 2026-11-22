@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { encounters, combatants } from "@/lib/db/schema";
 import { eq, asc } from "drizzle-orm";
 import type { CombatantWithParsed, EncounterWithCombatants, Condition } from "@/lib/types";
+import { saveEncounter, type EncounterSavePayload } from "@/lib/encounters/save";
 
 function parseCombatant(row: typeof combatants.$inferSelect): CombatantWithParsed {
   return {
@@ -41,37 +42,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const { id } = await params;
   const body = await req.json();
 
-  const { combatants: combatantUpdates, ...encounterUpdates } = body;
-
-  if (Object.keys(encounterUpdates).length > 0) {
-    await db
-      .update(encounters)
-      .set({ ...encounterUpdates, updatedAt: new Date() })
-      .where(eq(encounters.id, id));
-  }
-
-  if (combatantUpdates && Array.isArray(combatantUpdates)) {
-    for (const c of combatantUpdates as CombatantWithParsed[]) {
-      await db
-        .update(combatants)
-        .set({
-          initiative: c.initiative,
-          hpCurrent: c.hpCurrent,
-          hpMax: c.hpMax,
-          hpTemp: c.hpTemp,
-          ac: c.ac,
-          conditions: JSON.stringify(c.conditions),
-          notes: c.notes,
-          isConcentrating: c.isConcentrating,
-          isVisible: c.isVisible,
-          sortOrder: c.sortOrder,
-          statBlock: c.statBlock ? JSON.stringify(c.statBlock) : null,
-          ddbCharacterData: c.ddbCharacter ? JSON.stringify(c.ddbCharacter) : null,
-          avatarUrl: c.avatarUrl,
-        })
-        .where(eq(combatants.id, c.id));
-    }
-  }
+  const result = saveEncounter(db, id, body as EncounterSavePayload);
+  if (!result.ok) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   return NextResponse.json({ ok: true });
 }
