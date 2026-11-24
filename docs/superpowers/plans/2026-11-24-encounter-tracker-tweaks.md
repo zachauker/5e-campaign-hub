@@ -121,7 +121,8 @@ git commit -m "feat: add label, library link, sheet link and portrait columns"
   - `isRenamedByHand(currentName: string, sourceName: string): boolean`
   - `duplicateGroups(combatants: CombatantWithParsed[]): Map<string, CombatantWithParsed[]>` — only groups of 2+.
   - `tokenIndexOf(combatants: CombatantWithParsed[], id: string): number | null` — the badge number, or `null` when not in a duplicate group.
-  - `planAdd(existing: CombatantWithParsed[], incoming: { name: string; sourceKey: string; sourceName: string }): { name: string; color: string; renameFirst: { id: string; name: string; color: string } | null }` — what the add path applies.
+  - `tokenIndices(combatants: CombatantWithParsed[]): Map<string, number>` — every duplicate's badge number in one pass, so a list render computes this once instead of per row.
+  - `planAdd(existing: CombatantWithParsed[], incoming: { name: string; sourceKey: string; sourceName: string }): { name: string; color: string | null; updateFirst: { id: string; name: string | null; color: string } | null }` — what the add path applies. `color` is `null` for a lone first copy, which keeps whatever colour its sheet supplied. `updateFirst` carries both halves of what happens to copy #1 when a group forms: `name` is the retroactive `"<source> 1"` rename, or `null` when the DM has renamed it by hand and it must keep that name; `color` is the token colour, which copy #1 always receives once a group exists, hand-renamed or not.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -381,18 +382,18 @@ git commit -m "feat: larger combatant row with a grouped vitals box"
 - Modify: `lib/store/encounter-store.ts` (`setLabel`)
 
 **Interfaces:**
-- Consumes: `planAdd`, `tokenIndexOf`, `sourceKeyOf` from `lib/encounters/duplicates.ts` (Task 2).
+- Consumes: `planAdd`, `tokenIndices`, `sourceKeyOf` from `lib/encounters/duplicates.ts` (Task 2).
 - Produces: `useEncounterStore().setLabel(combatantId: string, label: string)` — marks dirty like `setNotes`.
 
 - [ ] **Step 1: Render the token and the label**
 
-In `CombatantCard`: when `tokenIndexOf(encounter.combatants, c.id)` is non-null, draw the numbered badge (21px, bottom-right of the portrait, `ring-2 ring-card`, background `c.color`) and the 4px full-height stripe down the card's left edge in `c.color`. When it is null, draw the stripe only if `c.color` is set (a sheet-authored colour) and no badge.
+In `InitiativeTracker`, compute `tokenIndices(encounter.combatants)` once and pass each card its own number. In `CombatantCard`: when that number is non-null, draw the numbered badge (21px, bottom-right of the portrait, `ring-2 ring-card`, background `c.color`) and the 4px full-height stripe down the card's left edge in `c.color`. When it is null, draw the stripe only if `c.color` is set (a sheet-authored colour) and no badge.
 
 Add the label chip to the subtitle line: `c.label` in a dashed-border chip, or a muted `+ label` affordance when empty; clicking either opens an inline input committing to `setLabel` on Enter or blur, Escape cancelling. Follow the name-edit pattern already in this file.
 
 - [ ] **Step 2: Wire the add paths**
 
-Every path that builds a combatant calls `planAdd` with the existing combatants and the incoming name, source key and source name, then applies the returned `name` and `color`, and — when `renameFirst` is non-null — applies that rename and colour to the existing first copy via `updateCombatant`.
+Every path that builds a combatant calls `planAdd` with the existing combatants and the incoming name, source key and source name, then applies the returned `name`, and applies `color` only when it is non-null (a `null` colour means this is a lone first copy, which keeps the colour its sheet supplied). When `updateFirst` is non-null, apply its `color` to the existing first copy via `updateCombatant`, and its `name` too unless that is `null` (a hand-renamed copy #1 gets the token colour but keeps its name).
 
 The monster batch loop in `addMonster` must call `planAdd` once per iteration against the list including the copies it has already added, so a ×3 add numbers 1, 2, 3 rather than three 1s.
 
