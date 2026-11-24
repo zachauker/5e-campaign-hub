@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { characterLibrary } from "@/lib/db/schema";
+import { characterLibrary, characters, combatants } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import type { CharacterUploadSchema } from "@/lib/character-schema";
 import { deleteLibraryImage } from "@/lib/library/storage";
@@ -51,7 +51,14 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   const existing = await db.query.characterLibrary.findFirst({
     where: eq(characterLibrary.id, id),
   });
-  await db.delete(characterLibrary).where(eq(characterLibrary.id, id));
+  // combatants.library_id and characters.stat_sheet_id are plain foreign keys with no
+  // ON DELETE clause, so an entry in use cannot be deleted until they let go of it.
+  // Combatants keep their snapshot; they just stop pointing at the entry.
+  db.transaction((tx) => {
+    tx.update(combatants).set({ libraryId: null }).where(eq(combatants.libraryId, id)).run();
+    tx.update(characters).set({ statSheetId: null }).where(eq(characters.statSheetId, id)).run();
+    tx.delete(characterLibrary).where(eq(characterLibrary.id, id)).run();
+  });
   if (existing?.imagePath) await deleteLibraryImage(existing.imagePath);
   return NextResponse.json({ ok: true });
 }
