@@ -3,6 +3,8 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import type { CombatantWithParsed, EncounterWithCombatants, Condition, DDBCharacter } from "@/lib/types";
+import type { CharacterUploadSchema } from "@/lib/character-schema";
+import { applySheetEdits } from "@/lib/library/sheet-form";
 
 interface EncounterState {
   encounter: EncounterWithCombatants | null;
@@ -25,6 +27,8 @@ interface EncounterState {
   setNotes: (combatantId: string, notes: string) => void;
   setLabel: (combatantId: string, label: string) => void;
   updateCombatant: (combatantId: string, updates: Partial<CombatantWithParsed>) => void;
+  /** Applies an edited stat sheet to this combatant only; the library entry it came from is untouched. */
+  applyCombatantSheet: (combatantId: string, sheet: CharacterUploadSchema) => void;
   reorderCombatants: (combatants: CombatantWithParsed[]) => void;
   addCombatant: (combatant: CombatantWithParsed) => void;
   removeCombatant: (combatantId: string) => void;
@@ -180,6 +184,15 @@ export const useEncounterStore = create<EncounterState>()(
         if (!state.encounter) return state;
         const combatants = state.encounter.combatants.map((c) =>
           c.id === combatantId ? { ...c, ...updates } : c
+        );
+        return { encounter: { ...state.encounter, combatants }, isDirty: true };
+      }),
+
+    applyCombatantSheet: (combatantId, sheet) =>
+      set((state) => {
+        if (!state.encounter) return state;
+        const combatants = state.encounter.combatants.map((c) =>
+          c.id === combatantId ? { ...c, ...applySheetEdits(c, sheet) } : c
         );
         return { encounter: { ...state.encounter, combatants }, isDirty: true };
       }),

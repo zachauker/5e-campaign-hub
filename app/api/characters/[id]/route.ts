@@ -70,6 +70,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       type: body.type ?? existing.type,
       ddbCharacterId: body.ddbCharacterId ?? existing.ddbCharacterId,
       description: body.description ?? existing.description,
+      // null unlinks, so only an absent key keeps the stored value.
+      statSheetId: body.statSheetId !== undefined ? body.statSheetId : existing.statSheetId,
       updatedAt: new Date(),
     })
     .where(eq(characters.id, id));

@@ -5,8 +5,26 @@ import { useEncounterStore } from "@/lib/store/encounter-store";
 import { StatBlock } from "./StatBlock";
 import { PCSheet } from "./PCSheet";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, AlertTriangle } from "lucide-react";
+import { useToast } from "@/components/ui/toast";
+import { StatSheetEditorDialog } from "@/components/bestiary/StatSheetEditorDialog";
+import { LinkSheetDialog } from "./LinkSheetDialog";
+import { RefreshCw, AlertTriangle, Pencil, BookMarked } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { statBlockToUpload, type CharacterUploadSchema } from "@/lib/character-schema";
+import { mergeSheetOverStored } from "@/lib/library/save-back";
+import { portraitUrl } from "@/lib/library/portrait";
+import type { LibraryEntry } from "@/lib/library/entry";
+import type { CombatantWithParsed } from "@/lib/types";
+
+type Sheet = CharacterUploadSchema;
+
+/** The editor over one combatant. `opens` keys the dialog: the editor seeds its rows from props once. */
+interface EditorState {
+  mode: "edit" | "create";
+  combatantId: string;
+  draft: Sheet;
+  opens: number;
+}
 
 interface StatBlockPanelProps {
   onRefresh?: () => void;
@@ -41,7 +59,12 @@ function useRelativeTime(date: Date | null): string {
 }
 
 export function StatBlockPanel({ onRefresh, lastSyncedAt, syncing, syncErrors }: StatBlockPanelProps) {
-  const { encounter, selectedCombatantId, selectCombatant } = useEncounterStore();
+  const { encounter, selectedCombatantId, selectCombatant, applyCombatantSheet, updateCombatant } = useEncounterStore();
+  const toast = useToast();
+  const [editor, setEditor] = useState<EditorState | null>(null);
+  const [linking, setLinking] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [opens, setOpens] = useState(0);
 
   const combatant = encounter?.combatants.find((c) => c.id === selectedCombatantId);
   const isPCWithSheet = combatant?.type === "pc" && !!combatant.ddbCharacter;
@@ -63,6 +86,116 @@ export function StatBlockPanel({ onRefresh, lastSyncedAt, syncing, syncErrors }:
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [selectedCombatantId, selectCombatant]);
 
+  const openEditor = (c: CombatantWithParsed, mode: EditorState["mode"]) => {
+    setOpens((n) => n + 1);
+    setEditor({ mode, combatantId: c.id, draft: statBlockToUpload(c), opens: opens + 1 });
+  };
+
+  /** Records the NPC's sheet on its character entity so it has one next session too. */
+  const linkCharacter = async (c: CombatantWithParsed, libraryId: string) => {
+    if (!c.characterId) return;
+    try {
+      const res = await fetch(`/api/characters/${c.characterId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ statSheetId: libraryId }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      toast({
+        title: "Sheet linked here only",
+        description: `${c.name} has the sheet for this fight, but the character record could not be updated.`,
+        variant: "error",
+      });
+    }
+  };
+
+  /** A mid-fight edit changes this combatant only. The library entry is never touched here. */
+  const saveEdit = (sheet: Sheet) => {
+    if (!editor) return;
+    applyCombatantSheet(editor.combatantId, sheet);
+    setEditor(null);
+  };
+
+  /** Create a sheet: a new library row, snapshotted onto the combatant and linked from its character. */
+  const saveCreate = async (draft: Sheet) => {
+    // The pane shows a combatant's stat block, so a sheet needs one even when the DM added no detail.
+    const sheet: Sheet = { ...draft, statBlock: draft.statBlock ?? {} };
+    const c = encounter?.combatants.find((x) => x.id === editor?.combatantId);
+    if (!c) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/library", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...sheet, tags: sheet.tags ?? [] }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error ?? "Could not save the sheet");
+      }
+      const entry = (await res.json()) as LibraryEntry;
+      applyCombatantSheet(c.id, sheet);
+      updateCombatant(c.id, { libraryId: entry.id });
+      await linkCharacter(c, entry.id);
+      setEditor(null);
+    } catch (err) {
+      toast({ title: "Sheet not saved", description: err instanceof Error ? err.message : "Could not save the sheet", variant: "error" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const pickSheet = async (c: CombatantWithParsed, entry: LibraryEntry) => {
+    // The DM named this combatant; linking supplies the stats, not a new name.
+    applyCombatantSheet(c.id, {
+      ...entry.data,
+      name: c.name,
+      avatarUrl: portraitUrl(entry) ?? entry.data.avatarUrl,
+      statBlock: entry.data.statBlock ?? {},
+    });
+    updateCombatant(c.id, { libraryId: entry.id });
+    setLinking(false);
+    await linkCharacter(c, entry.id);
+  };
+
+  /**
+   * Save to library: layer this combatant's sheet over the stored one. PATCH replaces `data`,
+   * and a combatant cannot carry the entry's tags or notes, so the stored entry is read first.
+   */
+  const saveToLibrary = async (c: CombatantWithParsed) => {
+    const libraryId = c.libraryId;
+    if (!libraryId) return;
+    const lost = () => {
+      updateCombatant(c.id, { libraryId: null });
+      toast({
+        title: "Library entry is gone",
+        description: `${c.name}'s entry was deleted from the library, so nothing was saved. This combatant keeps its sheet.`,
+        variant: "error",
+        duration: 0,
+      });
+    };
+    setSaving(true);
+    try {
+      const current = await fetch(`/api/library/${libraryId}`);
+      if (current.status === 404) return lost();
+      if (!current.ok) throw new Error("Could not read the library entry");
+      const entry = (await current.json()) as LibraryEntry;
+      const res = await fetch(`/api/library/${libraryId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...mergeSheetOverStored(entry.data, statBlockToUpload(c)), tags: entry.tags }),
+      });
+      if (res.status === 404) return lost();
+      if (!res.ok) throw new Error("Could not update the library entry");
+      toast({ title: "Saved to library", description: `${c.name} updated in the bestiary.`, variant: "success" });
+    } catch (err) {
+      toast({ title: "Not saved to library", description: err instanceof Error ? err.message : "Could not save", variant: "error" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Always rendered at a fixed width; only the content changes.
   return (
     <div className="flex flex-col border-l border-border bg-card overflow-hidden w-80 min-w-80">
@@ -73,6 +206,25 @@ export function StatBlockPanel({ onRefresh, lastSyncedAt, syncing, syncErrors }:
             <span className="text-sm font-semibold shrink-0">
               {isPCWithSheet ? "Character Sheet" : "Stat Block"}
             </span>
+
+            {!isPCWithSheet && (
+              <div className="flex items-center gap-1 min-w-0 flex-1 justify-end">
+                {combatant.libraryId && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={saving}
+                    onClick={() => void saveToLibrary(combatant)}
+                    title="Write this combatant's sheet back to its library entry"
+                  >
+                    <BookMarked className="w-3.5 h-3.5" /> Save to library
+                  </Button>
+                )}
+                <Button size="sm" variant="outline" onClick={() => openEditor(combatant, "edit")}>
+                  <Pencil className="w-3.5 h-3.5" /> Edit
+                </Button>
+              </div>
+            )}
 
             {isPCWithSheet && (
               <div className="flex items-center gap-1.5 min-w-0 flex-1">
@@ -123,11 +275,10 @@ export function StatBlockPanel({ onRefresh, lastSyncedAt, syncing, syncErrors }:
       ) : combatant ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-4 text-center">
           <span className="text-sm font-semibold">{combatant.name}</span>
-          {/* Wired up in Task 10 */}
-          <Button size="sm" variant="outline" disabled title="Coming soon">
+          <Button size="sm" variant="outline" onClick={() => setLinking(true)}>
             Link a stat sheet
           </Button>
-          <Button size="sm" variant="outline" disabled title="Coming soon">
+          <Button size="sm" variant="outline" onClick={() => openEditor(combatant, "create")}>
             Create a sheet
           </Button>
         </div>
@@ -135,6 +286,25 @@ export function StatBlockPanel({ onRefresh, lastSyncedAt, syncing, syncErrors }:
         <div className="flex flex-1 items-center justify-center p-4 text-sm text-muted-foreground">
           Select a combatant
         </div>
+      )}
+
+      {editor && (
+        <StatSheetEditorDialog
+          // Keyed per combatant and open: the editor seeds its rows and Speed draft from props once.
+          key={`${editor.combatantId}:${editor.mode}:${editor.opens}`}
+          open
+          onClose={() => setEditor(null)}
+          value={editor.draft}
+          // No library row is attached here, so the portrait cannot be changed from the tracker.
+          entryId={null}
+          onChange={(draft) => setEditor((e) => (e ? { ...e, draft } : e))}
+          onSave={editor.mode === "create" ? saveCreate : saveEdit}
+          onCancel={() => setEditor(null)}
+          saving={saving}
+        />
+      )}
+      {combatant && (
+        <LinkSheetDialog open={linking} onClose={() => setLinking(false)} onPick={(entry) => void pickSheet(combatant, entry)} />
       )}
     </div>
   );

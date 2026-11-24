@@ -18,6 +18,8 @@ import { baseName, planAdd } from "@/lib/encounters/duplicates";
 import { portraitUrl } from "@/lib/library/portrait";
 import { characterUploadToCombatant, type CharacterUploadSchema } from "@/lib/character-schema";
 import { CharacterUpload } from "./CharacterUpload";
+import { StatSheetEditorDialog } from "@/components/bestiary/StatSheetEditorDialog";
+import { useToast } from "@/components/ui/toast";
 import {
   Sword,
   User,
@@ -28,6 +30,7 @@ import {
   Plus,
   Library,
   Trash2,
+  Pencil,
 } from "lucide-react";
 
 type Tab = "monster" | "npc" | "upload" | "library" | "ddb" | "characters";
@@ -84,6 +87,11 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
   const [loadingCharacters, setLoadingCharacters] = useState(false);
   const [linkingCharacter, setLinkingCharacter] = useState<CharacterEntity | null>(null);
   const [linkForm, setLinkForm] = useState({ ac: "10", hpMax: "10", initiative: "" });
+  const toast = useToast();
+  // `opens` keys the editor dialog: it seeds its rows from props once, so each open must remount it.
+  const [editingEntry, setEditingEntry] = useState<{ entry: LibraryEntry; draft: CharacterUploadSchema; opens: number } | null>(null);
+  const [savingEntry, setSavingEntry] = useState(false);
+  const [editOpens, setEditOpens] = useState(0);
 
   useEffect(() => {
     if (tab === "ddb") loadDDBCharacters();
@@ -287,6 +295,41 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
     combatant.sortOrder = encounter.combatants.length;
     await addPlanned(combatant, baseName(combatant.name), combatant.name);
     onClose();
+  }
+
+  function editLibraryEntry(entry: LibraryEntry, e: React.MouseEvent) {
+    e.stopPropagation();
+    setEditOpens((n) => n + 1);
+    // The library stores tags beside `data`; the editor edits them as part of the sheet.
+    setEditingEntry({
+      entry,
+      draft: { ...entry.data, tags: entry.tags.length > 0 ? entry.tags : undefined },
+      opens: editOpens + 1,
+    });
+  }
+
+  async function saveLibraryEntry(sheet: CharacterUploadSchema) {
+    if (!editingEntry) return;
+    const { entry } = editingEntry;
+    setSavingEntry(true);
+    try {
+      const res = await fetch(`/api/library/${entry.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        // Tags are their own column; send [] so clearing the field clears the column.
+        body: JSON.stringify({ ...sheet, tags: sheet.tags ?? [] }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error ?? "Could not save the entry");
+      }
+      setEditingEntry(null);
+      await loadLibrary(libraryQuery);
+    } catch (err) {
+      toast({ title: "Entry not saved", description: err instanceof Error ? err.message : "Could not save the entry", variant: "error" });
+    } finally {
+      setSavingEntry(false);
+    }
   }
 
   async function deleteFromLibrary(id: string, e: React.MouseEvent) {
@@ -613,6 +656,15 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
                       <Button
                         size="icon-sm"
                         variant="ghost"
+                        aria-label={`Edit ${entry.name}`}
+                        title="Edit this library entry"
+                        onClick={(e) => editLibraryEntry(entry, e)}
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
                         aria-label={`Delete ${entry.name} from library`}
                         title="Delete from library"
                         className="text-destructive hover:text-destructive"
@@ -769,6 +821,23 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
           </div>
         )}
       </DialogContent>
+      {editingEntry && (
+        <StatSheetEditorDialog
+          key={`${editingEntry.entry.id}:${editingEntry.opens}`}
+          open
+          onClose={() => setEditingEntry(null)}
+          value={editingEntry.draft}
+          entryId={editingEntry.entry.id}
+          imagePath={editingEntry.entry.imagePath}
+          onChange={(draft) => setEditingEntry((s) => (s ? { ...s, draft } : s))}
+          onSave={saveLibraryEntry}
+          onCancel={() => setEditingEntry(null)}
+          saving={savingEntry}
+          onPortraitChanged={(imagePath) =>
+            setLibraryEntries((prev) => prev.map((e) => (e.id === editingEntry.entry.id ? { ...e, imagePath } : e)))
+          }
+        />
+      )}
     </Dialog>
   );
 }
