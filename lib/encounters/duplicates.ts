@@ -63,18 +63,35 @@ export function duplicateGroups(
 }
 
 /**
- * The badge number for a combatant, or null when it has no duplicate. A number
- * read from the name wins, so removing Goblin 2 of 3 leaves 1 and 3 rather than
- * silently renumbering. A member whose name carries none takes its position.
+ * Badge numbers for a group, in group order. A number read from a name wins, so
+ * removing Goblin 2 of 3 leaves 1 and 3 rather than silently renumbering. A
+ * member whose name carries none takes the lowest number no named member holds,
+ * so two badges in a group never read the same.
  */
+function groupIndices(group: CombatantWithParsed[]): number[] {
+  const claimed = new Set<number>();
+  for (const c of group) {
+    const n = ordinalOf(c.name);
+    if (n !== null) claimed.add(n);
+  }
+  let candidate = 1;
+  return group.map((c) => {
+    const named = ordinalOf(c.name);
+    if (named !== null) return named;
+    while (claimed.has(candidate)) candidate += 1;
+    claimed.add(candidate);
+    return candidate;
+  });
+}
+
+/** The badge number for a combatant, or null when it has no duplicate. */
 export function tokenIndexOf(
   combatants: CombatantWithParsed[],
   id: string,
 ): number | null {
   for (const group of duplicateGroups(combatants).values()) {
     const position = group.findIndex((c) => c.id === id);
-    if (position === -1) continue;
-    return ordinalOf(group[position].name) ?? position + 1;
+    if (position !== -1) return groupIndices(group)[position];
   }
   return null;
 }
@@ -100,10 +117,7 @@ export function planAdd(
     return { name: incoming.name, color: colorFor(1), renameFirst: null };
   }
 
-  const highest = Math.max(
-    ...matches.map((c, i) => ordinalOf(c.name) ?? i + 1),
-  );
-  const next = highest + 1;
+  const next = Math.max(...groupIndices(matches)) + 1;
 
   const [only] = matches;
   const renameFirst =

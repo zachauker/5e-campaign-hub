@@ -131,6 +131,24 @@ describe("tokenIndexOf", () => {
     expect(tokenIndexOf(survivors, g3.id)).toBe(3);
   });
 
+  it("gives an unnamed member the lowest number no named member holds", () => {
+    // Initiative has put Goblin 2 ahead of the renamed first copy.
+    const goblin2 = make({ name: "Goblin 2", sortOrder: 1 });
+    const zed = make({ name: "Zed", sortOrder: 2 });
+    const list = [goblin2, zed];
+    expect(tokenIndexOf(list, goblin2.id)).toBe(2);
+    expect(tokenIndexOf(list, zed.id)).toBe(1);
+  });
+
+  it("gives several unnamed members distinct numbers around named ones", () => {
+    const a = make({ name: "Zed", sortOrder: 1 });
+    const b = make({ name: "Goblin 1", sortOrder: 2 });
+    const c = make({ name: "Grik", sortOrder: 3 });
+    const list = [a, b, c];
+    const nums = [a, b, c].map((m) => tokenIndexOf(list, m.id));
+    expect(nums).toEqual([2, 1, 3]);
+  });
+
   it("returns null for an unknown id", () => {
     expect(tokenIndexOf([make(), make()], "nope")).toBeNull();
   });
