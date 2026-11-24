@@ -35,3 +35,22 @@ export function applySheetEdits(
     statBlock: converted.statBlock && { ...c.statBlock, ...converted.statBlock },
   };
 }
+
+/**
+ * Applies a typed speed ("30 ft.", "40 ft., fly 60 ft.") to a sheet.
+ * A leading integer becomes the flat `speed`; with none, `speed` is left alone
+ * rather than becoming 0 or NaN. The text goes to `statBlock.speed` only when
+ * the sheet already has a stat block, so a bare NPC never grows one from its speed.
+ */
+export function applySpeedText(sheet: CharacterUploadSchema, text: string): CharacterUploadSchema {
+  const next: CharacterUploadSchema = { ...sheet };
+  const lead = /^\s*(\d+)/.exec(text);
+  if (lead) next.speed = Number(lead[1]);
+  if (sheet.statBlock) {
+    const sb = { ...sheet.statBlock };
+    if (text.trim() === "") delete sb.speed;
+    else sb.speed = text;
+    next.statBlock = sb;
+  }
+  return next;
+}

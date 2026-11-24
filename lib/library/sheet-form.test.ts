@@ -6,7 +6,7 @@ import {
   validateCharacterUpload,
   type CharacterUploadSchema,
 } from "@/lib/character-schema";
-import { applySheetEdits } from "@/lib/library/sheet-form";
+import { applySheetEdits, applySpeedText } from "@/lib/library/sheet-form";
 import type { CombatantWithParsed } from "@/lib/types";
 
 function ogre(over: Partial<CombatantWithParsed> = {}): CombatantWithParsed {
@@ -175,5 +175,33 @@ describe("characterUploadToCombatant overrides", () => {
   it("changes nothing without overrides", () => {
     const c = characterUploadToCombatant(sheet, "enc-1");
     expect(c).toMatchObject({ name: "Ogre", characterId: null, libraryId: null, avatarUrl: sheet.avatarUrl });
+  });
+});
+
+describe("applySpeedText", () => {
+  const bare: CharacterUploadSchema = { name: "Guard", type: "npc", ac: 12, hpMax: 11, speed: 30 };
+
+  it("writes the leading integer and the text when a stat block exists", () => {
+    const out = applySpeedText({ ...bare, statBlock: { str: 10, speed: "30 ft." } }, "40 ft., fly 60 ft.");
+    expect(out.speed).toBe(40);
+    expect(out.statBlock).toEqual({ str: 10, speed: "40 ft., fly 60 ft." });
+  });
+
+  it("leaves speed alone when the text has no leading integer", () => {
+    const out = applySpeedText({ ...bare, statBlock: { speed: "30 ft." } }, "fly 60 ft.");
+    expect(out.speed).toBe(30);
+    expect(out.statBlock?.speed).toBe("fly 60 ft.");
+  });
+
+  it("never creates a stat block on a bare NPC", () => {
+    const out = applySpeedText(bare, "50 ft.");
+    expect(out.speed).toBe(50);
+    expect("statBlock" in out).toBe(false);
+  });
+
+  it("clearing the text removes statBlock.speed but keeps the stat block and speed", () => {
+    const out = applySpeedText({ ...bare, statBlock: { str: 8, speed: "30 ft." } }, "");
+    expect(out.speed).toBe(30);
+    expect(out.statBlock).toEqual({ str: 8 });
   });
 });

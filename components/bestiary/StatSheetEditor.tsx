@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { validateCharacterUpload, type CharacterUploadSchema } from "@/lib/character-schema";
+import { applySpeedText } from "@/lib/library/sheet-form";
 import { portraitUrl } from "@/lib/library/portrait";
 
 type Sheet = CharacterUploadSchema;
@@ -70,8 +71,11 @@ function DraftInput<T>({
   format,
   parse,
   onCommit,
+  syncExternal = true,
   ...inputProps
 }: {
+  /** False for a value that is a lossy derivation of what was committed (Speed), so it cannot rewrite the draft. */
+  syncExternal?: boolean;
   value: T;
   format: (v: T) => string;
   parse: (text: string) => Parsed<T>;
@@ -82,8 +86,8 @@ function DraftInput<T>({
   // A change that did not come from this input (reset, other tab) wins over the draft.
   if (value !== seen) {
     setSeen(value);
-    const p = parse(draft);
-    if (!p.ok || format(p.value) !== format(value)) setDraft(format(value));
+    const p = syncExternal ? parse(draft) : null;
+    if (p && (!p.ok || format(p.value) !== format(value))) setDraft(format(value));
   }
   return (
     <Input
@@ -269,7 +273,8 @@ function NamedEntryList({
   );
 }
 
-type RecordRow = { key: string; raw: string };
+/** `last` is the last parseable number, kept so a half-edited number never deletes the entry. */
+type RecordRow = { key: string; raw: string; last?: number };
 
 /**
  * A name -> number map (saving throws, skills). Rows live in local state so a
@@ -288,16 +293,21 @@ function RecordEditor({
   onChange: (next: Record<string, number> | undefined) => void;
 }) {
   const [rows, setRows] = useState<RecordRow[]>(() =>
-    Object.entries(value ?? {}).map(([key, n]) => ({ key, raw: String(n) }))
+    Object.entries(value ?? {}).map(([key, n]) => ({ key, raw: String(n), last: n }))
   );
 
   const commit = (next: RecordRow[]) => {
+    next = next.map((r) => {
+      const p = parseNumber(r.raw, false);
+      return p.ok && p.value !== undefined ? { ...r, last: p.value } : r;
+    });
     setRows(next);
     const rec: Record<string, number> = {};
     for (const r of next) {
       const k = r.key.trim();
       const p = parseNumber(r.raw, false);
-      if (k && p.ok && p.value !== undefined) rec[k] = p.value;
+      const n = p.ok && p.value !== undefined ? p.value : r.last;
+      if (k && n !== undefined) rec[k] = n;
     }
     onChange(Object.keys(rec).length > 0 ? rec : undefined);
   };
@@ -333,7 +343,7 @@ function RecordEditor({
         </div>
       ))}
       {rows.some((r) => !r.key.trim() || !parseNumber(r.raw, false).ok) && (
-        <p className="text-xs text-muted-foreground">Rows need both a name and a number to be saved.</p>
+        <p className="text-xs text-muted-foreground">A row with no name, or a number never entered, is not saved. A number you clear keeps its last value.</p>
       )}
     </div>
   );
@@ -349,6 +359,8 @@ interface TabProps {
   setSb: (patch: Partial<StatBlockFields>) => void;
   /** Free-text speed: keeps top-level `speed` and `statBlock.speed` in step in one update. */
   setSpeed: (text: string) => void;
+  /** Replaces the whole sheet in one update, for edits that touch several fields. */
+  replace: (next: Sheet) => void;
 }
 
 function IdentityTab({ value, set }: TabProps) {
@@ -429,6 +441,7 @@ function StatsTab({ value, set, setSb, setSpeed }: TabProps) {
         <Field label="Speed" className="col-span-2">
           <DraftInput<string>
             placeholder="30 ft."
+            syncExternal={false}
             value={sb?.speed ?? (value.speed !== undefined ? `${value.speed} ft.` : "")}
             format={(v) => v}
             parse={(t) => ({ ok: true, value: t })}
@@ -532,8 +545,7 @@ function ActionsTab({ value, setSb }: TabProps) {
 
 function PortraitTab({
   value,
-  set,
-  setSb,
+  replace,
   entryId,
   imagePath,
   imageVersion,
@@ -556,10 +568,20 @@ function PortraitTab({
   const preview = base && imagePath && entryId ? `${base}?v=${imageVersion}` : base;
 
   const setRemote = (url: string | undefined) => {
-    set({ avatarUrl: url });
+    // One onChange: two calls built from the same `value` would overwrite each other.
+    const next: Sheet = { ...value };
+    if (url === undefined) delete next.avatarUrl;
+    else next.avatarUrl = url;
     // portraitUrl reads statBlock.imageUrl first; keep it in step if the sheet already has one.
-    if (value.statBlock?.imageUrl !== undefined) setSb({ imageUrl: url });
+    if (value.statBlock?.imageUrl !== undefined) {
+      const sb = { ...value.statBlock };
+      if (url === undefined) delete sb.imageUrl;
+      else sb.imageUrl = url;
+      next.statBlock = sb;
+    }
+    replace(next);
   };
+
 
   return (
     <div className="space-y-4">
@@ -649,20 +671,7 @@ export function StatSheetEditor({
     onChange({ ...value, statBlock: sb });
   };
 
-  const setSpeed = (text: string) => {
-    const next: Sheet = { ...value };
-    // No leading integer: leave the numeric speed alone rather than writing 0 or NaN.
-    const lead = /^\s*(\d+)/.exec(text);
-    if (lead) next.speed = Number(lead[1]);
-    // Only a sheet that already has a statBlock gets the text; a bare NPC keeps just its number.
-    if (value.statBlock) {
-      const sb = { ...value.statBlock };
-      if (text.trim() === "") delete sb.speed;
-      else sb.speed = text;
-      next.statBlock = sb;
-    }
-    onChange(next);
-  };
+  const setSpeed = (text: string) => onChange(applySpeedText(value, text));
 
   const handleSave = () => {
     setAttempted(true);
@@ -706,7 +715,7 @@ export function StatSheetEditor({
     }
   };
 
-  const tabProps: TabProps = { value, set, setSb, setSpeed };
+  const tabProps: TabProps = { value, set, setSb, setSpeed, replace: onChange };
   const shownErrors = attempted ? validation.errors : [];
 
   return (
