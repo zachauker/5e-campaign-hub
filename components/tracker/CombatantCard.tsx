@@ -208,8 +208,12 @@ export function CombatantCard({ combatant: c, isActive, tokenIndex, dragHandlePr
               {/* Token number: which copy of a duplicate this is */}
               {tokenIndex !== null && (
                 <span
-                  className="absolute -bottom-1 -right-1 flex items-center justify-center w-[21px] h-[21px] rounded-full ring-2 ring-card text-[11px] font-bold leading-none tabular-nums text-black"
-                  style={{ backgroundColor: c.color ?? undefined }}
+                  className={cn(
+                    "absolute -bottom-1 -right-1 flex items-center justify-center w-[21px] h-[21px] rounded-full ring-2 ring-card text-[11px] font-bold leading-none tabular-nums",
+                    // Colourless groups (saved before token colours) get a neutral chip.
+                    c.color ? "text-black" : "bg-muted-foreground text-background"
+                  )}
+                  style={c.color ? { backgroundColor: c.color } : undefined}
                   title={`Copy ${tokenIndex}`}
                 >
                   {tokenIndex}
