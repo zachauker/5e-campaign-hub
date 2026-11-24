@@ -529,7 +529,9 @@ git commit -m "feat: Bestiary page for viewing and editing stat sheets"
 
 - [ ] **Step 1: Wire mid-fight editing**
 
-The pane's **Edit** button opens `StatSheetEditorDialog` seeded with `statBlockToUpload(combatant)`, with `key={entryId}` on the dialog — it seeds its draft rows and `imagePath` from props once, so without a key a second combatant would open showing the first one's data. Saving calls `applyCombatantSheet` — that combatant only. When `combatant.libraryId` is set, a **Save to library** action additionally PATCHes `/api/library/[id]`; it is absent when `libraryId` is null. A PATCH returning 404 means the entry was deleted since the add: surface that in a toast and clear `libraryId` on the combatant, rather than leaving a button that always fails (Review Focus 1).
+The pane's **Edit** button opens `StatSheetEditorDialog` seeded with `statBlockToUpload(combatant)`, with `key={entryId}` on the dialog — it seeds its draft rows and `imagePath` from props once, so without a key a second combatant would open showing the first one's data. Saving calls `applyCombatantSheet` — that combatant only. When `combatant.libraryId` is set, a **Save to library** action additionally PATCHes `/api/library/[id]`; it is absent when `libraryId` is null.
+
+**Save to library must GET the entry first and merge.** `PATCH /api/library/[id]` **replaces** `data` with the sheet it is sent (changed in Task 9, because a shallow merge made it impossible to clear a field — the DM cleared Notes and the old text came back). A combatant's sheet comes from `statBlockToUpload`, which cannot carry `tags`, `notes`, `version` or `$schema`, because a combatant has nowhere to store them. So PATCHing it raw would silently wipe the entry's prep notes. Fetch the entry, layer the combatant's sheet over its stored `data`, and send the result. A PATCH returning 404 means the entry was deleted since the add: surface that in a toast and clear `libraryId` on the combatant, rather than leaving a button that always fails (Review Focus 1).
 
 - [ ] **Step 2: Wire the empty state's actions**
 
