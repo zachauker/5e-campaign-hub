@@ -14,7 +14,11 @@ export function applySheetEdits(
   sheet: CharacterUploadSchema
 ): Partial<CombatantWithParsed> {
   const hpMax = Math.max(0, sheet.hpMax);
-  const converted = characterUploadToCombatant({ ...sheet, hpMax }, c.encounterId);
+  // statBlock.speed is text and wins over the flat speed when present. If only the
+  // flat speed was edited, drop the stale text so it is re-derived from the new speed.
+  const speedEdited = sheet.speed !== c.speed && sheet.statBlock?.speed === c.statBlock?.speed;
+  const statBlock = speedEdited && sheet.statBlock ? { ...sheet.statBlock, speed: undefined } : sheet.statBlock;
+  const converted = characterUploadToCombatant({ ...sheet, hpMax, statBlock }, c.encounterId);
 
   return {
     name: converted.name,
@@ -27,7 +31,7 @@ export function applySheetEdits(
     playerName: converted.playerName,
     avatarUrl: converted.avatarUrl,
     color: converted.color,
-    // Keep stat block fields the sheet has no home for (e.g. spellcasting).
+    // Keep stat block fields the sheet has no home for .
     statBlock: converted.statBlock && { ...c.statBlock, ...converted.statBlock },
   };
 }

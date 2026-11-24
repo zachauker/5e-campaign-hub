@@ -49,6 +49,7 @@ export interface CharacterUploadSchema {
     bonusActions?: Array<{ name: string; desc: string }>;
     reactions?: Array<{ name: string; desc: string }>;
     legendaryActions?: Array<{ name: string; desc: string }>;
+    spellcasting?: string;
     imageUrl?: string;
   };
 }
@@ -177,6 +178,7 @@ export function characterUploadToCombatant(
         bonusActions: data.statBlock.bonusActions,
         reactions: data.statBlock.reactions,
         legendaryActions: data.statBlock.legendaryActions,
+        spellcasting: data.statBlock.spellcasting,
         imageUrl: data.statBlock.imageUrl ?? data.avatarUrl,
       }
     : null;
@@ -237,8 +239,8 @@ export function statBlockToUpload(
   if (c.color) sheet.color = c.color;
 
   if (c.statBlock) {
-    // name/ac/hp live at the top level; spellcasting has no sheet field yet.
-    const omit = new Set(["name", "ac", "hp", "spellcasting"]);
+    // name/ac/hp live at the top level.
+    const omit = new Set(["name", "ac", "hp"]);
     sheet.statBlock = Object.fromEntries(
       Object.entries(c.statBlock).filter(([k, v]) => v !== undefined && !omit.has(k))
     ) as CharacterUploadSchema["statBlock"];

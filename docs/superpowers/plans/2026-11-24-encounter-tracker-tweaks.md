@@ -459,7 +459,9 @@ git commit -m "feat: stat block pane follows row selection and never toggles"
 
 - [ ] **Step 1: Build the four tabs**
 
-Per spec §3. **Identity** — name, type, tags, player name, colour, notes. **Stats** — AC, max HP, hit dice, speed, the six abilities in a 6-column grid, saving throws, skills, senses, languages, damage resistances / immunities / vulnerabilities, condition immunities, CR, XP. **Actions** — add / remove / reorder name+description rows for abilities, actions, bonus actions, reactions, legendary actions. **Portrait** — upload, replace, remove against `/api/library/[id]/image`, plus the remote URL field.
+Per spec §3. **Identity** — name, type, tags, player name, colour, notes. **Stats** — AC, max HP, hit dice, speed, the six abilities in a 6-column grid, saving throws, skills, senses, languages, damage resistances / immunities / vulnerabilities, condition immunities, CR, XP. **Actions** — add / remove / reorder name+description rows for abilities, actions, bonus actions, reactions, legendary actions, plus a free-text **spellcasting** field. **Portrait** — upload, replace, remove against `/api/library/[id]/image`, plus the remote URL field.
+
+Two notes carried from earlier tasks. The spellcasting field exists because `statBlock.spellcasting` must survive a save back to the library — without it, every spellcasting NPC loses its spell text the first time a mid-fight edit is saved. And **clearing the Stats and Actions tabs must not leave the sheet with no `statBlock` at all** when the combatant or entry had one: `applySheetEdits` writes a null stat block for a sheet that has none, which is right for a bare NPC and destructive for a creature that had a full block. Seed the editor's `statBlock` whenever the source has one and keep it present.
 
 Every Stats and Actions field writes into `value.statBlock`, which may be absent — create it on first write rather than assuming it exists (Review Focus 2). Reuse `components/ui/tabs.tsx`; if its API does not fit a form shell, a local tab strip in this component is fine rather than reshaping the shared one.
 

@@ -104,10 +104,32 @@ describe("applySheetEdits", () => {
     }
   });
 
-  it("keeps the stat block's fields the sheet has no home for", () => {
+  it("writes speed to both the flat column and the stat block text", () => {
+    const c = ogre();
+    expect(c.statBlock?.speed).toBe("40 ft.");
+    const out = applySheetEdits(c, sheetFrom(c, { speed: 50 }));
+    expect(out.speed).toBe(50);
+    expect(out.statBlock?.speed).toBe("50 ft.");
+  });
+
+  it("keeps a speed text the DM edited themselves", () => {
+    const c = ogre();
+    const base = statBlockToUpload(c);
+    const out = applySheetEdits(c, {
+      ...base,
+      speed: 50,
+      statBlock: { ...base.statBlock, speed: "50 ft., fly 30 ft." },
+    });
+    expect(out.speed).toBe(50);
+    expect(out.statBlock?.speed).toBe("50 ft., fly 30 ft.");
+  });
+
+  it("round-trips spellcasting through both converters and an edit", () => {
     const c = ogre({ statBlock: { ...ogre().statBlock!, spellcasting: "Innate: fog cloud" } });
-    const out = applySheetEdits(c, sheetFrom(c, { ac: 12 }));
-    expect(out.statBlock?.spellcasting).toBe("Innate: fog cloud");
+    const sheet = statBlockToUpload(c);
+    expect(sheet.statBlock?.spellcasting).toBe("Innate: fog cloud");
+    expect(characterUploadToCombatant(sheet, "enc-1").statBlock?.spellcasting).toBe("Innate: fog cloud");
+    expect(applySheetEdits(c, { ...sheet, ac: 12 }).statBlock?.spellcasting).toBe("Innate: fog cloud");
   });
 
   it("writes a null stat block when the sheet has none, and still updates the flat columns", () => {
