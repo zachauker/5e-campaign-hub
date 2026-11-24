@@ -1,10 +1,13 @@
-import type { CharacterUploadSchema } from "@/lib/character-schema";
+import { statBlockToUpload, type CharacterUploadSchema } from "@/lib/character-schema";
+import type { LibraryEntry } from "@/lib/library/entry";
+import type { CombatantWithParsed } from "@/lib/types";
 
 /**
  * The sheet fields a combatant owns. A save-back overwrites these and leaves everything
  * else the entry stores (tags, notes, version, $schema, ...) exactly as it was.
  * Left out on purpose: `avatarUrl` (may be the entry's own /image URL) and `color` (a token
- * colour assigned per fight). `name` is only safe if the caller passes the un-numbered name.
+ * colour assigned per fight). `name` is owned only so that a save-back can drop it: a combatant's name is a per-fight label
+ * ("Ogre 2", "Grik"), never the template's, so `saveBackPayload` never sends one.
  * `statBlock` is layered key by key, below.
  */
 const OWNED_KEYS = ["name", "type", "ac", "hpMax", "speed", "initiativeBonus", "playerName"] as const;
@@ -24,4 +27,14 @@ export function mergeSheetOverStored(stored: CharacterUploadSchema, sheet: Chara
   }
   if (sheet.statBlock) merged.statBlock = { ...stored.statBlock, ...sheet.statBlock };
   return merged as unknown as CharacterUploadSchema;
+}
+
+/**
+ * The PATCH body for "Save to library": the combatant's sheet layered over the entry's
+ * stored one, with the entry's own name, `data.name` and tags kept exactly as they were.
+ * Renaming a template belongs to the Bestiary, where the DM can see what they are renaming.
+ */
+export function saveBackPayload(entry: LibraryEntry, combatant: CombatantWithParsed) {
+  const merged = mergeSheetOverStored(entry.data, { ...statBlockToUpload(combatant), name: undefined as unknown as string });
+  return { ...merged, name: entry.data.name ?? entry.name, tags: entry.tags };
 }

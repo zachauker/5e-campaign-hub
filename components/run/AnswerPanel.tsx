@@ -183,6 +183,9 @@ export function AnswerPanel({ campaignId, onContextChange }: AnswerPanelProps) {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       const target = e.target as HTMLElement | null;
+      // The stat sheet editor (and any other dialog) mounts over run mode: its fields own
+      // the arrow keys and Enter, so the assistant must not hijack them.
+      if (target?.closest('[role="dialog"]')) return;
       // A mouse click on a result moves focus to that button, so treat it the
       // same as the input — otherwise the arrows silently stop working the
       // moment the DM clicks instead of types.

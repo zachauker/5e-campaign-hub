@@ -365,7 +365,13 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
 
   async function deleteFromLibrary(id: string, e: React.MouseEvent) {
     e.stopPropagation();
-    await fetch(`/api/library/${id}`, { method: "DELETE" });
+    const res = await fetch(`/api/library/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      // The server released these rows; mirror it so the store never sends a dangling id.
+      for (const c of useEncounterStore.getState().encounter?.combatants ?? []) {
+        if (c.libraryId === id) updateCombatant(c.id, { libraryId: null });
+      }
+    }
     setLibraryEntries((prev) => prev.filter((e) => e.id !== id));
   }
 

@@ -175,7 +175,7 @@ export function BestiaryBrowser() {
     if (!entry) return;
     const ok = await confirm({
       title: `Delete ${entry.name}?`,
-      description: "This removes it from the library, along with its uploaded portrait. Encounters that already use it are not affected.",
+      description: "This removes it from the library, along with its uploaded portrait. Combatants already in an encounter keep the sheet they hold, but lose their link to this entry, so a portrait they show from it will no longer load.",
       confirmLabel: "Delete",
       destructive: true,
     });

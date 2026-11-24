@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { mergeSheetOverStored } from "./save-back";
+import { mergeSheetOverStored, saveBackPayload } from "./save-back";
+import type { LibraryEntry } from "./entry";
+import type { CombatantWithParsed } from "@/lib/types";
 import type { CharacterUploadSchema } from "@/lib/character-schema";
 
 const stored = {
@@ -36,5 +38,27 @@ describe("mergeSheetOverStored", () => {
     const out = mergeSheetOverStored(hb, { name: "Ogre", type: "monster", ac: 11, hpMax: 59, color: "#a78bfa", statBlock: { size: "Large", hitDice: "new" } });
     expect(out.statBlock).toMatchObject({ homebrewKey: "keep me", hitDice: "new" });
     expect(out.color).toBe("#111111");
+  });
+});
+
+describe("saveBackPayload", () => {
+  const entry = { id: "lib-1", name: "Goblin", type: "monster", data: { ...stored, name: "Goblin" }, imagePath: null, tags: ["undead", "boss"] } as unknown as LibraryEntry;
+  const combatant = (over: Partial<CombatantWithParsed>) =>
+    ({ id: "c1", name: "Goblin", type: "monster", ac: 15, hpMax: 12, speed: 30, initiativeBonus: 2, conditions: [], statBlock: null, ...over }) as unknown as CombatantWithParsed;
+
+  it("does not rename the entry when the combatant was renamed", () => {
+    const out = saveBackPayload(entry, combatant({ name: "Grik" }));
+    expect(out.name).toBe("Goblin");
+    expect(out).toMatchObject({ ac: 15, hpMax: 12 });
+  });
+
+  it("does not rename the entry when the combatant carries a trailing number", () => {
+    expect(saveBackPayload(entry, combatant({ name: "Legion 7" })).name).toBe("Goblin");
+  });
+
+  it("keeps the entry's tags and notes", () => {
+    const out = saveBackPayload(entry, combatant({}));
+    expect(out.tags).toEqual(["undead", "boss"]);
+    expect(out).toMatchObject({ notes: "Weak to fire in the Ashen Keep" });
   });
 });

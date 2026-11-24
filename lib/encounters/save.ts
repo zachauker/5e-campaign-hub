@@ -1,6 +1,6 @@
 import { and, eq, notInArray } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
-import { combatants, encounters } from "@/lib/db/schema";
+import { characterLibrary, combatants, encounters } from "@/lib/db/schema";
 import type { CombatantWithParsed } from "@/lib/types";
 
 type Db = BetterSQLite3Database<Record<string, unknown>>;
@@ -134,6 +134,18 @@ export function saveEncounter(
     for (const c of list) {
       if (!c?.id) continue;
       const patch = combatantPatch(c);
+
+      // A library entry can be deleted from the Bestiary, another tab or a script while
+      // this client still holds its id. Writing it back would violate the foreign key and
+      // abort the whole transaction, losing every other edit in the save.
+      if (typeof patch.libraryId === "string") {
+        const found = tx
+          .select({ id: characterLibrary.id })
+          .from(characterLibrary)
+          .where(eq(characterLibrary.id, patch.libraryId))
+          .all();
+        if (found.length === 0) patch.libraryId = null;
+      }
 
       if (present.has(c.id)) {
         if (Object.keys(patch).length === 0) continue;

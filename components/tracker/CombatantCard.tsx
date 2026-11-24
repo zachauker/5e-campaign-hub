@@ -60,6 +60,7 @@ export function CombatantCard({ combatant: c, isActive, tokenIndex, dragHandlePr
   const [initVal, setInitVal] = useState(String(c.initiative ?? ""));
   const [editingName, setEditingName] = useState(false);
   const [nameVal, setNameVal] = useState(c.name);
+  const [imgFailed, setImgFailed] = useState<string | null>(null);
   const [editingLabel, setEditingLabel] = useState(false);
   const [labelVal, setLabelVal] = useState(c.label ?? "");
 
@@ -128,7 +129,7 @@ export function CombatantCard({ combatant: c, isActive, tokenIndex, dragHandlePr
 
       <div className="p-3">
         {/* Header row: identity group (flexes) + vitals box (fixed) */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 max-w-[900px]">
           {/* Drag handle */}
           <div
             {...dragHandleProps}
@@ -186,14 +187,12 @@ export function CombatantCard({ combatant: c, isActive, tokenIndex, dragHandlePr
 
             {/* Avatar */}
             <div className="relative flex-none">
-              {c.avatarUrl ? (
+              {c.avatarUrl && imgFailed !== c.avatarUrl ? (
                 <img
                   src={c.avatarUrl}
                   alt={c.name}
                   className="w-12 h-12 rounded-full object-cover border border-border"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = "none";
-                  }}
+                  onError={() => setImgFailed(c.avatarUrl)}
                 />
               ) : (
                 <div

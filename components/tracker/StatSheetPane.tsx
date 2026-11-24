@@ -11,8 +11,7 @@ import { LinkSheetDialog } from "./LinkSheetDialog";
 import { RefreshCw, AlertTriangle, Pencil, BookMarked } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { statBlockToUpload, type CharacterUploadSchema } from "@/lib/character-schema";
-import { mergeSheetOverStored } from "@/lib/library/save-back";
-import { baseName } from "@/lib/encounters/duplicates";
+import { saveBackPayload } from "@/lib/library/save-back";
 import { portraitUrl } from "@/lib/library/portrait";
 import type { LibraryEntry } from "@/lib/library/entry";
 import type { CombatantWithParsed } from "@/lib/types";
@@ -84,7 +83,7 @@ export function StatSheetPane({ onRefresh, lastSyncedAt, syncing, syncErrors }: 
   useEffect(() => {
     if (!selectedCombatantId) return;
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key !== "Escape") return;
+      if (e.key !== "Escape" || e.defaultPrevented) return;
       const tag = document.activeElement?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
       selectCombatant(null);
@@ -191,7 +190,7 @@ export function StatSheetPane({ onRefresh, lastSyncedAt, syncing, syncErrors }: 
       const res = await fetch(`/api/library/${libraryId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...mergeSheetOverStored(entry.data, { ...statBlockToUpload(c), name: baseName(c.name) }), tags: entry.tags }),
+        body: JSON.stringify(saveBackPayload(entry, c)),
       });
       if (res.status === 404) return lost();
       if (!res.ok) throw new Error("Could not update the library entry");

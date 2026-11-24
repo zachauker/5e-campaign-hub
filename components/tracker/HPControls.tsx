@@ -41,6 +41,8 @@ export function HPControls({ combatantId, hpCurrent, hpMax, hpTemp, ac, variant 
   const pct = hpPercent(hpCurrent, hpMax);
   const color = hpColor(hpCurrent, hpMax);
 
+  const closingRef = useRef(false);
+
   function applyInput() {
     const val = parseInt(inputVal, 10);
     if (isNaN(val) || val < 0) { setInputVal(""); return; }
@@ -93,10 +95,17 @@ export function HPControls({ combatantId, hpCurrent, hpMax, hpTemp, ac, variant 
                 value={inputVal}
                 onChange={(e) => setInputVal(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") { applyInput(); setEditing(false); }
-                  if (e.key === "Escape") { setInputVal(""); setEditing(false); }
+                  if (e.key === "Enter") { closingRef.current = true; applyInput(); setEditing(false); }
+                  if (e.key === "Escape") { closingRef.current = true; setInputVal(""); setEditing(false); }
                 }}
-                onBlur={() => { setInputVal(""); setEditing(false); }}
+                // Clicking away applies what was typed (type 14, click the next target); Escape is the cancel.
+                // closingRef stops Enter/Escape applying twice when unmounting the input also fires blur.
+                onBlur={() => {
+                  if (!closingRef.current && inputVal.trim() !== "") applyInput();
+                  closingRef.current = false;
+                  setInputVal("");
+                  setEditing(false);
+                }}
                 className="h-7 w-14 text-center text-sm px-1"
               />
               {(["damage", "heal", "set"] as const).map((m) => (
@@ -126,7 +135,7 @@ export function HPControls({ combatantId, hpCurrent, hpMax, hpTemp, ac, variant 
           ) : (
             <button
               type="button"
-              onClick={() => { setMode("damage"); setEditing(true); }}
+              onClick={() => { closingRef.current = false; setMode("damage"); setEditing(true); }}
               title="Click to apply damage, healing or set HP"
               aria-label={`HP ${hpCurrent} of ${hpMax}. Edit`}
               className="text-xl font-bold leading-[1.1] tabular-nums rounded hover:bg-accent/60 transition-colors"

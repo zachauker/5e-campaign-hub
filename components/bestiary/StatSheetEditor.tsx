@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { validateCharacterUpload, type CharacterUploadSchema } from "@/lib/character-schema";
 import { applySpeedText } from "@/lib/library/sheet-form";
 import { portraitUrl } from "@/lib/library/portrait";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 type Sheet = CharacterUploadSchema;
 type StatBlockFields = NonNullable<Sheet["statBlock"]>;
@@ -401,6 +402,7 @@ function IdentityTab({ value, set, hideLibraryFields }: TabProps) {
         <Field label="Player name">
           <TextField value={value.playerName} onCommit={(playerName) => set({ playerName })} placeholder="Player name" />
         </Field>
+        {!hideLibraryFields && (
         <Field label="Colour">
           <div className="flex items-center gap-2">
             <input
@@ -413,6 +415,7 @@ function IdentityTab({ value, set, hideLibraryFields }: TabProps) {
             <TextField value={value.color} onCommit={(color) => set({ color })} placeholder="#c0392b" />
           </div>
         </Field>
+        )}
       </div>
       {!hideLibraryFields && (
       <Field label="Notes">
@@ -660,6 +663,7 @@ export function StatSheetEditor({
   const [attempted, setAttempted] = useState(false);
   const [imagePath, setImagePath] = useState<string | null>(imagePathProp);
   const [imageVersion, setImageVersion] = useState(0);
+  const confirm = useConfirm();
   const [portraitBusy, setPortraitBusy] = useState(false);
   const [portraitError, setPortraitError] = useState<string | null>(null);
 
@@ -709,6 +713,13 @@ export function StatSheetEditor({
 
   const removeUpload = async () => {
     if (!entryId) return;
+    const ok = await confirm({
+      title: "Remove the uploaded portrait?",
+      description: "The image file is deleted right away, even if you then cancel the editor.",
+      confirmLabel: "Remove",
+      destructive: true,
+    });
+    if (!ok) return;
     setPortraitBusy(true);
     setPortraitError(null);
     try {

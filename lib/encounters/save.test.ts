@@ -257,4 +257,31 @@ describe("saveEncounter", () => {
     const row = db.get<{ label: string }>(sql`SELECT label FROM combatants WHERE id = 'c-existing'`);
     expect(row.label).toBe("on the roof");
   });
+
+  it("writes null for a libraryId whose entry was deleted, so the rest of the save still lands", () => {
+    const { db, campaignId } = createTestDb();
+    seedEncounter(db, campaignId);
+
+    const result = saveEncounter(db, "enc1", {
+      combatants: [combatant({ hpCurrent: 5, libraryId: "lib-gone" })],
+    });
+
+    expect(result).toEqual({ ok: true });
+    const row = db.get<{ hp_current: number; library_id: string | null }>(
+      sql`SELECT hp_current, library_id FROM combatants WHERE id = 'c-existing'`
+    );
+    expect(row).toEqual({ hp_current: 5, library_id: null });
+  });
+
+  it("does the same for a combatant it has to insert", () => {
+    const { db, campaignId } = createTestDb();
+    seedEncounter(db, campaignId);
+
+    saveEncounter(db, "enc1", {
+      combatants: [combatant(), combatant({ id: "c-new", name: "Goblin", libraryId: "lib-gone" })],
+    });
+
+    const row = db.get<{ library_id: string | null }>(sql`SELECT library_id FROM combatants WHERE id = 'c-new'`);
+    expect(row.library_id).toBeNull();
+  });
 });
