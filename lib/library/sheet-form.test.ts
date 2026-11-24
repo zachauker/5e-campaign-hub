@@ -32,8 +32,7 @@ describe("statBlockToUpload", () => {
   it("round-trips through characterUploadToCombatant unchanged", () => {
     const back = statBlockToUpload(characterUploadToCombatant(EXAMPLE_CHARACTER_JSON, "enc-1"));
     expect(validateCharacterUpload(back).valid).toBe(true);
-    const { version: _version, ...expected } = EXAMPLE_CHARACTER_JSON;
-    expect(back).toEqual(expected);
+    expect(back).toEqual({ ...EXAMPLE_CHARACTER_JSON, version: undefined });
   });
 
   it("handles a combatant with no statBlock", () => {
@@ -113,8 +112,7 @@ describe("applySheetEdits", () => {
 
   it("writes a null stat block when the sheet has none, and still updates the flat columns", () => {
     const c = ogre();
-    const { statBlock: _sb, ...bare } = statBlockToUpload(c);
-    const out = applySheetEdits(c, { ...bare, ac: 14 });
+    const out = applySheetEdits(c, { ...statBlockToUpload(c), statBlock: undefined, ac: 14 });
     expect(out.statBlock).toBeNull();
     expect(out.ac).toBe(14);
   });

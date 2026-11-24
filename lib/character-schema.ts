@@ -238,9 +238,9 @@ export function statBlockToUpload(
 
   if (c.statBlock) {
     // name/ac/hp live at the top level; spellcasting has no sheet field yet.
-    const { name: _name, ac: _ac, hp: _hp, spellcasting: _spellcasting, ...rest } = c.statBlock;
+    const omit = new Set(["name", "ac", "hp", "spellcasting"]);
     sheet.statBlock = Object.fromEntries(
-      Object.entries(rest).filter(([, v]) => v !== undefined)
+      Object.entries(c.statBlock).filter(([k, v]) => v !== undefined && !omit.has(k))
     ) as CharacterUploadSchema["statBlock"];
   }
   return sheet;
