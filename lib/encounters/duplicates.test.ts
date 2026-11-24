@@ -8,6 +8,7 @@ import {
   planAdd,
   sourceKeyOf,
   tokenIndexOf,
+  tokenIndices,
 } from "./duplicates";
 
 let seq = 0;
@@ -154,21 +155,46 @@ describe("tokenIndexOf", () => {
   });
 });
 
+describe("tokenIndices", () => {
+  it("maps every duplicate to its badge number and omits lone combatants", () => {
+    const g1 = make({ name: "Goblin 1" });
+    const g3 = make({ name: "Goblin 3" });
+    const ogre = make({ name: "Ogre", monsterSlug: "ogre" });
+    const map = tokenIndices([g1, ogre, g3]);
+    expect(map.get(g1.id)).toBe(1);
+    expect(map.get(g3.id)).toBe(3);
+    expect(map.has(ogre.id)).toBe(false);
+    expect(map.size).toBe(2);
+  });
+
+  it("agrees with tokenIndexOf for every combatant", () => {
+    const list = [
+      make({ name: "Goblin 2", sortOrder: 1 }),
+      make({ name: "Zed", sortOrder: 2 }),
+      make({ name: "Ogre", monsterSlug: "ogre" }),
+    ];
+    const map = tokenIndices(list);
+    for (const c of list) {
+      expect(map.get(c.id) ?? null).toBe(tokenIndexOf(list, c.id));
+    }
+  });
+});
+
 describe("planAdd", () => {
   const incoming = { name: "Goblin", sourceKey: "goblin", sourceName: "Goblin" };
 
-  it("leaves the first copy unnumbered", () => {
+  it("leaves a lone first copy unnumbered and keeps its sheet colour", () => {
     const plan = planAdd([], incoming);
     expect(plan.name).toBe("Goblin");
-    expect(plan.renameFirst).toBeNull();
-    expect(plan.color).toBe(TOKEN_PALETTE[0]);
+    expect(plan.color).toBeNull();
+    expect(plan.updateFirst).toBeNull();
   });
 
-  it("numbers the second copy and renames the first", () => {
-    const first = make({ name: "Goblin" });
+  it("numbers the second copy and renames and recolours the first", () => {
+    const first = make({ name: "Goblin", color: "#123456" });
     const plan = planAdd([first], incoming);
     expect(plan.name).toBe("Goblin 2");
-    expect(plan.renameFirst).toEqual({
+    expect(plan.updateFirst).toEqual({
       id: first.id,
       name: "Goblin 1",
       color: TOKEN_PALETTE[0],
@@ -176,52 +202,64 @@ describe("planAdd", () => {
     expect(plan.color).toBe(TOKEN_PALETTE[1]);
   });
 
-  it("leaves a hand-renamed first copy alone but still numbers the newcomer", () => {
+  it("keeps a hand-renamed first copy's name but still recolours it", () => {
     const grik = make({ name: "Grik" });
     const plan = planAdd([grik], incoming);
-    expect(plan.renameFirst).toBeNull();
     expect(plan.name).toBe("Goblin 2");
+    expect(plan.updateFirst).toEqual({
+      id: grik.id,
+      name: null,
+      color: TOKEN_PALETTE[0],
+    });
+    expect(plan.color).toBe(TOKEN_PALETTE[1]);
+  });
+
+  it("recolours a lone survivor by its own ordinal without renaming it", () => {
+    const g3 = make({ name: "Goblin 3" });
+    const plan = planAdd([g3], incoming);
+    expect(plan.name).toBe("Goblin 4");
+    expect(plan.updateFirst).toEqual({
+      id: g3.id,
+      name: null,
+      color: TOKEN_PALETTE[2],
+    });
+    expect(plan.color).toBe(TOKEN_PALETTE[3]);
+  });
+
+  it("does not touch existing members once a group exists", () => {
+    const plan = planAdd([make({ name: "Goblin 1" }), make({ name: "Goblin 2" })], incoming);
+    expect(plan.name).toBe("Goblin 3");
+    expect(plan.updateFirst).toBeNull();
+    expect(plan.color).toBe(TOKEN_PALETTE[2]);
   });
 
   it("continues past the highest ordinal rather than reusing a freed number", () => {
-    const g1 = make({ name: "Goblin 1" });
-    const g3 = make({ name: "Goblin 3" });
-    const plan = planAdd([g1, g3], incoming);
+    const plan = planAdd([make({ name: "Goblin 1" }), make({ name: "Goblin 3" })], incoming);
     expect(plan.name).toBe("Goblin 4");
-    expect(plan.renameFirst).toBeNull();
+    expect(plan.updateFirst).toBeNull();
   });
 
   it("ignores combatants from other sources", () => {
-    const ogre = make({ name: "Ogre", monsterSlug: "ogre" });
-    const plan = planAdd([ogre], incoming);
+    const plan = planAdd([make({ name: "Ogre", monsterSlug: "ogre" })], incoming);
     expect(plan.name).toBe("Goblin");
-    expect(plan.renameFirst).toBeNull();
-  });
-
-  it("assigns distinct palette colours to each copy", () => {
-    const first = make({ name: "Goblin" });
-    const p2 = planAdd([first], incoming);
-    const second = make({ name: p2.name, color: p2.color });
-    const p3 = planAdd([{ ...first, name: "Goblin 1", color: p2.renameFirst!.color }, second], incoming);
-    expect(new Set([p2.renameFirst!.color, p2.color, p3.color]).size).toBe(3);
+    expect(plan.color).toBeNull();
+    expect(plan.updateFirst).toBeNull();
   });
 
   it("wraps the palette for a group larger than it", () => {
     const existing: CombatantWithParsed[] = [];
     for (let i = 0; i < 12; i++) {
       const plan = planAdd(existing, incoming);
-      if (plan.renameFirst) {
-        const f = existing.find((c) => c.id === plan.renameFirst!.id)!;
-        f.name = plan.renameFirst.name;
-        f.color = plan.renameFirst.color;
+      if (plan.updateFirst) {
+        const f = existing.find((c) => c.id === plan.updateFirst!.id)!;
+        if (plan.updateFirst.name) f.name = plan.updateFirst.name;
+        f.color = plan.updateFirst.color;
       }
       existing.push(make({ name: plan.name, color: plan.color }));
     }
     expect(existing).toHaveLength(12);
-    for (const c of existing) {
-      expect(c.color).toBeDefined();
-      expect(TOKEN_PALETTE).toContain(c.color);
-    }
+    expect(existing[0].color).toBe(TOKEN_PALETTE[0]);
+    for (const c of existing) expect(TOKEN_PALETTE).toContain(c.color);
     expect(existing[8].color).toBe(TOKEN_PALETTE[0]);
     expect(existing[11].name).toBe("Goblin 12");
   });

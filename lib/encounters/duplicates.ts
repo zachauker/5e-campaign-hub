@@ -84,52 +84,74 @@ function groupIndices(group: CombatantWithParsed[]): number[] {
   });
 }
 
+/** Every duplicate's badge number by combatant id; lone combatants are omitted. */
+export function tokenIndices(
+  combatants: CombatantWithParsed[],
+): Map<string, number> {
+  const result = new Map<string, number>();
+  for (const group of duplicateGroups(combatants).values()) {
+    const indices = groupIndices(group);
+    group.forEach((c, i) => result.set(c.id, indices[i]));
+  }
+  return result;
+}
+
 /** The badge number for a combatant, or null when it has no duplicate. */
 export function tokenIndexOf(
   combatants: CombatantWithParsed[],
   id: string,
 ): number | null {
-  for (const group of duplicateGroups(combatants).values()) {
-    const position = group.findIndex((c) => c.id === id);
-    if (position !== -1) return groupIndices(group)[position];
-  }
-  return null;
+  return tokenIndices(combatants).get(id) ?? null;
 }
 
 function colorFor(index: number): string {
   return TOKEN_PALETTE[(index - 1) % TOKEN_PALETTE.length];
 }
 
-/** What the add path applies for a newly added copy of a creature. */
+/**
+ * What the add path applies for a newly added copy of a creature.
+ *
+ * `color` is null for a lone first copy, which keeps its sheet colour.
+ * `updateFirst` is non-null exactly when this add turns a lone creature into a
+ * group: copy #1 always takes its token colour then (overwriting any sheet
+ * colour), and its `name` is the retroactive "<source> 1", or null when it must
+ * keep the name it has (renamed by hand, or already numbered).
+ */
 export function planAdd(
   existing: CombatantWithParsed[],
   incoming: { name: string; sourceKey: string; sourceName: string },
 ): {
   name: string;
-  color: string;
-  renameFirst: { id: string; name: string; color: string } | null;
+  color: string | null;
+  updateFirst: { id: string; name: string | null; color: string } | null;
 } {
   const matches = existing
     .filter((c) => sourceKeyOf(c) === incoming.sourceKey)
     .sort(bySortOrder);
 
   if (matches.length === 0) {
-    return { name: incoming.name, color: colorFor(1), renameFirst: null };
+    return { name: incoming.name, color: null, updateFirst: null };
   }
 
-  const next = Math.max(...groupIndices(matches)) + 1;
+  const indices = groupIndices(matches);
+  const next = Math.max(...indices) + 1;
 
-  const [only] = matches;
-  const renameFirst =
-    matches.length === 1 &&
-    ordinalOf(only.name) === null &&
-    !isRenamedByHand(only.name, incoming.sourceName)
-      ? { id: only.id, name: `${incoming.sourceName} 1`, color: colorFor(1) }
-      : null;
+  let updateFirst = null;
+  if (matches.length === 1) {
+    const [only] = matches;
+    const keepsName =
+      ordinalOf(only.name) !== null ||
+      isRenamedByHand(only.name, incoming.sourceName);
+    updateFirst = {
+      id: only.id,
+      name: keepsName ? null : `${incoming.sourceName} ${indices[0]}`,
+      color: colorFor(indices[0]),
+    };
+  }
 
   return {
     name: `${incoming.sourceName} ${next}`,
     color: colorFor(next),
-    renameFirst,
+    updateFirst,
   };
 }
