@@ -138,7 +138,8 @@ export function BestiaryBrowser() {
       const res = await fetch(existing ? `/api/library/${existing.id}` : "/api/library", {
         method: existing ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(sheet),
+        // Tags are their own column; send [] so clearing the field clears the column.
+        body: JSON.stringify({ ...sheet, tags: sheet.tags ?? [] }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null;

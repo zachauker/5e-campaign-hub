@@ -721,7 +721,7 @@ export function StatSheetEditor({
   return (
     <Tabs defaultValue="stats" className={cn("flex min-h-0 flex-col gap-3", className)}>
       {(shownErrors.length > 0 || validation.warnings.length > 0) && (
-        <div className="space-y-1.5 text-xs">
+        <div className="max-h-28 shrink-0 space-y-1.5 overflow-y-auto text-xs">
           {shownErrors.length > 0 && (
             <ul role="alert" className="list-disc rounded-md border border-destructive/50 bg-destructive/10 py-2 pl-6 pr-3 text-destructive">
               {shownErrors.map((m) => (
