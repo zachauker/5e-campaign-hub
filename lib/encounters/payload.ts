@@ -35,6 +35,10 @@ export function combatSnapshot(encounter: EncounterWithCombatants): EncounterSav
         isConcentrating: c.isConcentrating,
         isVisible: c.isVisible,
         sortOrder: c.sortOrder,
+        // Edited mid-fight, so they ride along. libraryId does not: it is fixed
+        // at the add, and this payload is budget-limited.
+        label: c.label,
+        color: c.color,
       })
     ),
   };

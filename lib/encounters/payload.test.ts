@@ -23,7 +23,7 @@ function encounter(): EncounterWithCombatants {
         ac: 16, speed: 30, conditions: ["poisoned"], notes: null,
         isConcentrating: true, isVisible: true, sortOrder: 0,
         characterId: null, ddbCharacterId: "1", monsterSlug: null,
-        statBlock: null, ddbCharacter, avatarUrl: "http://x/a.png", playerName: "Zach", color: null,
+        statBlock: null, ddbCharacter, avatarUrl: "http://x/a.png", playerName: "Zach", color: null, label: null, libraryId: null,
       },
       {
         id: "c2", encounterId: "enc1", name: "Hobgoblin Captain", type: "monster",
@@ -31,10 +31,17 @@ function encounter(): EncounterWithCombatants {
         ac: 17, speed: 30, conditions: ["frightened"], notes: null,
         isConcentrating: false, isVisible: true, sortOrder: 1,
         characterId: null, ddbCharacterId: null, monsterSlug: "hobgoblin-captain",
-        statBlock, ddbCharacter: null, avatarUrl: null, playerName: null, color: null,
+        statBlock, ddbCharacter: null, avatarUrl: null, playerName: null, color: null, label: null, libraryId: null,
       },
     ],
   };
+}
+
+/** The fixture encounter with its first combatant's fields overridden. */
+function encounterWith(overrides: Partial<EncounterWithCombatants["combatants"][number]>): EncounterWithCombatants {
+  const enc = encounter();
+  enc.combatants[0] = { ...enc.combatants[0], ...overrides };
+  return enc;
 }
 
 describe("combatSnapshot", () => {
@@ -49,6 +56,18 @@ describe("combatSnapshot", () => {
       hpCurrent: 12, hpMax: 40, hpTemp: 5, ac: 16,
       conditions: ["poisoned"], isConcentrating: true, isVisible: true, sortOrder: 0,
     });
+  });
+
+  // label and color are edited mid-fight, so they must survive a refresh.
+  it("carries label and color in the combat snapshot", () => {
+    const snap = combatSnapshot(encounterWith({ label: "on the roof", color: "#c0392b" }));
+    expect(snap.combatants![0]).toMatchObject({ label: "on the roof", color: "#c0392b" });
+  });
+
+  // libraryId is fixed at the add and the snapshot is budget-limited.
+  it("leaves libraryId out of the combat snapshot", () => {
+    const snap = combatSnapshot(encounterWith({ libraryId: "lib-1" }));
+    expect(snap.combatants![0]).not.toHaveProperty("libraryId");
   });
 
   it("omits the heavy fields rather than sending them as null", () => {

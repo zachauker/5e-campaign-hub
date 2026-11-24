@@ -37,6 +37,8 @@ export const combatants = sqliteTable("combatants", {
   avatarUrl: text("avatar_url"),
   playerName: text("player_name"),
   color: text("color"),
+  label: text("label"),
+  libraryId: text("library_id").references(() => characterLibrary.id),
 });
 
 export const settings = sqliteTable("settings", {
@@ -57,6 +59,7 @@ export const characterLibrary = sqliteTable("character_library", {
   type: text("type", { enum: ["pc", "npc", "monster"] }).notNull(),
   data: text("data").notNull(),
   tags: text("tags").notNull().default("[]"),
+  imagePath: text("image_path"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });
 
@@ -87,6 +90,7 @@ export const characters = sqliteTable("characters", {
   sourceSyncedAt: integer("source_synced_at", { mode: "timestamp" }),
   sourceHash: text("source_hash"),
   sourceText: text("source_text"),
+  statSheetId: text("stat_sheet_id").references(() => characterLibrary.id),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });

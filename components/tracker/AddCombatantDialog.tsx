@@ -191,6 +191,8 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
           avatarUrl: statBlock.imageUrl ?? null,
           playerName: null,
           color: null,
+          label: null,
+          libraryId: null,
           characterId: null,
         };
         addCombatant(combatant);
@@ -226,6 +228,8 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
       avatarUrl: null,
       playerName: null,
       color: null,
+      label: null,
+      libraryId: null,
       characterId: null,
     };
     addCombatant(combatant);
@@ -304,6 +308,8 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
       avatarUrl: char.avatarUrl ?? null,
       playerName: char.playerName ?? null,
       color: null,
+      label: null,
+      libraryId: null,
       characterId: null,
     };
     addCombatant(combatant);
@@ -335,6 +341,8 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
       avatarUrl: null,
       playerName: null,
       color: null,
+      label: null,
+      libraryId: null,
       characterId: linkingCharacter.id,
     };
     addCombatant(combatant);

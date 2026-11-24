@@ -38,6 +38,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       avatarUrl: body.avatarUrl ?? null,
       playerName: body.playerName ?? null,
       color: body.color ?? null,
+      label: body.label ?? null,
+      libraryId: body.libraryId ?? null,
     })
     .returning();
 

@@ -39,6 +39,8 @@ function combatant(overrides: Partial<CombatantWithParsed> = {}): CombatantWithP
     avatarUrl: null,
     playerName: null,
     color: null,
+    label: null,
+    libraryId: null,
     ...overrides,
   } as CombatantWithParsed;
 }
@@ -225,5 +227,34 @@ describe("saveEncounter", () => {
 
     const enc = db.get<{ updated_at: number }>(sql`SELECT updated_at FROM encounters WHERE id = 'enc1'`);
     expect(enc!.updated_at).toBeGreaterThan(1);
+  });
+
+  it("persists label, libraryId and color", () => {
+    const { db, campaignId } = createTestDb();
+    seedEncounter(db, campaignId);
+    db.run(sql`INSERT INTO character_library (id, name, type, data, tags, created_at)
+      VALUES ('lib-1', 'Hobgoblin Captain', 'monster', '{}', '[]', 1)`);
+
+    saveEncounter(db, "enc1", {
+      combatants: [combatant({ label: "on the roof", libraryId: "lib-1", color: "#c0392b" })],
+    });
+
+    const row = db.get<Record<string, unknown>>(
+      sql`SELECT label, library_id, color FROM combatants WHERE id = 'c-existing'`
+    );
+    expect(row).toEqual({ label: "on the roof", library_id: "lib-1", color: "#c0392b" });
+  });
+
+  it("leaves an existing label alone when the payload omits it", () => {
+    const { db, campaignId } = createTestDb();
+    seedEncounter(db, campaignId);
+    db.run(sql`UPDATE combatants SET label = 'on the roof' WHERE id = 'c-existing'`);
+
+    saveEncounter(db, "enc1", {
+      combatants: [{ id: "c-existing", name: "Garrick Veldros", type: "pc", hpCurrent: 3 }],
+    });
+
+    const row = db.get<{ label: string }>(sql`SELECT label FROM combatants WHERE id = 'c-existing'`);
+    expect(row.label).toBe("on the roof");
   });
 });

@@ -274,6 +274,8 @@ export interface CombatantWithParsed {
   avatarUrl: string | null;
   playerName: string | null;
   color: string | null;
+  label: string | null;
+  libraryId: string | null;
   characterId: string | null;
 }
 

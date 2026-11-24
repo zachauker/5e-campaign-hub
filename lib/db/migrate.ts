@@ -466,6 +466,14 @@ export function runMigrations() {
       ON session_marks (local_id) WHERE local_id IS NOT NULL;
   `);
 
+  // Additive: a free-text label to tell duplicate creatures apart, the library
+  // entry a combatant was added from, a character's linked stat sheet, and a
+  // library creature's portrait.
+  addColumnIfMissing("combatants", "label", "TEXT");
+  addColumnIfMissing("combatants", "library_id", "TEXT REFERENCES character_library(id)");
+  addColumnIfMissing("characters", "stat_sheet_id", "TEXT REFERENCES character_library(id)");
+  addColumnIfMissing("character_library", "image_path", "TEXT");
+
   // FTS5 index backing /api/search. Standalone (not external-content): rows are
   // written by lib/run/search-index.ts on entity and briefing writes, so the
   // index survives even when an entity has no briefing yet.

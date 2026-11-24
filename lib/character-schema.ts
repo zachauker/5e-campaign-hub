@@ -192,6 +192,8 @@ export function characterUploadToCombatant(
     avatarUrl: data.avatarUrl ?? data.statBlock?.imageUrl ?? null,
     playerName: data.playerName ?? null,
     color: data.color ?? null,
+    label: null,
+    libraryId: null,
     characterId: null,
   };
 }

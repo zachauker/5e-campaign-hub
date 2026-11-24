@@ -77,6 +77,8 @@ function combatantPatch(c: CombatantSave): Partial<CombatantInsert> {
   if (c.avatarUrl !== undefined) patch.avatarUrl = c.avatarUrl;
   if (c.playerName !== undefined) patch.playerName = c.playerName;
   if (c.color !== undefined) patch.color = c.color;
+  if (c.label !== undefined) patch.label = c.label;
+  if (c.libraryId !== undefined) patch.libraryId = c.libraryId;
   return patch;
 }
 
