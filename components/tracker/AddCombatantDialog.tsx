@@ -14,6 +14,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn, generateId, rollD20 } from "@/lib/utils";
 import { getModifier } from "@/lib/types";
 import type { CombatantWithParsed, StatBlock, DDBCharacter } from "@/lib/types";
+import { baseName, planAdd } from "@/lib/encounters/duplicates";
+import { portraitUrl } from "@/lib/library/portrait";
 import { characterUploadToCombatant, type CharacterUploadSchema } from "@/lib/character-schema";
 import { CharacterUpload } from "./CharacterUpload";
 import {
@@ -48,6 +50,7 @@ interface LibraryEntry {
   name: string;
   type: string;
   data: CharacterUploadSchema;
+  imagePath: string | null;
   tags: string[];
   createdAt: string;
 }
@@ -64,7 +67,7 @@ interface AddCombatantDialogProps {
 }
 
 export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
-  const { encounter, addCombatant } = useEncounterStore();
+  const { encounter, addCombatant, updateCombatant } = useEncounterStore();
   const [tab, setTab] = useState<Tab>("monster");
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
@@ -156,6 +159,28 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
     });
   }
 
+  /**
+   * Names and colours a new copy against what is in the fight right now, applies
+   * the retroactive update to copy #1 when this add makes a group, then adds and
+   * saves it. Reads the store each call so a batch sees its own earlier copies.
+   */
+  async function addPlanned(
+    combatant: CombatantWithParsed,
+    sourceKey: string,
+    sourceName: string,
+  ) {
+    const existing = useEncounterStore.getState().encounter?.combatants ?? [];
+    const plan = planAdd(existing, { name: combatant.name, sourceKey, sourceName });
+    if (plan.updateFirst) {
+      const { id, name, color } = plan.updateFirst;
+      updateCombatant(id, name === null ? { color } : { name, color });
+    }
+    const planned = { ...combatant, name: plan.name };
+    if (plan.color !== null) planned.color = plan.color;
+    addCombatant(planned);
+    await persistCombatant(planned);
+  }
+
   async function addMonster(result: MonsterResult) {
     if (!encounter) return;
     setAddingSlug(result.slug);
@@ -167,11 +192,10 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
       for (let i = 0; i < count; i++) {
         const dexMod = statBlock.dex ? getModifier(statBlock.dex) : 0;
         const initiative = rollD20() + dexMod;
-        const name = count > 1 ? `${result.name} ${i + 1}` : result.name;
         const combatant: CombatantWithParsed = {
           id: generateId(),
           encounterId: encounter.id,
-          name,
+          name: result.name,
           type: "monster",
           initiative,
           initiativeBonus: dexMod,
@@ -195,8 +219,7 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
           libraryId: null,
           characterId: null,
         };
-        addCombatant(combatant);
-        await persistCombatant(combatant);
+        await addPlanned(combatant, result.slug, result.name);
       }
     } finally {
       setAddingSlug(null);
@@ -232,35 +255,37 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
       libraryId: null,
       characterId: null,
     };
-    addCombatant(combatant);
-    await persistCombatant(combatant);
+    await addPlanned(combatant, baseName(combatant.name), combatant.name);
     setNpcForm({ name: "", ac: "10", hpMax: "10", initiative: "" });
     onClose();
   }
 
   async function addFromUpload(data: CharacterUploadSchema, saveToLibrary: boolean) {
     if (!encounter) return;
-    const combatant = characterUploadToCombatant(data, encounter.id);
-    combatant.sortOrder = encounter.combatants.length;
-    addCombatant(combatant);
-    await persistCombatant(combatant);
-
+    // Save to the library first so the combatant can carry the new entry's id.
+    let libraryId: string | null = null;
     if (saveToLibrary) {
-      await fetch("/api/library", {
+      const res = await fetch("/api/library", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
+      if (res.ok) libraryId = ((await res.json()) as { id?: string }).id ?? null;
     }
+    const combatant = characterUploadToCombatant(data, encounter.id, { libraryId });
+    combatant.sortOrder = encounter.combatants.length;
+    await addPlanned(combatant, baseName(combatant.name), combatant.name);
     onClose();
   }
 
   async function addFromLibrary(entry: LibraryEntry) {
     if (!encounter) return;
-    const combatant = characterUploadToCombatant(entry.data, encounter.id);
+    const combatant = characterUploadToCombatant(entry.data, encounter.id, {
+      libraryId: entry.id,
+      avatarUrl: portraitUrl(entry),
+    });
     combatant.sortOrder = encounter.combatants.length;
-    addCombatant(combatant);
-    await persistCombatant(combatant);
+    await addPlanned(combatant, baseName(combatant.name), combatant.name);
     onClose();
   }
 
@@ -312,8 +337,7 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
       libraryId: null,
       characterId: null,
     };
-    addCombatant(combatant);
-    await persistCombatant(combatant);
+    await addPlanned(combatant, baseName(combatant.name), combatant.name);
   }
 
   async function addLinkedCharacter() {
@@ -345,8 +369,7 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
       libraryId: null,
       characterId: linkingCharacter.id,
     };
-    addCombatant(combatant);
-    await persistCombatant(combatant);
+    await addPlanned(combatant, linkingCharacter.id, combatant.name);
     setLinkingCharacter(null);
     setLinkForm({ ac: "10", hpMax: "10", initiative: "" });
     onClose();

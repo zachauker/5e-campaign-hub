@@ -26,6 +26,8 @@ import {
 interface CombatantCardProps {
   combatant: CombatantWithParsed;
   isActive: boolean;
+  /** Badge number when this combatant has duplicates, otherwise null. */
+  tokenIndex: number | null;
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement>;
 }
 
@@ -41,7 +43,7 @@ const TYPE_ICONS = {
   monster: <Sword className="w-3 h-3" />,
 };
 
-export function CombatantCard({ combatant: c, isActive, dragHandleProps }: CombatantCardProps) {
+export function CombatantCard({ combatant: c, isActive, tokenIndex, dragHandleProps }: CombatantCardProps) {
   const {
     setInitiative,
     toggleConcentration,
@@ -51,6 +53,7 @@ export function CombatantCard({ combatant: c, isActive, dragHandleProps }: Comba
     selectCombatant,
     selectedCombatantId,
     syncErrors,
+    setLabel,
   } = useEncounterStore();
 
   const isSelected = selectedCombatantId === c.id;
@@ -59,6 +62,8 @@ export function CombatantCard({ combatant: c, isActive, dragHandleProps }: Comba
   const [initVal, setInitVal] = useState(String(c.initiative ?? ""));
   const [editingName, setEditingName] = useState(false);
   const [nameVal, setNameVal] = useState(c.name);
+  const [editingLabel, setEditingLabel] = useState(false);
+  const [labelVal, setLabelVal] = useState(c.label ?? "");
 
   const pct = hpPercent(c.hpCurrent, c.hpMax);
   const color = hpColor(c.hpCurrent, c.hpMax);
@@ -84,6 +89,11 @@ export function CombatantCard({ combatant: c, isActive, dragHandleProps }: Comba
     setEditingName(false);
   }
 
+  function commitLabel() {
+    setLabel(c.id, labelVal);
+    setEditingLabel(false);
+  }
+
   return (
     <div
       className={cn(
@@ -99,6 +109,15 @@ export function CombatantCard({ combatant: c, isActive, dragHandleProps }: Comba
         if (e.animationName === "death-blow") setDying(false);
       }}
     >
+      {/* Token stripe: duplicates, or a sheet-authored colour */}
+      {c.color && (
+        <div
+          aria-hidden
+          className="absolute inset-y-0 left-0 w-1 z-10"
+          style={{ backgroundColor: c.color }}
+        />
+      )}
+
       {/* HP bar strip — 6px, color-coded */}
       {c.hpMax > 0 && (
         <div className="h-1.5 bg-muted/60">
@@ -186,6 +205,16 @@ export function CombatantCard({ combatant: c, isActive, dragHandleProps }: Comba
                   {TYPE_ICONS[c.type]}
                 </div>
               )}
+              {/* Token number: which copy of a duplicate this is */}
+              {tokenIndex !== null && (
+                <span
+                  className="absolute -bottom-1 -right-1 flex items-center justify-center w-[21px] h-[21px] rounded-full ring-2 ring-card text-[11px] font-bold leading-none tabular-nums text-black"
+                  style={{ backgroundColor: c.color ?? undefined }}
+                  title={`Copy ${tokenIndex}`}
+                >
+                  {tokenIndex}
+                </span>
+              )}
               {/* Stale-data badge: this PC's last D&D Beyond sync failed */}
               {isStale && (
                 <Tooltip>
@@ -269,6 +298,39 @@ export function CombatantCard({ combatant: c, isActive, dragHandleProps }: Comba
                     )}
                     {c.isConcentrating && (
                       <span className="text-xs text-concentration font-medium">· Conc</span>
+                    )}
+                    {editingLabel ? (
+                      <Input
+                        autoFocus
+                        value={labelVal}
+                        onChange={(e) => setLabelVal(e.target.value)}
+                        onBlur={commitLabel}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") commitLabel();
+                          if (e.key === "Escape") setEditingLabel(false);
+                        }}
+                        placeholder="label"
+                        aria-label={`Label for ${c.name}`}
+                        className="h-5 w-28 text-xs px-1.5 py-0"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingLabel(true);
+                          setLabelVal(c.label ?? "");
+                        }}
+                        title="Edit label"
+                        className={cn(
+                          "text-xs leading-none px-1.5 py-[3px] rounded-md border border-dashed truncate max-w-[10rem] transition-colors",
+                          c.label
+                            ? "border-muted-foreground/50 text-foreground/80 hover:text-foreground"
+                            : "border-transparent text-muted-foreground/50 hover:border-muted-foreground/40 hover:text-muted-foreground"
+                        )}
+                      >
+                        {c.label || "+ label"}
+                      </button>
                     )}
                   </div>
                 </div>

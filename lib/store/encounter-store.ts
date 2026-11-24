@@ -25,6 +25,7 @@ interface EncounterState {
   toggleCondition: (combatantId: string, condition: Condition) => void;
   toggleConcentration: (combatantId: string) => void;
   setNotes: (combatantId: string, notes: string) => void;
+  setLabel: (combatantId: string, label: string) => void;
   updateCombatant: (combatantId: string, updates: Partial<CombatantWithParsed>) => void;
   reorderCombatants: (combatants: CombatantWithParsed[]) => void;
   addCombatant: (combatant: CombatantWithParsed) => void;
@@ -164,6 +165,16 @@ export const useEncounterStore = create<EncounterState>()(
         if (!state.encounter) return state;
         const combatants = state.encounter.combatants.map((c) =>
           c.id === combatantId ? { ...c, notes } : c
+        );
+        return { encounter: { ...state.encounter, combatants }, isDirty: true };
+      }),
+
+    setLabel: (combatantId, label) =>
+      set((state) => {
+        if (!state.encounter) return state;
+        const next = label.trim() || null;
+        const combatants = state.encounter.combatants.map((c) =>
+          c.id === combatantId ? { ...c, label: next } : c
         );
         return { encounter: { ...state.encounter, combatants }, isDirty: true };
       }),

@@ -4,6 +4,7 @@ import React, { useRef, useState, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import type { CombatantWithParsed } from "@/lib/types";
 import { useEncounterStore } from "@/lib/store/encounter-store";
+import { tokenIndices } from "@/lib/encounters/duplicates";
 import { CombatantCard } from "./CombatantCard";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -27,6 +28,7 @@ export function InitiativeTracker() {
   if (!encounter) return null;
 
   const sorted = [...encounter.combatants].sort((a, b) => a.sortOrder - b.sortOrder);
+  const tokens = tokenIndices(encounter.combatants);
 
   function handleDragStart(e: React.DragEvent, idx: number) {
     dragItemRef.current = sorted[idx];
@@ -88,6 +90,7 @@ export function InitiativeTracker() {
               <CombatantCard
                 combatant={combatant}
                 isActive={isActive}
+                tokenIndex={tokens.get(combatant.id) ?? null}
                 dragHandleProps={{
                   onMouseDown: (e) => e.stopPropagation(),
                 }}
