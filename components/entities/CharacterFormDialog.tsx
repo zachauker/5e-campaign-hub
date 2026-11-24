@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { LinkSheetDialog } from "@/components/tracker/LinkSheetDialog";
+import type { LibraryEntry } from "@/lib/library/entry";
 import type { Character, Faction, Location, Item } from "@/lib/db/schema";
 
 // The detail route returns `sourceProps` decoded, not as the raw JSON column.
@@ -73,6 +75,65 @@ export function CharacterFormDialog({
   const [locationIds, setLocationIds] = useState<string[]>(character?.locationIds ?? []);
   const [itemIds, setItemIds] = useState<string[]>(character?.itemIds ?? []);
   const [saving, setSaving] = useState(false);
+  const [sheetId, setSheetId] = useState<string | null>(character?.statSheetId ?? null);
+  // The linked sheet's details for display; the id alone says nothing to the DM.
+  const [sheet, setSheet] = useState<LibraryEntry | null>(null);
+  const [sheetError, setSheetError] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [creatingSheet, setCreatingSheet] = useState(false);
+
+  useEffect(() => {
+    if (!sheetId) return;
+    if (sheet?.id === sheetId) return;
+    let cancelled = false;
+    fetch(`/api/library/${sheetId}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("Could not load the linked stat sheet");
+        return res.json() as Promise<LibraryEntry>;
+      })
+      .then((entry) => {
+        if (!cancelled) setSheet(entry);
+      })
+      .catch((err) => {
+        if (!cancelled) setSheetError(err instanceof Error ? err.message : "Could not load the linked stat sheet");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sheetId, sheet]);
+
+  function linkSheet(entry: LibraryEntry) {
+    setSheet(entry);
+    setSheetId(entry.id);
+    setSheetError(null);
+    setPickerOpen(false);
+  }
+
+  function unlinkSheet() {
+    setSheet(null);
+    setSheetId(null);
+    setSheetError(null);
+  }
+
+  /** A blank sheet named for this NPC, linked straight away. The DM fills in its stats in the library. */
+  async function createSheet() {
+    if (!name.trim()) return;
+    setCreatingSheet(true);
+    setSheetError(null);
+    try {
+      const res = await fetch("/api/library", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim(), type: "npc", ac: 10, hpMax: 10 }),
+      });
+      if (!res.ok) throw new Error("Could not create the stat sheet");
+      linkSheet((await res.json()) as LibraryEntry);
+    } catch (err) {
+      setSheetError(err instanceof Error ? err.message : "Could not create the stat sheet");
+    } finally {
+      setCreatingSheet(false);
+    }
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -106,6 +167,8 @@ export function CharacterFormDialog({
         type,
         description: description.trim() || null,
         ddbCharacterId: ddbCharacterId.trim() || null,
+        // null unlinks on PATCH; POST stores it as given.
+        statSheetId: sheetId,
       };
 
       let id = character?.id;
@@ -196,6 +259,55 @@ export function CharacterFormDialog({
           />
 
           <div>
+            <label className="text-xs text-muted-foreground mb-1 block">Stat sheet</label>
+            <div className="rounded-md border border-border p-2.5 space-y-2">
+              {sheetId ? (
+                <p className="text-sm" data-testid="sheet-linked">
+                  {sheet ? (
+                    <>
+                      <span className="font-medium">{sheet.name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {" "}· AC {sheet.data.ac} · HP {sheet.data.hpMax}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-muted-foreground">Loading linked sheet...</span>
+                  )}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  No sheet linked. Adding this character to a fight will ask for AC, HP and initiative by hand.
+                </p>
+              )}
+              {sheetError && (
+                <p role="alert" className="text-xs text-destructive">
+                  {sheetError}
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
+                  {sheetId ? "Change sheet" : "Link a sheet"}
+                </Button>
+                {!sheetId && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={createSheet}
+                    disabled={creatingSheet || !name.trim()}
+                  >
+                    {creatingSheet ? "Creating..." : "Create from name"}
+                  </Button>
+                )}
+                {sheetId && (
+                  <Button type="button" variant="outline" size="sm" onClick={unlinkSheet}>
+                    Unlink
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+          <div>
             <label className="text-xs text-muted-foreground mb-1 block">Factions</label>
             <RelationList list={factions} selected={factionIds} onToggle={(id) => toggle(factionIds, setFactionIds, id)} />
           </div>
@@ -217,6 +329,7 @@ export function CharacterFormDialog({
           </Button>
         </div>
       </DialogContent>
+      <LinkSheetDialog open={pickerOpen} onClose={() => setPickerOpen(false)} onPick={linkSheet} />
     </Dialog>
   );
 }

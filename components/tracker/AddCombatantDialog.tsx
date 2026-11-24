@@ -16,6 +16,8 @@ import { getModifier } from "@/lib/types";
 import type { CombatantWithParsed, StatBlock, DDBCharacter } from "@/lib/types";
 import { baseName, planAdd } from "@/lib/encounters/duplicates";
 import { portraitUrl } from "@/lib/library/portrait";
+import { npcToCombatant } from "@/lib/encounters/npc-combatant";
+import type { LibraryEntry as SheetEntry } from "@/lib/library/entry";
 import { characterUploadToCombatant, type CharacterUploadSchema } from "@/lib/character-schema";
 import { CharacterUpload } from "./CharacterUpload";
 import { StatSheetEditorDialog } from "@/components/bestiary/StatSheetEditorDialog";
@@ -62,6 +64,7 @@ interface CharacterEntity {
   id: string;
   name: string;
   type: string;
+  statSheetId: string | null;
 }
 
 interface AddCombatantDialogProps {
@@ -87,6 +90,8 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
   const [loadingCharacters, setLoadingCharacters] = useState(false);
   const [linkingCharacter, setLinkingCharacter] = useState<CharacterEntity | null>(null);
   const [linkForm, setLinkForm] = useState({ ac: "10", hpMax: "10", initiative: "" });
+  // The picked character's linked sheet: undefined while loading, null when it could not be read.
+  const [linkedSheet, setLinkedSheet] = useState<SheetEntry | null | undefined>(undefined);
   const toast = useToast();
   // `opens` keys the editor dialog: it seeds its rows from props once, so each open must remount it.
   const [editingEntry, setEditingEntry] = useState<{ entry: LibraryEntry; draft: CharacterUploadSchema; opens: number } | null>(null);
@@ -98,6 +103,32 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
     if (tab === "library") loadLibrary(libraryQuery);
     if (tab === "characters") loadCharacterEntities();
   }, [tab]);
+
+  // Fetch the sheet behind the picked character; a character with no sheet has nothing to load.
+  const pickedSheetId = linkingCharacter?.statSheetId ?? null;
+  useEffect(() => {
+    if (!pickedSheetId) return;
+    let cancelled = false;
+    fetch(`/api/library/${pickedSheetId}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("Could not load the stat sheet");
+        return res.json() as Promise<SheetEntry>;
+      })
+      .then((entry) => {
+        if (!cancelled) setLinkedSheet(entry);
+      })
+      .catch(() => {
+        if (!cancelled) setLinkedSheet(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pickedSheetId]);
+
+  function pickCharacter(c: CharacterEntity | null) {
+    setLinkedSheet(undefined);
+    setLinkingCharacter(c);
+  }
 
   useEffect(() => {
     if (tab !== "library") return;
@@ -385,6 +416,15 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
 
   async function addLinkedCharacter() {
     if (!encounter || !linkingCharacter) return;
+    if (linkingCharacter.statSheetId) {
+      if (!linkedSheet) return;
+      const fromSheet = npcToCombatant(linkingCharacter, linkedSheet, encounter.id);
+      fromSheet.sortOrder = encounter.combatants.length;
+      await addPlanned(fromSheet, linkingCharacter.id, fromSheet.name);
+      pickCharacter(null);
+      onClose();
+      return;
+    }
     const combatant: CombatantWithParsed = {
       id: generateId(),
       encounterId: encounter.id,
@@ -413,7 +453,7 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
       characterId: linkingCharacter.id,
     };
     await addPlanned(combatant, linkingCharacter.id, combatant.name);
-    setLinkingCharacter(null);
+    pickCharacter(null);
     setLinkForm({ ac: "10", hpMax: "10", initiative: "" });
     onClose();
   }
@@ -766,7 +806,7 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
                   {characterEntities.map((c) => (
                     <div
                       key={c.id}
-                      onClick={() => setLinkingCharacter(c)}
+                      onClick={() => pickCharacter(c)}
                       className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-accent/50 transition-colors cursor-pointer"
                     >
                       <span className="font-medium text-sm flex-1">{c.name}</span>
@@ -780,6 +820,32 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
                 <p className="text-sm">
                   Adding <strong>{linkingCharacter.name}</strong> to combat
                 </p>
+                {linkingCharacter.statSheetId ? (
+                  <div className="rounded-lg border border-border p-3 text-sm" data-testid="linked-sheet">
+                    {linkedSheet === undefined && (
+                      <span className="flex items-center gap-2 text-muted-foreground">
+                        <Loader2 className="w-4 h-4 animate-spin" /> Loading stat sheet...
+                      </span>
+                    )}
+                    {linkedSheet === null && (
+                      <span role="alert" className="text-destructive">
+                        Could not load the linked stat sheet. Re-link it from the Characters page.
+                      </span>
+                    )}
+                    {linkedSheet && (
+                      <>
+                        <p className="font-medium">Using stat sheet: {linkedSheet.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          AC {linkedSheet.data.ac} · HP {linkedSheet.data.hpMax}. Added as {linkingCharacter.name}.
+                        </p>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      No stat sheet linked. Enter stats by hand, or link a sheet on the Characters page.
+                    </p>
                 <div className="grid grid-cols-3 gap-2">
                   <div>
                     <label className="text-xs text-muted-foreground mb-1 block">AC</label>
@@ -808,11 +874,17 @@ export function AddCombatantDialog({ open, onClose }: AddCombatantDialogProps) {
                     />
                   </div>
                 </div>
+                  </>
+                )}
                 <div className="flex gap-2">
-                  <Button variant="outline" className="flex-1" onClick={() => setLinkingCharacter(null)}>
+                  <Button variant="outline" className="flex-1" onClick={() => pickCharacter(null)}>
                     Back
                   </Button>
-                  <Button className="flex-1" onClick={addLinkedCharacter}>
+                  <Button
+                    className="flex-1"
+                    onClick={addLinkedCharacter}
+                    disabled={!!linkingCharacter.statSheetId && !linkedSheet}
+                  >
                     <Plus className="w-4 h-4" /> Add
                   </Button>
                 </div>

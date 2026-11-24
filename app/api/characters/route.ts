@@ -49,6 +49,7 @@ export async function POST(req: Request) {
       type: body.type ?? "npc",
       ddbCharacterId: body.ddbCharacterId ?? null,
       description: body.description ?? null,
+      statSheetId: typeof body.statSheetId === "string" && body.statSheetId ? body.statSheetId : null,
       createdAt: now,
       updatedAt: now,
     })
