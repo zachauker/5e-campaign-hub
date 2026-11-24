@@ -347,6 +347,8 @@ interface TabProps {
   value: Sheet;
   set: (patch: Partial<Sheet>) => void;
   setSb: (patch: Partial<StatBlockFields>) => void;
+  /** Free-text speed: keeps top-level `speed` and `statBlock.speed` in step in one update. */
+  setSpeed: (text: string) => void;
 }
 
 function IdentityTab({ value, set }: TabProps) {
@@ -407,7 +409,7 @@ function IdentityTab({ value, set }: TabProps) {
   );
 }
 
-function StatsTab({ value, set, setSb }: TabProps) {
+function StatsTab({ value, set, setSb, setSpeed }: TabProps) {
   const sb = value.statBlock;
   return (
     <div className="space-y-4">
@@ -424,14 +426,13 @@ function StatsTab({ value, set, setSb }: TabProps) {
         <Field label="Init. bonus">
           <NumField value={value.initiativeBonus} onCommit={(initiativeBonus) => set({ initiativeBonus })} />
         </Field>
-        <Field label="Speed (ft.)">
-          <NumField value={value.speed} onCommit={(speed) => set({ speed })} />
-        </Field>
-        <Field label="Speed text" className="col-span-2 sm:col-span-3">
-          <TextField
-            value={sb?.speed}
-            onCommit={(speed) => setSb({ speed })}
-            placeholder="30 ft., fly 60 ft. (overrides Speed on the stat block)"
+        <Field label="Speed" className="col-span-2">
+          <DraftInput<string>
+            placeholder="30 ft."
+            value={sb?.speed ?? (value.speed !== undefined ? `${value.speed} ft.` : "")}
+            format={(v) => v}
+            parse={(t) => ({ ok: true, value: t })}
+            onCommit={setSpeed}
           />
         </Field>
       </div>
@@ -648,6 +649,21 @@ export function StatSheetEditor({
     onChange({ ...value, statBlock: sb });
   };
 
+  const setSpeed = (text: string) => {
+    const next: Sheet = { ...value };
+    // No leading integer: leave the numeric speed alone rather than writing 0 or NaN.
+    const lead = /^\s*(\d+)/.exec(text);
+    if (lead) next.speed = Number(lead[1]);
+    // Only a sheet that already has a statBlock gets the text; a bare NPC keeps just its number.
+    if (value.statBlock) {
+      const sb = { ...value.statBlock };
+      if (text.trim() === "") delete sb.speed;
+      else sb.speed = text;
+      next.statBlock = sb;
+    }
+    onChange(next);
+  };
+
   const handleSave = () => {
     setAttempted(true);
     if (!validation.valid) return;
@@ -690,7 +706,7 @@ export function StatSheetEditor({
     }
   };
 
-  const tabProps: TabProps = { value, set, setSb };
+  const tabProps: TabProps = { value, set, setSb, setSpeed };
   const shownErrors = attempted ? validation.errors : [];
 
   return (
