@@ -7,6 +7,8 @@ import { useCampaignStore } from "@/lib/store/campaign-store";
 import { useEncounterStore } from "@/lib/store/encounter-store";
 import { useRunStore } from "@/lib/store/run-store";
 import { InitiativeTracker } from "@/components/tracker/InitiativeTracker";
+import { StatSheetPane } from "@/components/tracker/StatSheetPane";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { AnswerPanel } from "@/components/run/AnswerPanel";
 import { SceneBoard } from "@/components/run/SceneBoard";
 import { MarkStrip } from "@/components/run/MarkStrip";
@@ -210,9 +212,22 @@ export default function RunPage() {
         <div className="min-w-0 flex-[3] border-r border-border">
           {encounter ? <InitiativeTracker /> : <SceneBoard campaignId={activeCampaignId} />}
         </div>
-        <div className="min-w-0 flex-[2] p-4">
-          <AnswerPanel campaignId={activeCampaignId} onContextChange={onContextChange} />
-        </div>
+        {/* Tabs are switched by the DM only: selecting a combatant never changes the active tab. */}
+        <Tabs defaultValue="assistant" className="flex min-h-0 min-w-0 flex-[2] flex-col">
+          <TabsList className="m-4 mb-0 self-start">
+            <TabsTrigger value="assistant">Assistant</TabsTrigger>
+            <TabsTrigger value="stat-block">Stat block</TabsTrigger>
+          </TabsList>
+          {/* Kept mounted while hidden so the DM's search and open briefing survive a trip to the stat block. */}
+          <TabsContent value="assistant" forceMount className="min-h-0 flex-1 p-4 data-[state=inactive]:hidden">
+            <AnswerPanel campaignId={activeCampaignId} onContextChange={onContextChange} />
+          </TabsContent>
+          <TabsContent value="stat-block" className="flex min-h-0 flex-1 flex-col p-4 data-[state=inactive]:hidden">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
+              <StatSheetPane />
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
       <MarkStrip tagWindowOpen={tagWindowOpen} onEndRun={() => void endRun()} />
     </div>
