@@ -5,7 +5,7 @@ import { useEncounterStore } from "@/lib/store/encounter-store";
 import { StatBlock } from "./StatBlock";
 import { PCSheet } from "./PCSheet";
 import { Button } from "@/components/ui/button";
-import { X, RefreshCw, AlertTriangle } from "lucide-react";
+import { RefreshCw, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface StatBlockPanelProps {
@@ -41,37 +41,32 @@ function useRelativeTime(date: Date | null): string {
 }
 
 export function StatBlockPanel({ onRefresh, lastSyncedAt, syncing, syncErrors }: StatBlockPanelProps) {
-  const { encounter, statBlockCombatantId, showStatBlock } = useEncounterStore();
+  const { encounter, selectedCombatantId, selectCombatant } = useEncounterStore();
 
-  const combatant = encounter?.combatants.find((c) => c.id === statBlockCombatantId);
+  const combatant = encounter?.combatants.find((c) => c.id === selectedCombatantId);
   const isPCWithSheet = combatant?.type === "pc" && !!combatant.ddbCharacter;
-  const isOpen = isPCWithSheet || !!combatant?.statBlock;
   const hasError = combatant ? (syncErrors?.has(combatant.id) ?? false) : false;
 
   const syncLabel = useRelativeTime(lastSyncedAt ?? null);
 
-  // Esc closes the panel — the close button's tooltip promises this shortcut.
-  // Guard against firing while the DM is typing in a field (notes, HP, name).
+  // Esc clears the selection. Guard against firing while the DM is typing in a
+  // field (notes, HP, name).
   useEffect(() => {
-    if (!isOpen) return;
+    if (!selectedCombatantId) return;
     function onKeyDown(e: KeyboardEvent) {
       if (e.key !== "Escape") return;
       const tag = document.activeElement?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
-      showStatBlock(null);
+      selectCombatant(null);
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isOpen, showStatBlock]);
+  }, [selectedCombatantId, selectCombatant]);
 
+  // Always rendered at a fixed width; only the content changes.
   return (
-    <div
-      className={cn(
-        "flex flex-col border-l border-border bg-card transition-[width] duration-300 ease-out overflow-hidden motion-reduce:transition-none",
-        isOpen ? "w-80 min-w-80" : "w-0 min-w-0"
-      )}
-    >
-      {isOpen && combatant && (
+    <div className="flex flex-col border-l border-border bg-card overflow-hidden w-80 min-w-80">
+      {combatant && (isPCWithSheet || combatant.statBlock) ? (
         <>
           {/* Panel header */}
           <div className="flex items-center justify-between px-3 py-2 border-b border-border flex-none gap-2">
@@ -114,16 +109,6 @@ export function StatBlockPanel({ onRefresh, lastSyncedAt, syncing, syncErrors }:
                 )}
               </div>
             )}
-
-            <Button
-              size="icon-sm"
-              variant="ghost"
-              onClick={() => showStatBlock(null)}
-              className="shrink-0"
-              title="Close (Esc)"
-            >
-              <X className="w-3.5 h-3.5" />
-            </Button>
           </div>
 
           {/* Content */}
@@ -135,6 +120,21 @@ export function StatBlockPanel({ onRefresh, lastSyncedAt, syncing, syncErrors }:
             ) : null}
           </div>
         </>
+      ) : combatant ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-4 text-center">
+          <span className="text-sm font-semibold">{combatant.name}</span>
+          {/* Wired up in Task 10 */}
+          <Button size="sm" variant="outline" disabled title="Coming soon">
+            Link a stat sheet
+          </Button>
+          <Button size="sm" variant="outline" disabled title="Coming soon">
+            Create a sheet
+          </Button>
+        </div>
+      ) : (
+        <div className="flex flex-1 items-center justify-center p-4 text-sm text-muted-foreground">
+          Select a combatant
+        </div>
       )}
     </div>
   );

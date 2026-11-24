@@ -14,7 +14,6 @@ import {
   Eye,
   EyeOff,
   Trash2,
-  BookOpen,
   GripVertical,
   Zap,
   User,
@@ -48,7 +47,6 @@ export function CombatantCard({ combatant: c, isActive, tokenIndex, dragHandlePr
     setInitiative,
     toggleConcentration,
     removeCombatant,
-    showStatBlock,
     updateCombatant,
     selectCombatant,
     selectedCombatantId,
@@ -402,17 +400,6 @@ export function CombatantCard({ combatant: c, isActive, tokenIndex, dragHandlePr
                 {c.isVisible ? <Eye className="w-3 h-3 mr-1" /> : <EyeOff className="w-3 h-3 mr-1" />}
                 {c.isVisible ? "Visible" : "Hidden"}
               </Button>
-              {(c.statBlock || c.ddbCharacter) && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 text-xs"
-                  onClick={() => showStatBlock(c.id)}
-                >
-                  <BookOpen className="w-3 h-3 mr-1" />
-                  {c.ddbCharacter ? "Sheet" : "Stat Block"}
-                </Button>
-              )}
               <Button
                 size="sm"
                 variant="ghost"

@@ -7,7 +7,6 @@ import type { CombatantWithParsed, EncounterWithCombatants, Condition, DDBCharac
 interface EncounterState {
   encounter: EncounterWithCombatants | null;
   selectedCombatantId: string | null;
-  statBlockCombatantId: string | null;
   isDirty: boolean;
   pendingRemove: CombatantWithParsed | null;
   /** Combatant IDs whose last D&D Beyond sync failed — surfaced as a stale badge. */
@@ -15,7 +14,6 @@ interface EncounterState {
 
   setEncounter: (encounter: EncounterWithCombatants) => void;
   selectCombatant: (id: string | null) => void;
-  showStatBlock: (id: string | null) => void;
   setSyncErrors: (ids: Set<string>) => void;
 
   updateHP: (combatantId: string, delta: number) => void;
@@ -58,14 +56,12 @@ export const useEncounterStore = create<EncounterState>()(
   subscribeWithSelector((set) => ({
     encounter: null,
     selectedCombatantId: null,
-    statBlockCombatantId: null,
     isDirty: false,
     pendingRemove: null,
     syncErrors: new Set(),
 
     setEncounter: (encounter) => set({ encounter, isDirty: false }),
     selectCombatant: (id) => set({ selectedCombatantId: id }),
-    showStatBlock: (id) => set({ statBlockCombatantId: id }),
     setSyncErrors: (syncErrors) => set({ syncErrors }),
 
     // Sync DDB character data + live combat stats from the player's sheet.

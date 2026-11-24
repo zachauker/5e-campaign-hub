@@ -37,7 +37,7 @@ export function EncounterControls({ onSave, saving, saveError, onNavigateBack }:
     endEncounter,
     resetRound,
     isDirty,
-    showStatBlock,
+    selectCombatant,
   } = useEncounterStore();
 
   const [addOpen, setAddOpen] = useState(false);
@@ -62,11 +62,11 @@ export function EncounterControls({ onSave, saving, saveError, onNavigateBack }:
       if (e.key === "s" || e.key === "S") {
         const state = useEncounterStore.getState();
         const currentId = state.encounter?.currentCombatantId;
-        if (currentId) { e.preventDefault(); showStatBlock(currentId); }
+        if (currentId) { e.preventDefault(); selectCombatant(currentId); }
       }
       if ((e.metaKey || e.ctrlKey) && e.key === "s") { e.preventDefault(); onSave(); }
     },
-    [nextTurn, prevTurn, onSave, showStatBlock]
+    [nextTurn, prevTurn, onSave, selectCombatant]
   );
 
   useEffect(() => {
