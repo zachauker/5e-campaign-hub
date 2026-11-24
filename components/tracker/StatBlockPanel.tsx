@@ -12,6 +12,7 @@ import { RefreshCw, AlertTriangle, Pencil, BookMarked } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { statBlockToUpload, type CharacterUploadSchema } from "@/lib/character-schema";
 import { mergeSheetOverStored } from "@/lib/library/save-back";
+import { baseName } from "@/lib/encounters/duplicates";
 import { portraitUrl } from "@/lib/library/portrait";
 import type { LibraryEntry } from "@/lib/library/entry";
 import type { CombatantWithParsed } from "@/lib/types";
@@ -184,7 +185,7 @@ export function StatBlockPanel({ onRefresh, lastSyncedAt, syncing, syncErrors }:
       const res = await fetch(`/api/library/${libraryId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...mergeSheetOverStored(entry.data, statBlockToUpload(c)), tags: entry.tags }),
+        body: JSON.stringify({ ...mergeSheetOverStored(entry.data, { ...statBlockToUpload(c), name: baseName(c.name) }), tags: entry.tags }),
       });
       if (res.status === 404) return lost();
       if (!res.ok) throw new Error("Could not update the library entry");
@@ -301,6 +302,8 @@ export function StatBlockPanel({ onRefresh, lastSyncedAt, syncing, syncErrors }:
           onSave={editor.mode === "create" ? saveCreate : saveEdit}
           onCancel={() => setEditor(null)}
           saving={saving}
+          // A combatant has nowhere to keep tags or notes, so an edit here would be silently dropped.
+          hideLibraryFields={editor.mode === "edit"}
         />
       )}
       {combatant && (

@@ -29,6 +29,8 @@ export interface StatSheetEditorProps {
   saving?: boolean;
   /** Fired after an upload or removal succeeds, with the row's new imagePath. */
   onPortraitChanged?: (imagePath: string | null) => void;
+  /** Hides Tags and Notes, for hosts that have nowhere to store them (a combatant). */
+  hideLibraryFields?: boolean;
   className?: string;
 }
 
@@ -361,9 +363,10 @@ interface TabProps {
   setSpeed: (text: string) => void;
   /** Replaces the whole sheet in one update, for edits that touch several fields. */
   replace: (next: Sheet) => void;
+  hideLibraryFields?: boolean;
 }
 
-function IdentityTab({ value, set }: TabProps) {
+function IdentityTab({ value, set, hideLibraryFields }: TabProps) {
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -381,6 +384,7 @@ function IdentityTab({ value, set }: TabProps) {
             <option value="pc">Player character</option>
           </select>
         </Field>
+        {!hideLibraryFields && (
         <Field label="Tags">
           <DraftInput<string[] | undefined>
             placeholder="undead, boss"
@@ -393,6 +397,7 @@ function IdentityTab({ value, set }: TabProps) {
             onCommit={(tags) => set({ tags })}
           />
         </Field>
+        )}
         <Field label="Player name">
           <TextField value={value.playerName} onCommit={(playerName) => set({ playerName })} placeholder="Player name" />
         </Field>
@@ -409,6 +414,7 @@ function IdentityTab({ value, set }: TabProps) {
           </div>
         </Field>
       </div>
+      {!hideLibraryFields && (
       <Field label="Notes">
         <TextArea
           rows={8}
@@ -417,6 +423,7 @@ function IdentityTab({ value, set }: TabProps) {
           placeholder="Tactics, voice, how it fights. Shown on the sheet, not in the stat block."
         />
       </Field>
+      )}
     </div>
   );
 }
@@ -647,6 +654,7 @@ export function StatSheetEditor({
   onCancel,
   saving = false,
   onPortraitChanged,
+  hideLibraryFields,
   className,
 }: StatSheetEditorProps) {
   const [attempted, setAttempted] = useState(false);
@@ -715,7 +723,7 @@ export function StatSheetEditor({
     }
   };
 
-  const tabProps: TabProps = { value, set, setSb, setSpeed, replace: onChange };
+  const tabProps: TabProps = { value, set, setSb, setSpeed, replace: onChange, hideLibraryFields };
   const shownErrors = attempted ? validation.errors : [];
 
   return (

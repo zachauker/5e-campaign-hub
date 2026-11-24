@@ -30,4 +30,11 @@ describe("mergeSheetOverStored", () => {
     mergeSheetOverStored(stored, { name: "Ogre", type: "monster", ac: 1, hpMax: 1 });
     expect(stored.ac).toBe(11);
   });
+
+  it("layers statBlock so stored keys the combatant cannot hold survive", () => {
+    const hb = { ...stored, color: "#111111", statBlock: { size: "Large", homebrewKey: "keep me", hitDice: "old" } } as unknown as CharacterUploadSchema;
+    const out = mergeSheetOverStored(hb, { name: "Ogre", type: "monster", ac: 11, hpMax: 59, color: "#a78bfa", statBlock: { size: "Large", hitDice: "new" } });
+    expect(out.statBlock).toMatchObject({ homebrewKey: "keep me", hitDice: "new" });
+    expect(out.color).toBe("#111111");
+  });
 });

@@ -3,10 +3,11 @@ import type { CharacterUploadSchema } from "@/lib/character-schema";
 /**
  * The sheet fields a combatant owns. A save-back overwrites these and leaves everything
  * else the entry stores (tags, notes, version, $schema, ...) exactly as it was.
- * `avatarUrl` is deliberately not here: a combatant's avatar may be the entry's own
- * /image URL, and writing that back would replace the entry's remote image setting.
+ * Left out on purpose: `avatarUrl` (may be the entry's own /image URL) and `color` (a token
+ * colour assigned per fight). `name` is only safe if the caller passes the un-numbered name.
+ * `statBlock` is layered key by key, below.
  */
-const OWNED_KEYS = ["name", "type", "ac", "hpMax", "speed", "initiativeBonus", "playerName", "color", "statBlock"] as const;
+const OWNED_KEYS = ["name", "type", "ac", "hpMax", "speed", "initiativeBonus", "playerName"] as const;
 
 /**
  * Layers a combatant's sheet over a library entry's stored sheet.
@@ -21,5 +22,6 @@ export function mergeSheetOverStored(stored: CharacterUploadSchema, sheet: Chara
     if (sheet[key] === undefined) delete merged[key];
     else merged[key] = sheet[key];
   }
+  if (sheet.statBlock) merged.statBlock = { ...stored.statBlock, ...sheet.statBlock };
   return merged as unknown as CharacterUploadSchema;
 }
