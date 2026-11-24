@@ -17,6 +17,8 @@ export interface CharacterUploadSchema {
   avatarUrl?: string;
   color?: string;
   tags?: string[];
+  /** Sheet prep text (tactics, voice). Distinct from the per-fight `combatants.notes`. */
+  notes?: string;
 
   statBlock?: {
     size?: string;
@@ -91,6 +93,10 @@ export function validateCharacterUpload(data: unknown): ValidationResult {
     warnings.push('"initiativeBonus" should be a number, defaulting to 0');
   }
 
+  if (d.notes !== undefined && typeof d.notes !== "string") {
+    warnings.push('"notes" should be a string');
+  }
+
   if (d.color !== undefined && typeof d.color === "string") {
     if (!/^#[0-9a-fA-F]{3,8}$/.test(d.color)) {
       warnings.push('"color" should be a hex color like "#c0392b"');
@@ -130,7 +136,13 @@ export function validateCharacterUpload(data: unknown): ValidationResult {
 
 export function characterUploadToCombatant(
   data: CharacterUploadSchema,
-  encounterId: string
+  encounterId: string,
+  overrides?: {
+    name?: string;
+    characterId?: string | null;
+    libraryId?: string | null;
+    avatarUrl?: string | null;
+  }
 ): CombatantWithParsed {
   const statBlock: StatBlock | null = data.statBlock
     ? {
@@ -169,7 +181,7 @@ export function characterUploadToCombatant(
       }
     : null;
 
-  return {
+  const combatant: CombatantWithParsed = {
     id: generateId(),
     encounterId,
     name: data.name.trim(),
@@ -196,6 +208,42 @@ export function characterUploadToCombatant(
     libraryId: null,
     characterId: null,
   };
+
+  return { ...combatant, ...definedOverrides(overrides) };
+}
+
+function definedOverrides<T extends object>(o: T | undefined): Partial<T> {
+  return Object.fromEntries(Object.entries(o ?? {}).filter(([, v]) => v !== undefined)) as Partial<T>;
+}
+
+/** The reverse of characterUploadToCombatant: a combatant as an editable sheet. */
+export function statBlockToUpload(
+  c: Pick<
+    CombatantWithParsed,
+    "name" | "type" | "ac" | "hpMax" | "speed" | "initiativeBonus" | "playerName" | "avatarUrl" | "color" | "statBlock"
+  >
+): CharacterUploadSchema {
+  const sheet: CharacterUploadSchema = {
+    name: c.name,
+    type: c.type,
+    // The flat columns are the live combat truth, so they win over statBlock.ac/hp.
+    ac: c.ac,
+    hpMax: c.hpMax,
+    speed: c.speed,
+    initiativeBonus: c.initiativeBonus,
+  };
+  if (c.playerName) sheet.playerName = c.playerName;
+  if (c.avatarUrl) sheet.avatarUrl = c.avatarUrl;
+  if (c.color) sheet.color = c.color;
+
+  if (c.statBlock) {
+    // name/ac/hp live at the top level; spellcasting has no sheet field yet.
+    const { name: _name, ac: _ac, hp: _hp, spellcasting: _spellcasting, ...rest } = c.statBlock;
+    sheet.statBlock = Object.fromEntries(
+      Object.entries(rest).filter(([, v]) => v !== undefined)
+    ) as CharacterUploadSchema["statBlock"];
+  }
+  return sheet;
 }
 
 export const EXAMPLE_CHARACTER_JSON: CharacterUploadSchema = {
