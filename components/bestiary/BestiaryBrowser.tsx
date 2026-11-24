@@ -51,6 +51,8 @@ interface Open {
   entry: LibraryEntry | null;
   draft: Sheet;
   dirty: boolean;
+  /** Bumped by Cancel: the editor seeds internal rows from props once, so a revert must remount it. */
+  resets: number;
 }
 
 export function BestiaryBrowser() {
@@ -120,13 +122,13 @@ export function BestiaryBrowser() {
     if (entry.id === open?.entry?.id) return;
     if (!(await confirmLeave())) return;
     setError(null);
-    setOpen({ entry, draft: sheetOf(entry), dirty: false });
+    setOpen({ entry, draft: sheetOf(entry), dirty: false, resets: 0 });
   };
 
   const startNew = async () => {
     if (!(await confirmLeave())) return;
     setError(null);
-    setOpen({ entry: null, draft: BLANK_SHEET, dirty: false });
+    setOpen({ entry: null, draft: BLANK_SHEET, dirty: false, resets: 0 });
   };
 
   const save = async (sheet: Sheet) => {
@@ -145,12 +147,16 @@ export function BestiaryBrowser() {
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
         throw new Error(body?.error ?? "Could not save the sheet");
       }
-      // PATCH answers { ok }; re-read the row so the pane reflects what the server stored.
-      const id = existing ? existing.id : ((await res.json()) as { id: string }).id;
-      const saved = await fetch(`/api/library/${id}`);
-      if (!saved.ok) throw new Error("Saved, but could not reload the entry");
-      const entry = (await saved.json()) as LibraryEntry;
-      setOpen({ entry, draft: sheetOf(entry), dirty: false });
+      // POST answers with the full row. PATCH answers { ok }, so re-read it to show what the server stored.
+      let entry: LibraryEntry;
+      if (existing) {
+        const saved = await fetch(`/api/library/${existing.id}`);
+        if (!saved.ok) throw new Error("Saved, but could not reload the entry");
+        entry = (await saved.json()) as LibraryEntry;
+      } else {
+        entry = (await res.json()) as LibraryEntry;
+      }
+      setOpen({ entry, draft: sheetOf(entry), dirty: false, resets: 0 });
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save the sheet");
@@ -161,7 +167,7 @@ export function BestiaryBrowser() {
 
   const cancel = () => {
     setError(null);
-    setOpen((o) => (o?.entry ? { entry: o.entry, draft: sheetOf(o.entry), dirty: false } : null));
+    setOpen((o) => (o?.entry ? { entry: o.entry, draft: sheetOf(o.entry), dirty: false, resets: o.resets + 1 } : null));
   };
 
   const remove = async () => {
@@ -307,7 +313,7 @@ export function BestiaryBrowser() {
               </div>
               <StatSheetEditor
                 // The editor seeds its draft rows and imagePath from props once; the key remounts it per entry.
-                key={open.entry?.id ?? "new"}
+                key={`${open.entry?.id ?? "new"}:${open.resets}`}
                 className="min-h-0 flex-1"
                 value={open.draft}
                 entryId={open.entry?.id ?? null}
