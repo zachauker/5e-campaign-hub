@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { characterLibrary } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import type { CharacterUploadSchema } from "@/lib/character-schema";
+import { deleteLibraryImage } from "@/lib/library/storage";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -41,6 +42,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const existing = await db.query.characterLibrary.findFirst({
+    where: eq(characterLibrary.id, id),
+  });
   await db.delete(characterLibrary).where(eq(characterLibrary.id, id));
+  if (existing?.imagePath) await deleteLibraryImage(existing.imagePath);
   return NextResponse.json({ ok: true });
 }
