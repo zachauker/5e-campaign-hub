@@ -13,19 +13,23 @@ interface HPControlsProps {
   hpCurrent: number;
   hpMax: number;
   hpTemp: number;
-  compact?: boolean;
+  /** Shown beside the HP in the `vitals` variant, so AC and HP read as one box. */
+  ac?: number;
+  variant?: "full" | "compact" | "vitals";
 }
 
-export function HPControls({ combatantId, hpCurrent, hpMax, hpTemp, compact = false }: HPControlsProps) {
+export function HPControls({ combatantId, hpCurrent, hpMax, hpTemp, ac, variant = "full" }: HPControlsProps) {
   const { updateHP, setHP, setTempHP } = useEncounterStore();
   const [inputVal, setInputVal] = useState("");
   const [mode, setMode] = useState<"damage" | "heal" | "set">("damage");
+  const [editing, setEditing] = useState(false);
   const [showTempInput, setShowTempInput] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Floating damage/heal number: capture the HP delta during render (React's
   // adjust-state-on-change pattern, guarded so it fires once per change) and let
-  // it rise from the compact bar. Only the always-visible compact bar renders it.
+  // it rise from the always-visible header display (compact bar or vitals box).
+  // The expanded "full" panel sits right under the header, so it doesn't repeat it.
   const [prevHp, setPrevHp] = useState(hpCurrent);
   const [floater, setFloater] = useState<{ delta: number; seq: number } | null>(null);
   if (hpCurrent !== prevHp) {
@@ -51,7 +55,116 @@ export function HPControls({ combatantId, hpCurrent, hpMax, hpTemp, compact = fa
     if (e.key === "Escape") setInputVal("");
   }
 
-  if (compact) {
+  const floaterEl = floater && (
+    <span
+      key={floater.seq}
+      onAnimationEnd={() => setFloater(null)}
+      aria-hidden
+      className={cn(
+        "hp-float pointer-events-none absolute left-12 -top-1 z-10 text-xs font-bold tabular-nums [text-shadow:0_1px_2px_rgba(0,0,0,0.8)]",
+        floater.delta < 0 ? "text-damage" : "text-heal"
+      )}
+    >
+      {floater.delta < 0 ? floater.delta : `+${floater.delta}`}
+    </span>
+  );
+
+  if (variant === "vitals") {
+    const labelCls = "text-[9px] font-bold uppercase tracking-[0.08em] text-muted-foreground";
+    const nudgeCls =
+      "w-7 h-[21px] flex items-center justify-center rounded-[7px] border border-border bg-muted text-foreground/90 hover:bg-accent transition-colors";
+    return (
+      <div className="relative flex items-center gap-3.5 rounded-[10px] border border-border bg-[oklch(0.185_0.014_46)] px-3 py-1.5">
+        <div className="flex flex-col items-center min-w-8">
+          <span className={labelCls}>AC</span>
+          <span className="text-xl font-bold leading-[1.1] tabular-nums">{ac}</span>
+        </div>
+        <div className="w-px self-stretch bg-border" />
+        <div className="flex flex-col items-center min-w-[4.5rem]">
+          <span className={labelCls}>HP</span>
+          {editing ? (
+            <div className="flex items-center gap-1">
+              <Input
+                autoFocus
+                type="number"
+                min="0"
+                placeholder="0"
+                aria-label={mode === "damage" ? "Damage amount" : mode === "heal" ? "Healing amount" : "Set HP to"}
+                value={inputVal}
+                onChange={(e) => setInputVal(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { applyInput(); setEditing(false); }
+                  if (e.key === "Escape") { setInputVal(""); setEditing(false); }
+                }}
+                onBlur={() => { setInputVal(""); setEditing(false); }}
+                className="h-7 w-14 text-center text-sm px-1"
+              />
+              {(["damage", "heal", "set"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  // keep focus in the input so choosing a mode doesn't close the editor
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => setMode(m)}
+                  aria-label={m}
+                  title={m}
+                  className={cn(
+                    "h-7 w-6 rounded text-[11px] font-bold uppercase transition-colors",
+                    mode === m
+                      ? m === "damage"
+                        ? "bg-damage/20 text-damage"
+                        : m === "heal"
+                        ? "bg-heal/20 text-heal"
+                        : "bg-accent text-foreground"
+                      : "bg-muted text-muted-foreground hover:bg-accent"
+                  )}
+                >
+                  {m[0]}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => { setMode("damage"); setEditing(true); }}
+              title="Click to apply damage, healing or set HP"
+              aria-label={`HP ${hpCurrent} of ${hpMax}. Edit`}
+              className="text-xl font-bold leading-[1.1] tabular-nums rounded hover:bg-accent/60 transition-colors"
+            >
+              <span style={{ color }}>{hpCurrent}</span>
+              <span className="text-sm font-bold text-muted-foreground">/{hpMax}</span>
+              {hpTemp > 0 && (
+                <span className="ml-1 text-xs font-medium text-temp-hp">+{hpTemp}</span>
+              )}
+            </button>
+          )}
+        </div>
+        <div className="flex flex-col gap-[3px]">
+          <button
+            type="button"
+            onClick={() => updateHP(combatantId, 1)}
+            aria-label="Heal 1"
+            title="Heal 1"
+            className={nudgeCls}
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => updateHP(combatantId, -1)}
+            aria-label="Damage 1"
+            title="Damage 1"
+            className={nudgeCls}
+          >
+            <Minus className="w-3.5 h-3.5" />
+          </button>
+        </div>
+        {floaterEl}
+      </div>
+    );
+  }
+
+  if (variant === "compact") {
     return (
       <div className="relative flex items-center gap-1">
         <div className="relative w-24 h-5 bg-muted rounded overflow-hidden">
@@ -66,19 +179,7 @@ export function HPControls({ combatantId, hpCurrent, hpMax, hpTemp, compact = fa
         {hpTemp > 0 && (
           <span className="text-xs text-temp-hp font-medium">+{hpTemp}</span>
         )}
-        {floater && (
-          <span
-            key={floater.seq}
-            onAnimationEnd={() => setFloater(null)}
-            aria-hidden
-            className={cn(
-              "hp-float pointer-events-none absolute left-12 -top-1 z-10 text-xs font-bold tabular-nums [text-shadow:0_1px_2px_rgba(0,0,0,0.8)]",
-              floater.delta < 0 ? "text-damage" : "text-heal"
-            )}
-          >
-            {floater.delta < 0 ? floater.delta : `+${floater.delta}`}
-          </span>
-        )}
+        {floaterEl}
       </div>
     );
   }

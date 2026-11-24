@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import {
-  Shield,
   Eye,
   EyeOff,
   Trash2,
@@ -111,188 +110,188 @@ export function CombatantCard({ combatant: c, isActive, dragHandleProps }: Comba
       )}
 
       <div className="p-3">
-        {/* Header row */}
-        <div className="flex items-center gap-2">
+        {/* Header row: identity group (flexes) + vitals box (fixed) */}
+        <div className="flex items-center gap-3">
           {/* Drag handle */}
           <div
             {...dragHandleProps}
             className="text-muted-foreground/40 hover:text-muted-foreground cursor-grab active:cursor-grabbing touch-none flex-none"
           >
-            <GripVertical className="w-3.5 h-3.5" />
+            <GripVertical className="w-4 h-4" />
           </div>
 
-          {/* Initiative */}
-          <div className="flex-none">
-            {editingInit ? (
-              <Input
-                autoFocus
-                type="number"
-                value={initVal}
-                onChange={(e) => setInitVal(e.target.value)}
-                onBlur={commitInit}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") commitInit();
-                  if (e.key === "Escape") setEditingInit(false);
-                }}
-                className="w-12 h-10 text-center text-base font-bold px-1"
-                onClick={(e) => e.stopPropagation()}
-              />
-            ) : (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setEditingInit(true);
-                  setInitVal(String(c.initiative ?? ""));
-                }}
-                className={cn(
-                  "w-12 h-10 flex items-center justify-center rounded-lg transition-colors",
-                  isActive
-                    ? "bg-[var(--initiative)]/20"
-                    : "bg-muted hover:bg-accent"
-                )}
-                title="Set initiative"
-              >
-                <span
+          <div className="flex items-center gap-2.5 flex-1 min-w-0">
+            {/* Initiative */}
+            <div className="flex-none">
+              {editingInit ? (
+                <Input
+                  autoFocus
+                  type="number"
+                  value={initVal}
+                  onChange={(e) => setInitVal(e.target.value)}
+                  onBlur={commitInit}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") commitInit();
+                    if (e.key === "Escape") setEditingInit(false);
+                  }}
+                  className="w-[54px] h-[52px] text-center text-xl font-bold px-1"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              ) : (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditingInit(true);
+                    setInitVal(String(c.initiative ?? ""));
+                  }}
                   className={cn(
-                    "text-base font-bold tabular-nums",
-                    isActive ? "text-[var(--initiative)]" : "text-foreground"
+                    "w-[54px] h-[52px] flex flex-col items-center justify-center rounded-[10px] transition-colors",
+                    isActive
+                      ? "bg-[var(--initiative)]/20 text-[var(--initiative)]"
+                      : "bg-muted hover:bg-accent text-foreground"
                   )}
+                  title="Set initiative"
                 >
-                  {c.initiative ?? "—"}
-                </span>
-              </button>
-            )}
-          </div>
-
-          {/* Avatar */}
-          <div className="relative flex-none">
-            {c.avatarUrl ? (
-              <img
-                src={c.avatarUrl}
-                alt={c.name}
-                className="w-9 h-9 rounded-full object-cover border border-border"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = "none";
-                }}
-              />
-            ) : (
-              <div
-                className="w-9 h-9 rounded-full border flex items-center justify-center text-muted-foreground"
-                style={{ backgroundColor: `${typeColor}18`, borderColor: `${typeColor}44` }}
-              >
-                {TYPE_ICONS[c.type]}
-              </div>
-            )}
-            {/* Stale-data badge: this PC's last D&D Beyond sync failed */}
-            {isStale && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span
-                    className="absolute -top-1 -right-1 flex items-center justify-center w-4 h-4 rounded-full bg-warning text-black ring-2 ring-card cursor-help"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <AlertTriangle className="w-2.5 h-2.5" />
+                  <span className="text-[22px] leading-none font-bold tabular-nums">
+                    {c.initiative ?? "—"}
                   </span>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-[14rem]">
-                  <p className="font-semibold text-warning">Stale data</p>
-                  <p className="text-muted-foreground leading-snug">
-                    Last D&amp;D Beyond sync failed — HP and slots may be out of date.
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            )}
-          </div>
-
-          {/* Name & type */}
-          <div className="flex-1 min-w-0">
-            {editingName ? (
-              <Input
-                autoFocus
-                value={nameVal}
-                onChange={(e) => setNameVal(e.target.value)}
-                onBlur={commitName}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") commitName();
-                  if (e.key === "Escape") setEditingName(false);
-                }}
-                className="h-7 text-sm font-semibold px-1"
-                onClick={(e) => e.stopPropagation()}
-              />
-            ) : (
-              <div>
-                <div className="group/name flex items-center gap-1">
-                  <button
-                    onDoubleClick={(e) => {
-                      e.stopPropagation();
-                      setEditingName(true);
-                      setNameVal(c.name);
-                    }}
+                  <span
                     className={cn(
-                      "text-sm font-semibold truncate text-left transition-colors min-w-0",
-                      isActive
-                        ? "text-[var(--initiative)]"
-                        : "text-foreground hover:text-primary",
-                      isDead && "line-through text-muted-foreground"
+                      "text-[9px] font-bold uppercase tracking-[0.08em]",
+                      isActive ? "text-[var(--initiative)]/75" : "text-muted-foreground"
                     )}
                   >
-                    {c.name}
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditingName(true);
-                      setNameVal(c.name);
-                    }}
-                    title="Rename"
-                    aria-label="Rename combatant"
-                    className="flex-none text-muted-foreground/50 hover:text-foreground opacity-0 group-hover/name:opacity-100 focus-visible:opacity-100 transition-opacity"
-                  >
-                    <Edit2 className="w-3 h-3" />
-                  </button>
-                  {isActive && (
-                    <span className="flex-none w-1.5 h-1.5 rounded-full bg-[var(--initiative)] animate-pulse" />
-                  )}
-                </div>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <span
-                    className="text-[10px] font-medium capitalize flex items-center gap-0.5"
-                    style={{ color: typeColor }}
-                  >
-                    {TYPE_ICONS[c.type]} {c.type}
+                    init
                   </span>
-                  {c.playerName && (
-                    <span className="text-[10px] text-muted-foreground">· {c.playerName}</span>
-                  )}
-                  {c.isConcentrating && (
-                    <span className="text-[10px] text-concentration font-medium">· Conc</span>
-                  )}
+                </button>
+              )}
+            </div>
+
+            {/* Avatar */}
+            <div className="relative flex-none">
+              {c.avatarUrl ? (
+                <img
+                  src={c.avatarUrl}
+                  alt={c.name}
+                  className="w-12 h-12 rounded-full object-cover border border-border"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              ) : (
+                <div
+                  className="w-12 h-12 rounded-full border flex items-center justify-center text-muted-foreground [&_svg]:w-5 [&_svg]:h-5"
+                  style={{ backgroundColor: `${typeColor}18`, borderColor: `${typeColor}44` }}
+                >
+                  {TYPE_ICONS[c.type]}
                 </div>
-              </div>
-            )}
+              )}
+              {/* Stale-data badge: this PC's last D&D Beyond sync failed */}
+              {isStale && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span
+                      className="absolute -top-1 -right-1 flex items-center justify-center w-4 h-4 rounded-full bg-warning text-black ring-2 ring-card cursor-help"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <AlertTriangle className="w-2.5 h-2.5" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-[14rem]">
+                    <p className="font-semibold text-warning">Stale data</p>
+                    <p className="text-muted-foreground leading-snug">
+                      Last D&amp;D Beyond sync failed — HP and slots may be out of date.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
+
+            {/* Name & type */}
+            <div className="flex-1 min-w-0">
+              {editingName ? (
+                <Input
+                  autoFocus
+                  value={nameVal}
+                  onChange={(e) => setNameVal(e.target.value)}
+                  onBlur={commitName}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") commitName();
+                    if (e.key === "Escape") setEditingName(false);
+                  }}
+                  className="h-8 text-[17px] font-semibold px-1"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              ) : (
+                <div>
+                  <div className="group/name flex items-center gap-1">
+                    <button
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        setEditingName(true);
+                        setNameVal(c.name);
+                      }}
+                      className={cn(
+                        "text-[17px] leading-tight font-semibold tracking-[-0.01em] truncate text-left transition-colors min-w-0",
+                        isActive
+                          ? "text-[var(--initiative)]"
+                          : "text-foreground hover:text-primary",
+                        isDead && "line-through text-muted-foreground"
+                      )}
+                    >
+                      {c.name}
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingName(true);
+                        setNameVal(c.name);
+                      }}
+                      title="Rename"
+                      aria-label="Rename combatant"
+                      className="flex-none text-muted-foreground/50 hover:text-foreground opacity-0 group-hover/name:opacity-100 focus-visible:opacity-100 transition-opacity"
+                    >
+                      <Edit2 className="w-3 h-3" />
+                    </button>
+                    {isActive && (
+                      <span className="flex-none w-1.5 h-1.5 rounded-full bg-[var(--initiative)] animate-pulse" />
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span
+                      className="text-xs font-medium capitalize flex items-center gap-0.5"
+                      style={{ color: typeColor }}
+                    >
+                      {TYPE_ICONS[c.type]} {c.type}
+                    </span>
+                    {c.playerName && (
+                      <span className="text-xs text-muted-foreground">· {c.playerName}</span>
+                    )}
+                    {c.isConcentrating && (
+                      <span className="text-xs text-concentration font-medium">· Conc</span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* AC */}
-          <div className="flex-none flex flex-col items-center gap-0.5">
-            <Shield className="w-3 h-3 text-muted-foreground" />
-            <span className="text-sm font-bold leading-none">{c.ac}</span>
-          </div>
-
-          {/* HP */}
+          {/* Vitals: AC and HP in one box */}
           <div className="flex-none" onClick={(e) => e.stopPropagation()}>
             <HPControls
               combatantId={c.id}
               hpCurrent={c.hpCurrent}
               hpMax={c.hpMax}
               hpTemp={c.hpTemp}
-              compact={true}
+              ac={c.ac}
+              variant="vitals"
             />
           </div>
         </div>
 
         {/* Conditions in header */}
         {c.conditions.length > 0 && (
-          <div className="mt-1.5 pl-[4.25rem]">
+          <div className="mt-1.5 pl-[4.5rem]">
             <ConditionDisplay conditions={c.conditions} compact />
           </div>
         )}
