@@ -493,7 +493,9 @@ git commit -m "feat: tabbed stat sheet editor"
 
 - [ ] **Step 1: Build the list and wire the editor**
 
-`BestiaryBrowser` renders the library list on the left — search box (debounced into `/api/library?q=`, as `AddCombatantDialog` already does), a type filter for pc/npc/monster, and rows showing the `portraitUrl` thumbnail with a type-icon fallback — and `StatSheetEditor` on the right for the selected entry. New entry POSTs to `/api/library`; save PATCHes `/api/library/[id]`; delete confirms through `useConfirm` from `components/ui/confirm-dialog.tsx` as the other entity pages do.
+`BestiaryBrowser` renders the library list on the left — search box (debounced into `/api/library?q=`, as `AddCombatantDialog` already does), a type filter for pc/npc/monster, and rows showing the `portraitUrl` thumbnail with a type-icon fallback — and `StatSheetEditor` on the right for the selected entry.
+
+**Pass `key={entryId}` on the editor.** It seeds its draft rows and `imagePath` from props once, so without a key, selecting a second entry would show the first one's data. New entry POSTs to `/api/library`; save PATCHes `/api/library/[id]`; delete confirms through `useConfirm` from `components/ui/confirm-dialog.tsx` as the other entity pages do.
 
 The library is global, so do not reach for `EntityListView` or `activeCampaignId` — this list has no campaign scope, relations or archive state. A plain list in this component is the right size.
 
@@ -527,7 +529,7 @@ git commit -m "feat: Bestiary page for viewing and editing stat sheets"
 
 - [ ] **Step 1: Wire mid-fight editing**
 
-The pane's **Edit** button opens `StatSheetEditorDialog` seeded with `statBlockToUpload(combatant)`. Saving calls `applyCombatantSheet` — that combatant only. When `combatant.libraryId` is set, a **Save to library** action additionally PATCHes `/api/library/[id]`; it is absent when `libraryId` is null. A PATCH returning 404 means the entry was deleted since the add: surface that in a toast and clear `libraryId` on the combatant, rather than leaving a button that always fails (Review Focus 1).
+The pane's **Edit** button opens `StatSheetEditorDialog` seeded with `statBlockToUpload(combatant)`, with `key={entryId}` on the dialog — it seeds its draft rows and `imagePath` from props once, so without a key a second combatant would open showing the first one's data. Saving calls `applyCombatantSheet` — that combatant only. When `combatant.libraryId` is set, a **Save to library** action additionally PATCHes `/api/library/[id]`; it is absent when `libraryId` is null. A PATCH returning 404 means the entry was deleted since the add: surface that in a toast and clear `libraryId` on the combatant, rather than leaving a button that always fails (Review Focus 1).
 
 - [ ] **Step 2: Wire the empty state's actions**
 
