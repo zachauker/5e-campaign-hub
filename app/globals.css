@@ -84,6 +84,11 @@
   --marker-submap: #5a7ab8;
   --marker-note: #7a8079;
   --marker-event: #a855f7;
+
+  /* How wide the combatant column may grow before the tracker centres
+     itself. The toolbar rows, the card list and the page's outer group
+     are all derived from this, so tune the layout here and nowhere else. */
+  --tracker-col: 1400px;
 }
 
 * {
