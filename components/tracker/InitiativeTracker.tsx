@@ -61,7 +61,9 @@ export function InitiativeTracker() {
 
   return (
     <ScrollArea className="h-full">
-      <div className="p-3 space-y-1.5">
+      {/* 900px of content inside px-4 — keep in step with the toolbar rows
+          in EncounterControls so the list and the toolbar share both edges. */}
+      <div className="px-4 py-3 space-y-1.5 max-w-[932px]">
         {sorted.length === 0 && (
           <div className="text-center py-16 text-muted-foreground">
             <p className="text-sm font-medium">No combatants in this encounter.</p>

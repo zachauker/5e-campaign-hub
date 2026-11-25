@@ -95,7 +95,7 @@ export function EncounterControls({ onSave, saving, saveError, onNavigateBack }:
   return (
     <div className="flex flex-col gap-2 px-4 py-3 border-b border-border bg-card/50 backdrop-blur-sm">
       {/* Row 1: back + encounter name + save */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 max-w-[900px]">
         <Button
           size="icon-sm"
           variant="ghost"
@@ -166,7 +166,7 @@ export function EncounterControls({ onSave, saving, saveError, onNavigateBack }:
       </div>
 
       {/* Row 2: combat readout + controls */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 max-w-[900px]">
         {/* Round + active combatant — the war-room readout */}
         <div className="flex items-center gap-3 bg-muted rounded-lg px-3 py-1.5 flex-none">
           <div className="min-w-[1.75rem] text-center">

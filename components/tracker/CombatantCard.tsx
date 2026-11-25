@@ -129,7 +129,7 @@ export function CombatantCard({ combatant: c, isActive, tokenIndex, dragHandlePr
 
       <div className="p-3">
         {/* Header row: identity group (flexes) + vitals box (fixed) */}
-        <div className="flex items-center gap-3 max-w-[900px]">
+        <div className="flex items-center gap-3">
           {/* Drag handle */}
           <div
             {...dragHandleProps}
