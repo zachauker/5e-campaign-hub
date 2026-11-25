@@ -220,7 +220,9 @@ export default function EncounterPage() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="flex flex-1 overflow-hidden">
+      {/* 1252px = the 932px combatant column + the 320px stat pane, centred
+          the way every other page in the app centres its content. */}
+      <div className="flex flex-1 overflow-hidden w-full max-w-[1252px] mx-auto">
         {/* Main column */}
         <div className="flex flex-col flex-1 overflow-hidden">
           <EncounterControls
