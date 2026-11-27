@@ -26,7 +26,17 @@ services:
     networks:
       - oakwoodproxy
     restart: unless-stopped
-
+  
+    vault-sync:
+      image: node:22-alpine
+      container_name: vault-sync
+      working_dir: /vault
+      command: sh -c "npm install -g obsidian-headless && ob sync --continuous"
+      volumes:
+        - /mnt/user/appdata/5ehub-vault:/vault          # read-write; the hub's mount stays :ro
+        - /mnt/user/appdata/5ehub-vault-sync:/root      # keeps the login/config across restarts
+      restart: unless-stopped
+      
 networks:
   oakwoodproxy:
     external: true
