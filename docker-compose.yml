@@ -26,17 +26,26 @@ services:
     networks:
       - oakwoodproxy
     restart: unless-stopped
-  
-    vault-sync:
-      image: node:22-alpine
-      container_name: vault-sync
-      working_dir: /vault
-      command: sh -c "npm install -g obsidian-headless && ob sync --continuous"
-      volumes:
-        - /mnt/user/appdata/5ehub-vault:/vault          # read-write; the hub's mount stays :ro
-        - /mnt/user/appdata/5ehub-vault-sync:/root      # keeps the login/config across restarts
-      restart: unless-stopped
-      
+
+  # Mirrors the Obsidian vault onto the server with Obsidian's own headless client.
+  # One-time bootstrap AFTER the container is first up (the /root volume keeps it):
+  #   docker exec -it vault-sync ob login
+  #   docker exec -it vault-sync ob sync-setup --vault "<vault name>"
+  #   docker exec -it vault-sync ob sync-config --mode mirror-remote
+  # mirror-remote is the equivalent of Syncthing's Receive Only: this container can
+  # then never push a change back into the real vault. NEVER point it at a directory
+  # that holds anything else -- it deletes whatever is not in the vault.
+  # See DEPLOYMENT.md.
+  vault-sync:
+    image: node:22-alpine
+    container_name: vault-sync
+    working_dir: /vault
+    command: sh -c "npm install -g obsidian-headless && ob sync --continuous"
+    volumes:
+      - /mnt/user/appdata/5ehub-vault:/vault          # read-write; the hub's mount stays :ro
+      - /mnt/user/appdata/5ehub-vault-sync:/root      # keeps the login/config across restarts
+    restart: unless-stopped
+
 networks:
   oakwoodproxy:
     external: true

@@ -123,7 +123,8 @@ Sub-project #20 is merged to local `main` but **not yet pushed or deployed**, an
 first production sync has not run. One prerequisite remains: the manual vault
 pre-flight in `DEPLOYMENT.md`.
 
-The vault transport is settled — one-way Syncthing, `D&D/` only, Mac to Unraid — so a
+The vault transport is settled — Obsidian Sync pulled onto Unraid by a headless
+client, receive-only, with the private folders excluded — so a
 design here does **not** need to solve it, and should not assume git is available as a
 vault transport. If this app wants git for its own storage, that is a free-standing
 choice to argue on its own merits.

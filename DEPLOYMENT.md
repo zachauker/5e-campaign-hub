@@ -188,84 +188,127 @@ The campaign folder won't exist inside it, so every sync fails with a `503` and
   as the last sync status so a background pass that failed unattended is still
   visible. Nothing is archived or deleted when the folder can't be read: a sync
   that cannot see the vault never concludes that your notes are gone.
-- **Getting the vault onto the server: Syncthing, one way.** The vault is edited
-  on the Mac (`~/Documents/Willowbrook-Remote/`). It is not a git repository and
-  carries no sync journal, so something has to deliver the files. See
-  **Mirroring the vault with Syncthing** below. Development and tests run against
+- **Getting the vault onto the server: Obsidian Sync, one way.** The vault is
+  edited on the Mac (`~/Documents/Willowbrook-Remote/`). It is not a git repository
+  and carries no sync journal, so something has to deliver the files. The
+  `vault-sync` service does it with Obsidian's own headless client. See
+  **Mirroring the vault onto the server** below. Development and tests run against
   the local vault via `VAULT_PATH` in `.env.local` and need none of this.
 
-## Mirroring the vault with Syncthing
+## Mirroring the vault onto the server
 
-Share **one folder, one way**: the Mac sends, the server receives, and the server
-never sends anything back. The hub's mount is `:ro` and the hub never writes, so
-there is nothing on the server for a two-way sync to carry home — and a one-way
-setup cannot produce `.sync-conflict` files in the notes.
+The `vault-sync` service in `docker-compose.yml` mirrors the vault with
+[`obsidian-headless`](https://www.npmjs.com/package/obsidian-headless) — Obsidian's
+own headless client, published by Obsidian's lead developer — against the Obsidian
+Sync subscription the vault already uses. Nothing extra runs on the Mac, and there
+is no separate share to keep in step with the vault's real contents.
 
-**Share the `D&D` folder, not the whole vault.** The vault root also holds
-`Personal`, `House Stuff`, `Day Planner` and `Software Projects`, and none of that
-belongs on a server. It matters beyond tidiness: the attachment route resolves an
+> **The one rule that matters: `ob` treats its working directory as the vault
+> replica, and deletes everything in it that the vault does not contain.** Point it
+> only at a directory that holds nothing else. On 2026-11-27 an `ob sync` run whose
+> working directory was the deploy directory deleted the repo checkout *and* the
+> live database, surviving only because the running container still held the file
+> open. Check `working_dir` before starting the container, and never run `ob` by
+> hand from a project directory.
+
+**One way, enforced by the client.** `ob sync-config --mode mirror-remote` makes the
+server a receive-only replica: it pulls the remote vault and never pushes. That is
+the Obsidian Sync equivalent of Syncthing's Receive Only, and it matters here because
+`vault-sync` mounts the directory **read-write** — it has to, in order to write the
+files — while the hub's own mount of the same directory stays `:ro`. Left on the
+default bidirectional mode, a partial or damaged copy on the server could propagate
+deletions back into the real vault. Set the mode before the first full sync, not
+after.
+
+**Exclude what does not belong on a server.** Obsidian Sync carries the whole vault,
+and the vault root also holds `Personal`, `House Stuff`, `Day Planner` and
+`Software Projects`. This matters beyond tidiness: the attachment route resolves an
 embedded image by **basename anywhere under `VAULT_PATH`** (image extensions only —
 notes and configs are never reachable), so an image under `Personal/` on the server
-would be servable by anyone who could reach the hub and guess its file name. Don't
-put it there.
+would be servable by anyone who could reach the hub and guess its file name. Keep
+those folders off the server rather than relying on nobody guessing.
 
-**The layout that matters.** Mirror `D&D/` *into* the mounted directory, so the
-mounted directory is the root and `D&D/` sits inside it:
+Hidden folders are not synced by default, which also leaves the pre-migration
+backups behind (`.backup-*`, `.notion-import`, `.migration`, `.inbox`) — roughly two
+thirds of `D&D/` by size, about 133 MB of 198 MB against a real payload near 66 MB.
+The hub ignores dot-directories too, so nothing wants them here.
+
+**The layout the hub needs.** The client writes the whole vault into the mounted
+directory, so the mounted directory *is* the vault root and `D&D/` sits inside it:
 
 ```
 /mnt/user/appdata/5ehub-vault/        <- VAULT_HOST_PATH, mounted at /vault
-└── D&D/                              <- the Syncthing folder
-    ├── Explorers of Exandria/
-    └── Planescape/
+├── D&D/
+│   ├── Explorers of Exandria/
+│   └── Planescape/
+└── (Personal, House Stuff, … excluded)
 ```
 
 Then `VAULT_HOST_PATH=/mnt/user/appdata/5ehub-vault`, and the campaign folder in
-**Settings → Obsidian Vault** stays `D&D/Explorers of Exandria` — unchanged.
+**Settings → Obsidian Vault** stays `D&D/Explorers of Exandria` — unchanged. Do not
+rearrange this so that `Explorers of Exandria` sits at the root: it would sync and
+scan correctly and break every **Open in Obsidian** link, because `source_path` is
+stored relative to `VAULT_PATH`, the `D&D/` prefix would vanish from it, and Obsidian
+resolves `file=` against the real vault root, where `Explorers of Exandria/...` does
+not exist. Keep the prefix.
 
-Mirroring `D&D/` *as* the mounted directory instead (so `Explorers of Exandria`
-sits at the root) would also sync and scan correctly, and would break every
-**Open in Obsidian** link: `source_path` is stored relative to `VAULT_PATH`, the
-`D&D/` prefix would vanish from it, and Obsidian resolves `file=` against the real
-vault root, where `Explorers of Exandria/...` does not exist. Keep the prefix.
-
-**Setup.** Do steps 1-3 now; **steps 4 and 5 come after the pre-flight in the next
+**Setup.** Steps 1-5 can run now; **step 6 comes after the pre-flight in the next
 section**, because leaving `VAULT_HOST_PATH` unset is exactly how that checklist holds
-the background sync off. Syncthing can mirror the files into place meanwhile — nothing
+the background sync off. The files can be mirrored into place meanwhile — nothing
 reads them until the mount exists.
 
-1. On the Mac, add the folder `~/Documents/Willowbrook-Remote/D&D` and set its
-   folder type to **Send Only**.
-2. On Unraid, install Syncthing from Community Applications, accept the shared
-   folder, set its path to `/mnt/user/appdata/5ehub-vault/D&D`, and set its folder
-   type to **Receive Only**.
-3. Skip the dead weight. Roughly two thirds of `D&D/` is pre-migration backups the
-   hub already ignores as dot-directories — about 133 MB of the 198 MB, against a
-   real payload near 66 MB. Put this in `~/Documents/Willowbrook-Remote/D&D/.stignore`
-   on the Mac:
+1. Start the container, **by name** — `docker compose up -d` would start it too, and
+   it must not run before step 4 sets the mode. The `/root` volume persists the login
+   and sync config, so steps 2-4 are one-time.
 
-   ```
-   .backup-*
-   .notion-import
-   .migration
-   .inbox
+   ```bash
+   docker compose up -d vault-sync
    ```
 
-4. Set `VAULT_HOST_PATH` in the `.env` beside `docker-compose.yml` — but **not
+2. Sign in to the Obsidian account that owns the Sync vault.
+
+   ```bash
+   docker exec -it vault-sync ob login
+   ```
+
+3. Point it at the remote vault, by the name Obsidian Sync knows it by.
+
+   ```bash
+   docker exec -it vault-sync ob sync-setup --vault "<vault name>"
+   ```
+
+4. Make it receive-only and drop the folders that stay on the Mac. Check
+   `ob sync-config --help` against the installed version first — this is a young
+   package and the flags may have moved — and confirm images are among the synced
+   file types, or embedded character art will not come down.
+
+   ```bash
+   docker exec -it vault-sync ob sync-config --mode mirror-remote \
+     --excluded-folders "Personal,House Stuff,Day Planner,Software Projects"
+   ```
+
+5. Let the first full sync finish, then confirm what landed:
+
+   ```bash
+   ls "/mnt/user/appdata/5ehub-vault/D&D/Explorers of Exandria" | head
+   ```
+
+6. Set `VAULT_HOST_PATH` in the `.env` beside `docker-compose.yml` — but **not
    until the pre-flight below passes.** Leaving it unset is how you hold the
-   background sync off, and the next section depends on that.
-5. Confirm the server can see it, as the container does:
+   background sync off, and the next section depends on that. Then confirm the
+   hub's container sees it the way the hub does:
 
    ```bash
    docker exec encounter-tracker ls "/vault/D&D/Explorers of Exandria" | head
    ```
 
-**Cadence.** The hub's own automatic sync runs every 15 minutes, so Syncthing's
-default continuous watching is already finer-grained than the hub will notice. A
-note saved on the Mac shows up in the hub within one hub sync cycle.
+**Cadence.** `ob sync --continuous` follows the remote vault as it changes, and the
+hub's own automatic sync runs every 15 minutes, so a note saved on the Mac reaches
+the hub within one hub sync cycle.
 
-**One-way means one way.** If you ever edit a note on the server side, Receive Only
-will revert it on the next scan. That is the intended behaviour: the Mac is the
-source of truth, exactly as the read-only mount assumes.
+**One way means one way.** With `mirror-remote` set, an edit made on the server side
+is reverted on the next pass. That is the intended behaviour: the Mac is the source
+of truth, exactly as the hub's read-only mount assumes.
 
 ## First-sync pre-flight (do this before the first sync)
 

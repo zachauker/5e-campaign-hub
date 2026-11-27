@@ -490,8 +490,13 @@ The existing 925 lines of Notion tests are the template and most port directly.
 
 > **Resolved 2026-11-04:** one-way Syncthing, Send Only on the Mac to Receive Only
 > on Unraid, sharing the `D&D/` folder only and mirroring it *into* the mounted
-> directory so the campaign path keeps its prefix. See
-> [DEPLOYMENT.md](../../../DEPLOYMENT.md#mirroring-the-vault-with-syncthing). The
+> directory so the campaign path keeps its prefix.
+>
+> **Superseded 2026-11-27:** the transport is now `obsidian-headless` — Obsidian's
+> own headless client — in a `vault-sync` container, pulling the Sync vault in
+> `mirror-remote` mode. The direction and the layout ruling are unchanged; only the
+> mechanism is. See
+> [DEPLOYMENT.md](../../../DEPLOYMENT.md#mirroring-the-vault-onto-the-server). The
 > paragraph below is the original record of the open question.
 
 **What places the vault on Willowbrook is unresolved.** The vault lives at
