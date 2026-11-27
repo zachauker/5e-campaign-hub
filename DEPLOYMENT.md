@@ -313,42 +313,66 @@ of truth, exactly as the hub's read-only mount assumes.
 ## First-sync pre-flight (do this before the first sync)
 
 **Do not press Sync, and do not let the background sync run, until this checklist
-is done.** Two notes in the live vault have no id, and without one the first sync
-will archive their existing hub rows and create blank replacements. An archived
-row takes its map pins, thread links and briefing with it; the replacement has
-none of them. The app cannot undo this, and the vault is mounted read-only, so
-the fix is a one-time edit **in Obsidian, on the Mac**.
+is done.** A note with no id is keyed on its file name, and where a hub row for it
+already exists keyed on a Notion id, the first sync archives that row and creates a
+blank replacement. An archived row takes its map pins, thread links and briefing
+with it; the replacement has none of them. The app cannot undo this, and the vault
+is mounted read-only, so the fix is a one-time edit **in Obsidian, on the Mac**.
 
 **Hold the background sync off before you start.** Automatic sync is **on by
-default** and runs every 15 minutes, the first pass 30 seconds after the server
-starts, so "do not let it run" needs a mechanism. Use one of these, and do it
-before step 1:
+default** — `lib/vault/scheduler.ts` treats it as enabled unless the setting is
+literally the string `"false"` — and runs every 15 minutes, with
+`FIRST_TICK_DELAY_MS = 30_000` putting the first pass 30 seconds after the server
+starts. Thirty seconds is not enough time to open Settings, so "do not let it run"
+needs a mechanism rather than good intentions. Use **both** of these, before step 1:
 
-- **Leave `VAULT_HOST_PATH` unset until step 4 passes** (the most reliable). The
-  vault mount then falls back to the empty `./vault` directory, the campaign folder
-  does not exist inside it, and every sync, background or manual, answers `503`
-  and archives nothing. This is safe on the very first deploy of the new build,
-  when the scheduler fires before you can reach Settings. Set it in step 5.
-- **Turn automatic sync off** in **Settings → Obsidian Vault → Automatic
-  background sync**. This only helps if the setting is already off before the
-  server next starts, or if no campaign has a vault folder saved yet; on a fresh
-  deploy the first pass can beat you to the panel, so prefer the first option.
-  Turn it back on after step 5.
+- **Leave `VAULT_HOST_PATH` unset until step 4 passes.** The vault mount falls back
+  to the empty `./vault` directory, the campaign folder does not exist inside it,
+  and every sync, background or manual, answers `503` and archives nothing. Set it
+  in step 5.
+- **Write the kill switch straight into the database**, with the container stopped
+  so nothing is contending for the file. `settings` is `(key PRIMARY KEY, value NOT
+  NULL)`, so it is a plain upsert:
 
-**Why these two.** A note with neither `hub_id` nor `notion_id` is keyed on its
+  ```bash
+  sqlite3 /mnt/user/appdata/<deploy-dir>/data/encounter-tracker.db "INSERT INTO settings (key, value) VALUES ('vault_auto_sync_enabled','false') ON CONFLICT(key) DO UPDATE SET value='false';"
+  ```
+
+  Then confirm it took, rather than assuming:
+
+  ```bash
+  sqlite3 /mnt/user/appdata/<deploy-dir>/data/encounter-tracker.db "SELECT key, value FROM settings WHERE key LIKE '%auto_sync%';"
+  ```
+
+  This is what makes a *deliberate* first sync possible: with the row set you can
+  mount the vault, start the hub, and still choose when the first pass runs — which
+  the `VAULT_HOST_PATH` interlock alone cannot give you, because lifting it is what
+  starts the clock. The **Settings → Obsidian Vault → Automatic background sync**
+  toggle writes this same row, so it will show as off and you turn it back on there
+  in step 5. It starts as SQL because on a fresh deploy the scheduler reaches the
+  vault before you can reach the panel.
+
+**Why this happens.** A note with neither `hub_id` nor `notion_id` is keyed on its
 file name. The first deploy backfills `source_key` from `notion_page_id` on every
 existing row, so the old row is keyed on its Notion id, the basename matches
 nothing, and name-based adoption (which only claims rows whose `source_key` is
-empty) never gets a look. For `Shale Telenna (Hill)` the file name also carries
-a player name in parentheses that the hub row almost certainly lacks.
+empty) never gets a look. The row's `name` matching the file name exactly, as
+`Shale Telenna (Hill)` does, makes no difference: adoption is gated on the empty
+`source_key`, not on the name.
 
-| Note (under `D&D/Explorers of Exandria/`) | Hub table |
-|---|---|
-| `Arcs/Dangerous Designs Pt 1.md` | `session_notes` |
-| `Characters/PCs/Shale Telenna (Hill).md` | `characters` |
+Checked against the live vault and the production database on 2026-11-27 — four
+notes were id-less, no note carried a `hub_id`, and only one of the four is at risk:
 
-Checked against the live vault on 2026-10-23: both were still id-less, and no
-note carried a `hub_id`. Re-run step 1 before relying on that.
+| Note (under `D&D/Explorers of Exandria/`) | Hub table | What the first sync would do |
+|---|---|---|
+| `Characters/PCs/Shale Telenna (Hill).md` | `characters` | **archive the real row** (its `source_key` is `213e996be66d800b939cd7cbf634caad`) and create a blank replacement — this is the one that needs step 3 |
+| `Arcs/Dangerous Designs Pt 1.md` | `session_notes` | create it; no hub row of that name exists, so there is nothing to lose |
+| `Sessions/Session 31.md`, `Sessions/Session 32.md` | `session_notes` | create or adopt by name; both postdate the Notion backfill, so no row for them carries a `source_key` |
+
+The last two rows are safe for a structural reason, not a lucky one:
+`archiveUnseen` filters on `source_key IS NOT NULL`, so a row that never came from
+Notion is never the vault's to archive, and `findByNameUnlinked` will happily adopt
+one. Re-run steps 1 and 2 before relying on any of this.
 
 - [ ] **1. Confirm which mirrored notes have no id.** On the Mac, from the vault root:
 
@@ -370,12 +394,17 @@ note carried a `hub_id`. Re-run step 1 before relying on that.
   while those rows are still unarchived:
 
   ```bash
-  sqlite3 data/encounter-tracker.db "
-    SELECT 'characters' AS tbl, id, name, notion_page_id, source_key FROM characters
-      WHERE name LIKE 'Shale%';
-    SELECT 'session_notes' AS tbl, id, name, notion_page_id, source_key FROM session_notes
-      WHERE name LIKE 'Dangerous Designs%';"
+  sqlite3 /mnt/user/appdata/<deploy-dir>/data/encounter-tracker.db "SELECT 'characters' AS tbl, id, name, notion_page_id, source_key FROM characters WHERE name LIKE 'Shale%'; SELECT 'session_notes' AS tbl, id, name, notion_page_id, source_key FROM session_notes WHERE name LIKE 'Dangerous Designs%';"
   ```
+
+  **Use the absolute path, and check the file first.** `sqlite3` creates a database
+  when it opens a path that does not exist, so a mistyped or relative path yields an
+  empty one and `no such table: characters` — which reads exactly like "the rows are
+  gone". `ls -la` the file before you trust a query against it; the live database is
+  roughly 12 MB. A 0-byte `.db` beside `.fuse_hidden*` files whose link count is `0`
+  means it was deleted while the container still held it open: copy those to
+  `<name>.db` and `<name>.db-wal` **before** stopping the container, and see the
+  warning under "Mirroring the vault onto the server".
 
   `notion_page_id` is the value to copy. If a query returns more than one row,
   pick the one whose `archived` is 0 and that actually carries the pins and
